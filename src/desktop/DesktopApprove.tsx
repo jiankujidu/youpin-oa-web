@@ -1,49 +1,87 @@
 /**
- * 桌面端审批页 — master-detail 双栏（左列表 / 右详情）
- * 与手机端的「分段控件 + 全屏详情」是两套独立设计
+ * 办公审批 › 我发起的（/oa/approve/index）
+ * PC 后台统一版式：筛选 Tab + 数据表格 + 分页 + 详情弹层（含审批意见与通过/拒绝）
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { applyApproveDecision, createApprove, fetchApproves, getApproveRemark, getApproveStatus } from '../core/api';
 import type { ApproveItem } from '../core/types';
 import { fmtTime, toast } from '../core/util';
-import { Icon } from '../core/icons';
-import { Empty, Loading, Modal } from './ui';
+import { Modal } from './ui';
+import { DataTable, FilterTabs, PageHead, Panel, StatusTag, type Column } from './pc';
 
 const APPROVE_TYPES = ['请假', '出差', '外出', '加班', '采购', '维修', '用章', '用车'];
 
+const TABS = [
+  { key: 0, label: '全部' },
+  { key: 1, label: '待审批' },
+  { key: 2, label: '已通过' },
+  { key: 3, label: '已拒绝' },
+] as { key: 0 | 1 | 2 | 3; label: string }[];
+
+/** 真实接口用 check_status（0/1 待审，2 通过，3 拒绝，4 撤销），演示数据用 status */
+function statusOf(r: ApproveItem): 0 | 1 | 2 | 3 | 4 {
+  const raw = (r as any).check_status;
+  if (raw === undefined || raw === null) return getApproveStatus(r);
+  const n = Number(raw);
+  if (n === 2) return 2;
+  if (n === 3) return 3;
+  if (n === 4) return 4;
+  return 1;
+}
+
 function tag(s: number) {
-  if (s === 2) return <span className="d-tag d-tag-pass">已通过</span>;
-  if (s === 3) return <span className="d-tag d-tag-reject">已拒绝</span>;
-  return <span className="d-tag d-tag-pending">待审批</span>;
+  if (s === 2) return <StatusTag tone="ok">已通过</StatusTag>;
+  if (s === 3) return <StatusTag tone="no">已拒绝</StatusTag>;
+  if (s === 4) return <StatusTag tone="info">已撤销</StatusTag>;
+  return <StatusTag tone="wait">待审批</StatusTag>;
+}
+
+/** 真实接口没有 title / type_name，用 content、name、flow_type 兜底 */
+function titleOf(r: ApproveItem): string {
+  return r.title || r.content || (r as any).name || '（无标题）';
+}
+function typeOf(r: ApproveItem): string {
+  return r.type_name || (r as any).flow_type || (r as any).subject || '—';
 }
 
 export default function DesktopApprove() {
   const [status, setStatus] = useState<0 | 1 | 2 | 3>(0);
   const [list, setList] = useState<ApproveItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
   const [cur, setCur] = useState<ApproveItem | null>(null);
   const [remark, setRemark] = useState('');
-  const [confirm, setConfirm] = useState<{ pass: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const load = useCallback((s: 0 | 1 | 2 | 3) => {
-    setLoading(true);
-    fetchApproves(s).then((rows) => {
-      setList(rows);
-      setLoading(false);
-      setCur((prev) => (prev ? rows.find((r) => r.id === prev.id) || rows[0] || null : rows[0] || null));
-    });
-  }, []);
-
-  useEffect(() => {
-    load(status);
-  }, [status, load]);
-
-  /* ===== 发起审批 ===== */
   const [add, setAdd] = useState(false);
   const [addType, setAddType] = useState(APPROVE_TYPES[0]);
   const [addTitle, setAddTitle] = useState('');
   const [addContent, setAddContent] = useState('');
+
+  /** 一次取全部，状态筛选在前端做（后端 status 语义与列表字段不一致） */
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchApproves(0)
+      .then((rows) => {
+        setList(rows);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const rows = useMemo(() => {
+    const k = q.trim().toLowerCase();
+    return list.filter((r) => {
+      if (status !== 0 && statusOf(r) !== status) return false;
+      if (!k) return true;
+      return (titleOf(r) + typeOf(r) + (r.admin_name || '') + (r.content || '') + ((r as any).name || ''))
+        .toLowerCase()
+        .includes(k);
+    });
+  }, [list, q, status]);
 
   async function submitAdd() {
     if (!addTitle.trim()) return toast('请填写申请事由');
@@ -56,7 +94,8 @@ export default function DesktopApprove() {
     setAddContent('');
     setStatus(1);
     toast('已提交，进入待审批');
-    load(1);
+    setStatus(1);
+    load();
   }
 
   async function decide(pass: boolean) {
@@ -66,224 +105,162 @@ export default function DesktopApprove() {
       return;
     }
     const r = await applyApproveDecision(cur.id, pass, remark);
-    if (!r.ok) {
-      toast(r.msg || '提交失败');
-      setConfirm(null);
-      return;
-    }
+    if (!r.ok) return toast(r.msg || '提交失败');
     toast(pass ? '已通过' : '已拒绝');
     setRemark('');
-    setConfirm(null);
-    load(status);
+    setCur(null);
+    load();
   }
 
-  const st = cur ? getApproveStatus(cur) : 0;
+  const cols: Column<ApproveItem>[] = [
+    { key: 'type', title: '类型', width: 120, render: (r) => typeOf(r) },
+    { key: 'title', title: '审批事项', render: (r) => <span className="pc-td-strong">{titleOf(r)}</span> },
+    { key: 'admin', title: '申请人', width: 110, render: (r) => r.admin_name || '—' },
+    { key: 'time', title: '提交时间', width: 150, render: (r) => fmtTime(r.create_time) },
+    { key: 'status', title: '状态', width: 110, render: (r) => tag(statusOf(r)) },
+    {
+      key: 'op',
+      title: '操作',
+      width: 160,
+      render: (r) => {
+        const s = statusOf(r);
+        return s === 1 ? (
+          <span className="pc-link" onClick={() => setCur(r)}>
+            审批 · 详情
+          </span>
+        ) : (
+          <span className="pc-link" onClick={() => setCur(r)}>
+            详情
+          </span>
+        );
+      },
+    },
+  ];
+
+  const st = cur ? statusOf(cur) : 0;
 
   return (
     <div>
-      <div className="d-page-head">
-        <span className="d-page-title">审批</span>
-        <span className="d-page-sub">共 {list.length} 条</span>
-        <span className="d-page-actions">
-          {(
-            [
-              [0, '全部'],
-              [1, '待审批'],
-              [2, '已通过'],
-              [3, '已拒绝'],
-            ] as [0 | 1 | 2 | 3, string][]
-          ).map(([s, label]) => (
-            <button
-              key={s}
-              className={`d-btn ${status === s ? 'd-btn-primary' : 'd-btn-ghost'}`}
-              onClick={() => setStatus(s)}
-            >
-              {label}
+      <PageHead
+        title="我发起的"
+        crumb={['办公审批', '我发起的']}
+        desc={`共 ${rows.length} 条审批`}
+        actions={
+          <>
+            <button className="pc-btn pc-btn-ghost" onClick={() => load()}>
+              刷新
             </button>
-          ))}
-          <button className="d-btn d-btn-primary" onClick={() => setAdd(true)}>
-            <Icon name="plus" size={15} /> 发起审批
-          </button>
-        </span>
-      </div>
+            <button className="pc-btn" onClick={() => setAdd(true)}>
+              ＋ 发起审批
+            </button>
+          </>
+        }
+      />
+      <Panel bodyPad={false}>
+        <div style={{ padding: '12px 16px 0' }}>
+          <FilterTabs tabs={TABS} value={status} onChange={(v: 0 | 1 | 2 | 3) => setStatus(v)} />
+          <div className="pc-toolbar">
+            <input className="pc-input" style={{ width: 260 }} placeholder="搜索事由 / 类型 / 申请人" value={q} onChange={(e) => setQ(e.target.value)} />
+            {q ? <button className="pc-btn pc-btn-ghost" onClick={() => setQ('')}>清空</button> : null}
+          </div>
+        </div>
+        <div style={{ padding: '0 16px 12px' }}>
+          <DataTable columns={cols} rows={rows} rowKey={(r) => r.id} onRowClick={setCur} loading={loading} pageSize={20} />
+        </div>
+      </Panel>
 
+      {/* ===== 详情 / 审批 ===== */}
+      {cur ? (
+        <Modal
+          title={titleOf(cur)}
+          onClose={() => {
+            setCur(null);
+            setRemark('');
+          }}
+          footer={
+            st === 1 ? (
+              <>
+                <button className="pc-btn pc-btn-ghost" onClick={() => { setCur(null); setRemark(''); }}>
+                  取消
+                </button>
+                <button className="pc-btn pc-btn-danger" onClick={() => void decide(false)}>
+                  拒绝
+                </button>
+                <button className="pc-btn" onClick={() => void decide(true)}>
+                  通过
+                </button>
+              </>
+            ) : (
+              <button className="pc-btn" onClick={() => setCur(null)}>
+                关闭
+              </button>
+            )
+          }
+        >
+          <dl className="pc-kv">
+            <div style={{ display: 'contents' }}><dt>编号</dt><dd>{cur.id}</dd></div>
+            <div style={{ display: 'contents' }}><dt>类型</dt><dd>{typeOf(cur)}</dd></div>
+            <div style={{ display: 'contents' }}><dt>申请人</dt><dd>{cur.admin_name || '—'}</dd></div>
+            <div style={{ display: 'contents' }}><dt>提交时间</dt><dd>{fmtTime(cur.create_time)}</dd></div>
+            <div style={{ display: 'contents' }}><dt>状态</dt><dd>{st === 2 ? '已通过' : st === 3 ? '已拒绝' : st === 4 ? '已撤销' : '待审批'}</dd></div>
+          </dl>
+          {cur.content ? (
+            <div style={{ marginTop: 14, fontSize: 13.5, lineHeight: 1.9, color: 'var(--c-text-2)', whiteSpace: 'pre-wrap' }}>
+              {cur.content}
+            </div>
+          ) : null}
+          {(cur.flow || []).length ? (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>审批流程</div>
+              {(cur.flow || []).map((n, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: '1px solid var(--c-border)' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', marginTop: 5, flex: 'none', background: n.state === 'ok' ? 'var(--c-success-2)' : n.state === 'no' ? 'var(--c-danger)' : 'var(--c-warn-2)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600 }}>{n.name}</div>
+                    {n.admin_name ? <div style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>{n.admin_name}</div> : null}
+                    {n.remark ? <div style={{ fontSize: 12.5 }}>意见：{n.remark}</div> : null}
+                    {n.time ? <div style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{n.time}</div> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {getApproveRemark(cur) ? (
+            <div style={{ marginTop: 12, fontSize: 13, color: 'var(--c-text-2)' }}>审批意见：{getApproveRemark(cur)}</div>
+          ) : null}
+          {st === 1 ? (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 13, marginBottom: 6 }}>审批意见（拒绝时必填）</div>
+              <textarea className="pc-input" style={{ width: '100%', height: 70, resize: 'vertical' }} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="填写审批意见" />
+            </div>
+          ) : null}
+        </Modal>
+      ) : null}
+
+      {/* ===== 发起审批 ===== */}
       {add ? (
         <Modal
           title="发起审批"
           onClose={() => setAdd(false)}
           footer={
             <>
-              <button className="d-btn" onClick={() => setAdd(false)}>
-                取消
-              </button>
-              <button className="d-btn d-btn-primary" onClick={() => void submitAdd()} disabled={busy}>
-                {busy ? '提交中…' : '提交'}
-              </button>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setAdd(false)}>取消</button>
+              <button className="pc-btn" onClick={() => void submitAdd()} disabled={busy}>{busy ? '提交中…' : '提交'}</button>
             </>
           }
         >
-          <div className="d-page-sub" style={{ marginBottom: 6 }}>
-            申请类型
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, marginBottom: 8 }}>申请类型</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
             {APPROVE_TYPES.map((t) => (
-              <button
-                key={t}
-                className={`d-btn ${addType === t ? 'd-btn-primary' : 'd-btn-ghost'}`}
-                onClick={() => setAddType(t)}
-              >
+              <button key={t} className={`pc-btn ${addType === t ? '' : 'pc-btn-ghost'}`} onClick={() => setAddType(t)}>
                 {t}
               </button>
             ))}
           </div>
-          <div className="d-page-sub" style={{ marginBottom: 4 }}>
-            申请事由 *
-          </div>
-          <input
-            className="d-field"
-            style={{ width: '100%', marginBottom: 10 }}
-            placeholder="如：10月试剂采购申请"
-            value={addTitle}
-            onChange={(e) => setAddTitle(e.target.value)}
-          />
-          <div className="d-page-sub" style={{ marginBottom: 4 }}>
-            详细说明
-          </div>
-          <input
-            className="d-field"
-            style={{ width: '100%' }}
-            placeholder="补充说明（可选）"
-            value={addContent}
-            onChange={(e) => setAddContent(e.target.value)}
-          />
-        </Modal>
-      ) : null}
-
-      <div className="d-cols-2">
-        {/* ===== 左：列表 ===== */}
-        <div className="d-list">
-          <div className="d-list-head">审批列表</div>
-          {loading ? (
-            <Loading />
-          ) : list.length === 0 ? (
-            <Empty text="暂无审批" />
-          ) : (
-            list.map((it) => (
-              <div
-                key={it.id}
-                className={`d-list-row${cur?.id === it.id ? ' active' : ''}`}
-                onClick={() => {
-                  setCur(it);
-                  setRemark('');
-                }}
-              >
-                <div className="d-row-main">
-                  <div className="d-row-title">{it.title}</div>
-                  <div className="d-row-sub">
-                    {it.type_name} · {it.admin_name} · {fmtTime(it.create_time)}
-                  </div>
-                </div>
-                {tag(getApproveStatus(it))}
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* ===== 右：详情 ===== */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {cur ? (
-            <>
-              <div className="d-card">
-                <div className="d-card-title" style={{ fontSize: 16, marginBottom: 10 }}>
-                  {cur.title}
-                  {tag(st)}
-                </div>
-                <div className="d-card-line">
-                  {cur.type_name} · 申请人 {cur.admin_name} · {fmtTime(cur.create_time)}
-                </div>
-                {cur.content ? (
-                  <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.9, color: 'var(--c-text-2)' }}>
-                    {cur.content.split('\n').map((p, i) => (
-                      <div key={i}>{p}</div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="d-card">
-                <div className="d-card-title">审批流程</div>
-                {(cur.flow || []).map((n, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--c-border-2)' }}>
-                    <span
-                      style={{
-                        width: 10, height: 10, borderRadius: '50%', marginTop: 5, flex: 'none',
-                        background: n.state === 'ok' ? 'var(--c-success-2)' : n.state === 'no' ? 'var(--c-danger)' : 'var(--c-warn-2)',
-                      }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{n.name}</div>
-                      {n.admin_name ? <div style={{ fontSize: 12.5, color: 'var(--c-text-2)', marginTop: 2 }}>{n.admin_name}</div> : null}
-                      {n.remark ? <div style={{ fontSize: 12.5, color: 'var(--c-text-2)', marginTop: 2 }}>意见：{n.remark}</div> : null}
-                      {n.time ? <div style={{ fontSize: 12, color: 'var(--c-text-3)', marginTop: 2 }}>{n.time}</div> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {st === 1 ? (
-                <div className="d-card">
-                  <div className="d-card-title">审批意见</div>
-                  <textarea
-                    className="d-field"
-                    style={{ width: '100%', height: 72, padding: 10, borderRadius: 8, resize: 'vertical', fontSize: 13 }}
-                    placeholder="填写审批意见（拒绝时必填）"
-                    value={remark}
-                    onChange={(e) => setRemark(e.target.value)}
-                  />
-                  <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                    <button className="d-btn d-btn-primary" onClick={() => setConfirm({ pass: true })}>
-                      通过
-                    </button>
-                    <button className="d-btn d-btn-danger" onClick={() => setConfirm({ pass: false })}>
-                      拒绝
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="d-card">
-                  <div className="d-card-line">
-                    该审批已处理：{st === 2 ? '已通过' : '已拒绝'}
-                    {` · ${getApproveRemark(cur) || '无意见'}`}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="d-card">
-              <Empty text="请选择左侧一条审批" />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {confirm ? (
-        <Modal
-          title={confirm.pass ? '确认通过？' : '确认拒绝？'}
-          onClose={() => setConfirm(null)}
-          footer={
-            <>
-              <button className="d-btn d-btn-ghost" onClick={() => setConfirm(null)}>
-                取消
-              </button>
-              <button className="d-btn d-btn-primary" onClick={() => decide(confirm.pass)}>
-                确定
-              </button>
-            </>
-          }
-        >
-          <div style={{ fontSize: 13.5, color: 'var(--c-text-2)', lineHeight: 1.7 }}>
-            {cur?.title}
-          </div>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>申请事由 *</div>
+          <input className="pc-input" style={{ width: '100%', marginBottom: 12 }} placeholder="如：10月试剂采购申请" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} />
+          <div style={{ fontSize: 13, marginBottom: 6 }}>详细说明</div>
+          <input className="pc-input" style={{ width: '100%' }} placeholder="补充说明（可选）" value={addContent} onChange={(e) => setAddContent(e.target.value)} />
         </Modal>
       ) : null}
     </div>

@@ -174,6 +174,8 @@ async function oaFetch(path: string, init: RequestInit = {}): Promise<Response> 
   const sid = getOaSid();
   const headers = new Headers(init.headers);
   if (sid) headers.set('x-oa-session', sid);
+  // 后端以此判定 ajax：缺失会返回整页 HTML 而不是 JSON 列表
+  if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
   const res = await fetch(`${CONFIG.oaProxy}${path}`, { ...init, headers });
   const newSid = res.headers.get('x-oa-session');
   if (newSid) setOaSid(newSid);
@@ -185,6 +187,25 @@ function oaPost(path: string, data: Record<string, string>, withXhr = true): Pro
   const headers: Record<string, string> = { 'Content-Type': 'application/x-www-form-urlencoded' };
   if (withXhr) headers['X-Requested-With'] = 'XMLHttpRequest';
   return oaFetch(path, { method: 'POST', headers, body: new URLSearchParams(data).toString() });
+}
+
+/**
+ * 取当前真实登录人姓名（解析后台「基本资料」页）。
+ * 免登录模式下仍显示后端会话的真实用户，而不是写死的游客名。
+ */
+export async function fetchMyName(): Promise<string> {
+  if (IS_DEMO_DATA) return '';
+  try {
+    const res = await oaFetch('/home/index/edit_personal.html');
+    if (!res.ok) return '';
+    const html = await res.text();
+    const byTd = html.match(/姓名<\/td>[\s\S]{0,120}?>\s*([^<>\s]{1,20})\s*</);
+    if (byTd && byTd[1]) return byTd[1].trim();
+    const byInput = html.match(/name="nickname"[^>]*value="([^"]{1,20})"/);
+    return byInput ? byInput[1].trim() : '';
+  } catch {
+    return '';
+  }
 }
 
 /** 取真实服务端验证码图片（blob），用于代理模式的登录页 */
@@ -367,7 +388,7 @@ export function fetchApproves(status: 0 | 1 | 2 | 3): Promise<ApproveItem[]> {
 export function fetchCustomers(type: 1 | 2 | 3, keyword = ''): Promise<Customer[]> {
   if (!IS_DEMO_DATA) {
     const path = type === 2 ? '/customer/index/sea' : type === 3 ? '/customer/index/trash' : '/customer/index/index';
-    return oaList<Customer>(path, { keywords: keyword });
+    return oaList<Customer>(path, { keywords: keyword, limit: 100 });
   }
   let list = S().customers;
   if (type === 2) list = list.filter((c) => c.grade === 'lead');
@@ -383,7 +404,7 @@ export function fetchCustomers(type: 1 | 2 | 3, keyword = ''): Promise<Customer[
 }
 
 export function fetchProducts(keyword = ''): Promise<Product[]> {
-  if (!IS_DEMO_DATA) return oaList<Product>('/product/index/list', { keywords: keyword });
+  if (!IS_DEMO_DATA) return oaList<Product>('/product/index/list', { keywords: keyword, limit: 50 });
   let list = S().products;
   if (keyword) {
     const k = keyword.toLowerCase();
@@ -392,8 +413,23 @@ export function fetchProducts(keyword = ''): Promise<Product[]> {
   return delay(list);
 }
 
-/** 附件 = 内置样本 + 本机真实上传（真实上传的排前面） */
+/** 附件 = 真实 OA 文件库（/home/files/index）+ 本机上传（本机上传的排前面） */
 export function fetchAttachments(keyword = ''): Promise<Attachment[]> {
+  if (!IS_DEMO_DATA) {
+    return oaList<any>('/home/files/index', { keywords: keyword, limit: 50 }).then((rows) =>
+      rows.map((r) => ({
+        id: String(r.id),
+        name: r.name || r.filename || '未命名',
+        url: r.filepath || '',
+        filepath: r.filepath || '',
+        filesize: Number(r.filesize || 0),
+        fileext: r.fileext || '',
+        create_time: r.create_time,
+        admin_name: r.admin_name,
+        group_title: r.group_title,
+      })),
+    );
+  }
   const uploaded = readUploaded();
   const list = [...uploaded, ...S().attachments];
   const filtered = keyword
@@ -403,17 +439,17 @@ export function fetchAttachments(keyword = ''): Promise<Attachment[]> {
 }
 
 export function fetchNotes(): Promise<Note[]> {
-  if (!IS_DEMO_DATA) return oaList<Note>('/note/index/index');
+  if (!IS_DEMO_DATA) return oaList<Note>('/note/index/index', { limit: 100 });
   return delay(S().notes);
 }
 
 export function fetchArticles(): Promise<Article[]> {
-  if (!IS_DEMO_DATA) return oaList<Article>('/article/index/index');
+  if (!IS_DEMO_DATA) return oaList<Article>('/article/index/index', { limit: 100 });
   return delay(S().articles);
 }
 
 export function fetchMessages(): Promise<Message[]> {
-  if (!IS_DEMO_DATA) return oaList<Message>('/message/index/inbox');
+  if (!IS_DEMO_DATA) return oaList<Message>('/message/index/inbox', { limit: 100 });
   return delay(S().messages);
 }
 

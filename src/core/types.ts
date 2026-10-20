@@ -35,6 +35,13 @@ export interface ApproveItem {
   content?: string;
   remark?: string;
   flow?: FlowNode[];
+  /* ---- 真实接口（/oa/approve/index）字段 ---- */
+  check_status?: number | string;
+  flow_type?: string;
+  name?: string;
+  subject?: string;
+  department_name?: string;
+  amount?: string;
 }
 
 export interface FlowNode {
@@ -64,6 +71,30 @@ export interface Customer {
   last_time?: string | number;
   address?: string;
   remark?: string;
+  content?: string;
+  /* ---- 真实接口（/customer/index/index）返回的扩展字段 ---- */
+  /** grade 在真实接口里是等级名称字符串（如「AA类成交经销商」） */
+  grade_name?: string;
+  status_name?: string;
+  intent_status_name?: string;
+  belong_name?: string;
+  belong_department?: string;
+  industry?: string;
+  city?: string;
+  mobile?: string;
+  email?: string;
+  qq?: string;
+  wechat?: string;
+  user?: string;
+  follow_time?: string | number;
+  next_time?: string | number;
+  order_time?: string | number;
+  advance_deposit?: string;
+  deduction?: string;
+  margin_deposit?: string;
+  research_direction?: string;
+  purchase_inquiry?: string;
+  classification?: string;
 }
 
 /** 产品（/product/index/list） */
@@ -83,6 +114,18 @@ export interface Product {
   content?: string;
   /** 说明书列表（APP 的 goods_no_list） */
   goods_no_list?: DocRef[];
+  /* ---- 真实接口（/product/index/list）扩展字段 ---- */
+  methodology?: string;
+  expression_system?: string;
+  concentration?: string;
+  source?: string;
+  keywords?: string;
+  desc?: string;
+  down_load_num?: number | string;
+  read?: number | string;
+  department?: string;
+  user?: string;
+  status_msg?: string;
 }
 
 export interface DocRef {
@@ -99,6 +142,9 @@ export interface Note {
   admin_name?: string;
   create_time: string | number;
   content?: string;
+  admin_id?: string | number;
+  start_time?: string;
+  end_time?: string;
 }
 
 /** 问答知识（/article/index/index） */
@@ -108,6 +154,9 @@ export interface Article {
   cate_title?: string;
   create_time: string | number;
   content?: string;
+  desc?: string;
+  department?: string;
+  user?: string;
 }
 
 /** 消息（/message/index/{inbox|sendbox|draft|rubbish}） */
@@ -119,6 +168,10 @@ export interface Message {
   create_time: string | number;
   is_read?: boolean;
   content?: string;
+  send_time?: string | number;
+  read_time?: string | number;
+  module_name?: string;
+  type_title?: string;
 }
 
 /** 通讯录（/home/index/mail_list） */

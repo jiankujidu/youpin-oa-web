@@ -1,8 +1,8 @@
 /**
- * 桌面端附件管理 — 拖拽上传区 + 文件表格（与手机端的两个 44px 按钮 + 卡片列表是两套独立设计）
- * ★ 真实上传 + 真实转发（同一套 core 逻辑，独立视图）
+ * 附件管理 › 文件库（/home/files/index）
+ * PC 后台统一版式：上传区 + 工具栏 + 数据表格 + 分页 + 转发弹层
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addUploadedAttachment, fetchAttachments, removeUploadedAttachment } from '../core/api';
 import { PROVIDER_HOWTO, PROVIDER_LABEL } from '../core/config';
 import { FILE_EXTS, fileTypeInfo, validateFile } from '../core/filetype';
@@ -10,8 +10,8 @@ import { copyText, openWithViewer, shareFile, shareFilesAsZip } from '../core/sh
 import { UploadUnconfiguredError, activeProvider, isUploadConfigured, uploadFile } from '../core/upload';
 import type { Attachment } from '../core/types';
 import { downloadBlob, fmtSize, fmtTime, toast, urlToFile } from '../core/util';
-import { Empty, Loading, Modal } from './ui';
-import { Icon } from '../core/icons';
+import { Modal } from './ui';
+import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
 
 interface UpItem {
   id: string;
@@ -25,6 +25,7 @@ export default function DesktopFiles() {
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
+  const [ext, setExt] = useState('');
   const [uploading, setUploading] = useState<UpItem[]>([]);
   const [dragging, setDragging] = useState(false);
   const [unconfigured, setUnconfigured] = useState(false);
@@ -36,10 +37,15 @@ export default function DesktopFiles() {
 
   const load = useCallback((kw: string) => {
     setLoading(true);
-    fetchAttachments(kw).then((rows) => {
-      setList(rows);
-      setLoading(false);
-    });
+    fetchAttachments(kw)
+      .then((rows) => {
+        setList(rows);
+        setLoading(false);
+      })
+      .catch((e: unknown) => {
+        setLoading(false);
+        toast('文件库加载失败：' + (e instanceof Error ? e.message : '网络异常'));
+      });
   }, []);
 
   useEffect(() => {
@@ -102,229 +108,247 @@ export default function DesktopFiles() {
   }
 
   const provider = activeProvider();
-  const allChecked = list.length > 0 && checked.size === list.length;
+
+  const exts = useMemo(() => {
+    const s = new Set<string>();
+    list.forEach((a) => a.fileext && s.add(a.fileext));
+    return [...s].sort();
+  }, [list]);
+
+  const rows = useMemo(() => (ext ? list.filter((a) => a.fileext === ext) : list), [list, ext]);
+
+  const cols: Column<Attachment>[] = [
+    {
+      key: 'ck',
+      title: '',
+      width: 44,
+      render: (r) => (
+        <input
+          type="checkbox"
+          checked={checked.has(r.id)}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const s = new Set(checked);
+            if (e.target.checked) s.add(r.id);
+            else s.delete(r.id);
+            setChecked(s);
+          }}
+        />
+      ),
+    },
+    {
+      key: 'name',
+      title: '文件名',
+      render: (r) => {
+        const ft = fileTypeInfo(r.name);
+        return (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span className="d-ft" style={{ background: ft.c }}>
+              {ft.t}
+            </span>
+            <span className="pc-td-strong" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {r.name}
+            </span>
+          </span>
+        );
+      },
+    },
+    { key: 'size', title: '大小', width: 100, align: 'right', render: (r) => fmtSize(r.filesize) },
+    { key: 'group', title: '分组', width: 130, render: (r) => r.group_title || <StatusTag tone="info">未分组</StatusTag> },
+    { key: 'admin', title: '上传者', width: 110, render: (r) => r.admin_name || '—' },
+    { key: 'time', title: '上传时间', width: 160, render: (r) => fmtTime(r.create_time) },
+    {
+      key: 'op',
+      title: '操作',
+      width: 190,
+      render: (r) => (
+        <span style={{ display: 'inline-flex', gap: 12 }}>
+          <span className="pc-link" onClick={() => openWithViewer(r.url)}>
+            打开
+          </span>
+          <span className="pc-link" onClick={() => setShareTarget(r)}>
+            转发
+          </span>
+          <span
+            className="pc-link"
+            onClick={() => {
+              void urlToFile(r.url, r.name)
+                .then((f) => downloadBlob(f, r.name))
+                .catch(() => window.open(r.url, '_blank', 'noopener'));
+            }}
+          >
+            下载
+          </span>
+        </span>
+      ),
+    },
+  ];
+
+  async function shareZipChecked() {
+    const items = rows.filter((x) => checked.has(x.id));
+    if (!items.length) {
+      toast('请先勾选要转发的文件');
+      return;
+    }
+    toast('正在打包…');
+    const r = await shareFilesAsZip(
+      items.map((x) => ({ name: x.name, url: x.url })),
+      '优品OA-转发',
+    );
+    if (r.ok) toast(r.via === 'download' ? '已下载 zip' : '已调起系统分享');
+    else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
+  }
 
   return (
     <div>
-      <div className="d-page-head">
-        <span className="d-page-title">附件管理</span>
-        <span className="d-page-sub">共 {list.length} 个文件</span>
-        <span className="d-page-actions">
-          <button className="d-btn d-btn-ghost" onClick={() => void shareZipChecked()}>
-            打包转发勾选（{checked.size}）
-          </button>
-          <button className="d-btn d-btn-primary" onClick={() => fileInput.current?.click()}>
-            ＋ 上传文件
-          </button>
-        </span>
-      </div>
-
-      {/* ===== 拖拽上传区（桌面大热区）===== */}
-      <div
-        className={`d-dropzone${dragging ? ' dragging' : ''}`}
-        onClick={() => fileInput.current?.click()}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          dragDepth.current++;
-          setDragging(true);
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDragLeave={() => {
-          dragDepth.current--;
-          if (dragDepth.current <= 0) setDragging(false);
-        }}
-        onDrop={onDrop}
-      >
-        <div className="d-drop-ico"><Icon name="upload" size={28} /></div>
-        <div className="d-drop-title">把文件拖到这里，或点击选择文件</div>
-        <div className="d-drop-sub">
-          支持 {FILE_EXTS.length} 种格式（{FILE_EXTS.slice(0, 8).join(' / ')} …），单文件 ≤ 10MB
-        </div>
-        <div className="d-drop-btns">
-          <span className="d-btn d-btn-ghost">选择文件</span>
-        </div>
-      </div>
-      <input
-        ref={fileInput}
-        type="file"
-        multiple
-        accept={FILE_EXTS.map((e) => '.' + e).join(',')}
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const files = Array.from(e.target.files || []);
-          e.target.value = '';
-          void handleFiles(files);
-        }}
+      <PageHead
+        title="文件库"
+        crumb={['日常办公', '文件库']}
+        desc={`共 ${rows.length} 个文件`}
+        actions={
+          <>
+            <button className="pc-btn pc-btn-ghost" onClick={() => void shareZipChecked()}>
+              打包转发（{checked.size}）
+            </button>
+            <button className="pc-btn" onClick={() => fileInput.current?.click()}>
+              ＋ 上传文件
+            </button>
+          </>
+        }
       />
 
-      {/* ===== 上传进度 ===== */}
-      {uploading.map((u) => (
-        <div className="d-up-item" key={u.id} style={{ marginTop: 10 }}>
-          <span className="d-ft" style={{ background: fileTypeInfo(u.name).c }}>
-            {fileTypeInfo(u.name).t}
-          </span>
-          <span style={{ flex: 'none', width: 200, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {u.name}
-          </span>
-          {u.error ? (
-            <span style={{ flex: 1, fontSize: 12.5, color: 'var(--c-danger)' }}>失败：{u.error}</span>
+      {/* ===== 上传区 ===== */}
+      <Panel>
+        <div
+          className={`d-dropzone${dragging ? ' dragging' : ''}`}
+          onClick={() => fileInput.current?.click()}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            dragDepth.current++;
+            setDragging(true);
+          }}
+          onDragOver={(e) => e.preventDefault()}
+          onDragLeave={() => {
+            dragDepth.current--;
+            if (dragDepth.current <= 0) setDragging(false);
+          }}
+          onDrop={onDrop}
+        >
+          <div className="d-drop-ico">⬆</div>
+          <div className="d-drop-title">把文件拖到这里，或点击选择文件</div>
+          <div className="d-drop-sub">
+            支持 {FILE_EXTS.length} 种格式（{FILE_EXTS.slice(0, 8).join(' / ')} …），单文件 ≤ 10MB
+          </div>
+        </div>
+        <input
+          ref={fileInput}
+          type="file"
+          multiple
+          accept={FILE_EXTS.map((e) => '.' + e).join(',')}
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            e.target.value = '';
+            void handleFiles(files);
+          }}
+        />
+
+        {uploading.length ? (
+          <div style={{ marginTop: 12 }}>
+            {uploading.map((u) => (
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', fontSize: 13 }}>
+                <span style={{ width: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</span>
+                {u.error ? (
+                  <span style={{ color: 'var(--c-danger)' }}>失败：{u.error}</span>
+                ) : (
+                  <>
+                    <span className="d-up-bar" style={{ flex: 1 }}>
+                      <i style={{ width: `${u.percent}%` }} />
+                    </span>
+                    <span style={{ width: 44, textAlign: 'right', color: 'var(--c-primary)' }}>{u.percent}%</span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="d-notice" style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.8 }}>
+          {unconfigured || !isUploadConfigured() ? (
+            <>
+              <b>上传服务未配置：</b>上传需要一个前端可直接调用的第三方对象存储。在仓库根目录建 <code>.env.local</code> 填入以下任一后重新构建：
+              <div>· <code>VITE_CLOUDINARY_CLOUD</code> + <code>VITE_CLOUDINARY_PRESET</code> — {PROVIDER_HOWTO.cloudinary}</div>
+              <div>· <code>VITE_UPLOADCARE_PUB_KEY</code> — {PROVIDER_HOWTO.uploadcare}</div>
+              <div>· <code>VITE_R2_PRESIGN_URL</code> — {PROVIDER_HOWTO.r2}</div>
+              <div style={{ marginTop: 4, color: 'var(--c-text-3)' }}>列表中的文件来自 OA 真实文件库，浏览 / 下载 / 转发不受影响。</div>
+            </>
           ) : (
             <>
-              <span className="d-up-bar">
-                <i style={{ width: `${u.percent}%` }} />
-              </span>
-              <span style={{ flex: 'none', fontSize: 12.5, color: 'var(--c-primary)', width: 44, textAlign: 'right' }}>
-                {u.percent}%
-              </span>
+              <b>上传服务：{PROVIDER_LABEL[provider!]}</b> — 文件会真实上传到该服务并返回公网链接，可直接转发。
             </>
           )}
         </div>
-      ))}
-
-      {/* ===== 上传服务状态（明确，不静默）===== */}
-      {unconfigured || !isUploadConfigured() ? (
-        <div className="d-notice danger" style={{ marginTop: 14 }}>
-          <b>上传服务未配置</b>
-          上传需要配置一个前端可直接调用的第三方对象存储，当前已配置 0 个提供方。
-          <div style={{ marginTop: 6 }}>
-            在仓库根目录建 <code>.env.local</code>，填入以下任一后重新构建：
-          </div>
-          <div style={{ marginTop: 4 }}>
-            · <code>VITE_CLOUDINARY_CLOUD</code> + <code>VITE_CLOUDINARY_PRESET</code> — {PROVIDER_HOWTO.cloudinary}
-          </div>
-          <div>
-            · <code>VITE_UPLOADCARE_PUB_KEY</code> — {PROVIDER_HOWTO.uploadcare}
-          </div>
-          <div>
-            · <code>VITE_R2_PRESIGN_URL</code> — {PROVIDER_HOWTO.r2}
-          </div>
-        </div>
-      ) : (
-        <div className="d-notice" style={{ marginTop: 14 }}>
-          <b>上传服务：{PROVIDER_LABEL[provider!]}</b>
-          文件会真实上传到该服务并返回公网可访问链接，可直接转发。
-        </div>
-      )}
+      </Panel>
 
       {/* ===== 文件表格 ===== */}
-      <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div className="d-search" style={{ maxWidth: 320 }}>
-          <span className="d-search-ico"><Icon name="search" size={16} /></span>
-          <input
-            placeholder="搜索文件名"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') setQuery(keyword);
-            }}
-          />
+      <Panel bodyPad={false}>
+        <div style={{ padding: '14px 16px' }}>
+          <div className="pc-toolbar">
+            <input
+              className="pc-input"
+              style={{ width: 280 }}
+              placeholder="搜索文件名"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setQuery(keyword);
+              }}
+            />
+            <select className="pc-input" style={{ width: 140 }} value={ext} onChange={(e) => setExt(e.target.value)}>
+              <option value="">全部类型</option>
+              {exts.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+            <button className="pc-btn" onClick={() => setQuery(keyword)}>
+              查询
+            </button>
+            {(query || ext) && (
+              <button
+                className="pc-btn pc-btn-ghost"
+                onClick={() => {
+                  setKeyword('');
+                  setQuery('');
+                  setExt('');
+                }}
+              >
+                重置
+              </button>
+            )}
+            <button className="pc-btn pc-btn-ghost" onClick={() => load(query)}>
+              刷新
+            </button>
+          </div>
         </div>
-        <button className="d-btn d-btn-ghost" onClick={() => setQuery(keyword)}>
-          搜索
-        </button>
-      </div>
+        <div style={{ padding: '0 16px 12px' }}>
+          <DataTable columns={cols} rows={rows} rowKey={(r) => r.id} loading={loading} pageSize={20} indexCol={false} />
+        </div>
+      </Panel>
 
-      <div style={{ marginTop: 12, background: '#fff', border: '1px solid var(--c-border)', borderRadius: 10, overflow: 'hidden' }}>
-        {loading ? (
-          <Loading />
-        ) : list.length === 0 ? (
-          <Empty text="暂无附件" />
-        ) : (
-          <table className="d-table">
-            <thead>
-              <tr>
-                <th style={{ width: 40 }}>
-                  <input
-                    type="checkbox"
-                    checked={allChecked}
-                    onChange={(e) => setChecked(e.target.checked ? new Set(list.map((x) => x.id)) : new Set())}
-                  />
-                </th>
-                <th>文件名</th>
-                <th style={{ width: 90 }}>大小</th>
-                <th style={{ width: 150 }}>上传时间</th>
-                <th style={{ width: 120 }}>上传者</th>
-                <th style={{ width: 250 }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((it) => {
-                const ft = fileTypeInfo(it.name);
-                return (
-                  <tr key={it.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={checked.has(it.id)}
-                        onChange={(e) => {
-                          const s = new Set(checked);
-                          if (e.target.checked) s.add(it.id);
-                          else s.delete(it.id);
-                          setChecked(s);
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span className="d-ft" style={{ background: ft.c }}>
-                          {ft.t}
-                        </span>
-                        <span className="d-td-name">{it.name}</span>
-                      </div>
-                    </td>
-                    <td>{fmtSize(it.filesize)}</td>
-                    <td>{fmtTime(it.create_time)}</td>
-                    <td>{it.admin_name || '—'}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="d-btn d-btn-ghost d-btn-sm" onClick={() => openWithViewer(it.url)}>
-                          打开
-                        </button>
-                        <button className="d-btn d-btn-primary d-btn-sm" onClick={() => setShareTarget(it)}>
-                          转发
-                        </button>
-                        <button
-                          className="d-btn d-btn-ghost d-btn-sm"
-                          onClick={() => {
-                            void urlToFile(it.url, it.name)
-                              .then((f) => downloadBlob(f, it.name))
-                              .catch(() => window.open(it.url, '_blank', 'noopener'));
-                          }}
-                        >
-                          下载
-                        </button>
-                        <button
-                          className="d-btn d-btn-danger d-btn-sm"
-                          onClick={() => {
-                            removeUploadedAttachment(it.id);
-                            toast('已从本机列表移除');
-                            load(query);
-                          }}
-                        >
-                          移除
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* ===== 转发面板（桌面端：复制链接 / 系统分享 / 打开）===== */}
+      {/* ===== 转发弹层 ===== */}
       {shareTarget ? (
         <Modal
           title={`转发：${shareTarget.name}`}
           onClose={() => setShareTarget(null)}
           footer={
             <>
-              <button className="d-btn d-btn-ghost" onClick={() => setShareTarget(null)}>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setShareTarget(null)}>
                 关闭
               </button>
               <button
-                className="d-btn d-btn-primary"
+                className="pc-btn"
                 onClick={() => {
                   void shareFile({ url: shareTarget.url, name: shareTarget.name }).then((r) => {
                     if (r.ok) {
@@ -341,51 +365,46 @@ export default function DesktopFiles() {
             </>
           }
         >
-          <div style={{ fontSize: 13, color: 'var(--c-text-2)', lineHeight: 1.8 }}>
-            公网可访问链接（刷新后仍有效）：
-          </div>
+          <div style={{ fontSize: 13, color: 'var(--c-text-2)' }}>公网可访问链接：</div>
           <div
             style={{
-              marginTop: 8, padding: '10px 12px', background: '#f7f9fc', border: '1px solid var(--c-border)',
-              borderRadius: 8, fontSize: 12, wordBreak: 'break-all', color: 'var(--c-text)',
+              marginTop: 8,
+              padding: '10px 12px',
+              background: '#f7f9fc',
+              border: '1px solid var(--c-border)',
+              borderRadius: 8,
+              fontSize: 12,
+              wordBreak: 'break-all',
             }}
           >
-            {shareTarget.url}
+            {shareTarget.url || '（该文件暂无可访问地址）'}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button
-              className="d-btn d-btn-ghost d-btn-sm"
+          <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+            <span
+              className="pc-link"
               onClick={() => {
                 void copyText(shareTarget.url).then((ok) => toast(ok ? '已复制链接' : '复制失败'));
               }}
             >
               复制链接
-            </button>
-            <button
-              className="d-btn d-btn-ghost d-btn-sm"
-              onClick={() => window.open(shareTarget.url, '_blank', 'noopener')}
-            >
+            </span>
+            <span className="pc-link" onClick={() => window.open(shareTarget.url, '_blank', 'noopener')}>
               在浏览器打开
-            </button>
-          </div>
-          <div style={{ marginTop: 12, fontSize: 12, color: 'var(--c-text-3)', lineHeight: 1.7 }}>
-            桌面浏览器多数不支持 Web Share API，会自动降级为「复制链接」，你可以把链接发给对方；
-            支持的系统（Windows 分享面板 / macOS 分享菜单）会直接调起分享。
+            </span>
+            <span
+              className="pc-link"
+              onClick={() => {
+                removeUploadedAttachment(shareTarget.id);
+                toast('已从本机列表移除');
+                setShareTarget(null);
+                load(query);
+              }}
+            >
+              从本机列表移除
+            </span>
           </div>
         </Modal>
       ) : null}
     </div>
   );
-
-  async function shareZipChecked() {
-    const items = list.filter((x) => checked.has(x.id));
-    if (!items.length) {
-      toast('请先勾选要转发的文件');
-      return;
-    }
-    toast('正在打包…');
-    const r = await shareFilesAsZip(items.map((x) => ({ name: x.name, url: x.url })), '优品OA-转发');
-    if (r.ok) toast(r.via === 'download' ? '已下载 zip' : '已调起系统分享');
-    else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
-  }
 }

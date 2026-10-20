@@ -56,12 +56,19 @@ const SUB_TITLES: Record<string, string> = {
 };
 
 export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }) {
-  const [session, setSessionState] = useState<Session | null>(() => getSession());
+  /** 免登录：默认会话直接生效（后端会话由代理以固定 PHPSESSID 维持） */
+  const [session, setSessionState] = useState<Session | null>(
+    () => getSession() || { username: 'auto', displayName: '陈美龙', loginAt: Date.now() },
+  );
   const [tab, setTab] = useState<Tab>('home');
   const [sub, setSub] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
+    const auto = { username: 'auto', displayName: '陈美龙', loginAt: Date.now() };
+    setSession(auto);
+    setDisplayName(auto.displayName);
+    setSessionState(auto);
     if (!session) return;
     // 未读角标：前台轮询（限制 L-3：后台标签会被浏览器节流）
     const tick = () => {

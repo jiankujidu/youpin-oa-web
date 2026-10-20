@@ -9,6 +9,7 @@ import type { CSSProperties } from 'react';
 const P: Record<string, string> = {
   home: 'M3 11.2 12 4l9 7.2M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5M9.5 21v-5h5v5',
   approve: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-3.2-8.6 2.2 2.2 4.4-4.6',
+  robot: 'M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2ZM12 4v4M9.5 13h.01M14.5 13h.01M9.5 16.5h5M2 13v3M22 13v3',
   customer: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 9a5 5 0 0 1 10 0M16 11a3 3 0 1 0 0-6M16 14a5 5 0 0 1 4 4',
   product: 'M9 3h6M10 3v5l-4 9a2 2 0 0 0 1.8 3h8.4a2 2 0 0 0 1.8-3l-4-9V3',
   file: 'M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z',

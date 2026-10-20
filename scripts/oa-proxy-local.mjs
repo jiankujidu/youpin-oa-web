@@ -18,6 +18,12 @@ import { randomUUID } from 'node:crypto';
 const OA_BASE = (process.env.OA_BASE || 'http://127.0.0.1:8787').replace(/\/+$/, '');
 const PORT = Number(process.argv[2] || process.env.PORT || 8788);
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*').split(',').map((s) => s.trim()).filter(Boolean);
+/**
+ * 免登录模式：OA_FIXED_SID=已登录的 PHPSESSID。
+ * 前端不传 x-oa-session（或传的会话在 KV 中不存在）时，一律改用该固定后端会话。
+ * 用于「不需要账号、打开即用」的部署形态。
+ */
+const FIXED_SID = (process.env.OA_FIXED_SID || '').trim();
 
 /** 内存 KV（等价于 Cloudflare KV） */
 const kv = new Map();
@@ -80,13 +86,18 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ ok: true, oaBase: OA_BASE, sessions: kv.size }));
   }
 
-  // 1) 会话
+  // 1) 会话（免登录模式：没有自带会话时固定使用后端已登录的 PHPSESSID）
   let sid = req.headers['x-oa-session'];
   let storedCookie = sid ? kv.get(sid) : undefined;
   if (!sid || storedCookie === undefined) {
-    sid = randomUUID();
-    storedCookie = '';
-    kv.set(sid, storedCookie);
+    if (FIXED_SID) {
+      sid = 'fixed';
+      storedCookie = `PHPSESSID=${FIXED_SID}`;
+    } else {
+      sid = randomUUID();
+      storedCookie = '';
+      kv.set(sid, storedCookie);
+    }
   }
 
   // 2) 组装转发（完整路径透传）
@@ -97,6 +108,8 @@ const server = http.createServer(async (req, res) => {
   delete headers['x-oa-session'];
   headers.referer = OA_BASE + '/';
   headers['user-agent'] = 'Mozilla/5.0 (YoupinOA-Web/1.0)';
+  // 后端以此判定 ajax 请求：缺失会直接回整页 HTML（而非 JSON 列表）
+  if (!headers['x-requested-with']) headers['x-requested-with'] = 'XMLHttpRequest';
   // 显式要求不压缩，彻底避免 content-encoding 与已解压 body 不一致
   headers['accept-encoding'] = 'identity';
   if (storedCookie) headers.cookie = storedCookie;

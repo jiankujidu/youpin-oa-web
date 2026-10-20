@@ -257,8 +257,9 @@ export const SUB_PAGES: Record<string, SubPageDef> = {
   'order-my': { title: '我的订单', path: '/customer/order/index', demo: orderMy },
   'order-handle': { title: '订单处理', path: '/customer/order/list', demo: orderHandle },
   sample: { title: '样本管理', path: '/customer/sample/index', demo: sample },
-  school: { title: '校展管理', path: '/customer/schoolexhibition/index', demo: school },
-  after: { title: '售后管理', path: '/customer/aftersalesservice/index', demo: after },
+  school: { title: '校展预名单', path: '/customer/schoolexhibition/index', demo: school },
+  'school-handle': { title: '校展管理（我处理的）', path: '/customer/schoolexhibition/list', demo: school },
+  after: { title: '售后管理（我申请的）', path: '/customer/aftersalesservice/index', demo: after },
 };
 
 /** 需要后端会话才能取到、因此演示模式也走演示集的 key 列表（=全部） */
@@ -268,36 +269,94 @@ export function subPageDef(key: string): SubPageDef | null {
 
 /* ============================ 真实响应 → BizRow ============================ */
 
+/** 审批/审核状态（gouguOA check_status 数字 → 中文） */
+const CHECK_STATUS: Record<string, string> = {
+  '0': '待审核', '1': '审核中', '2': '已通过', '3': '已驳回', '4': '已撤销', '5': '已撤销',
+};
+
+/** gouguOA 常见字段 → 中文列名（详情字段对展示用） */
+const FIELD_LABEL: Record<string, string> = {
+  id: '编号', code: '单号', title: '标题', name: '名称', content: '内容', remark: '备注',
+  amount: '金额', before: '变动前', after: '变动后', customer_id: '客户ID', customer_name: '客户',
+  admin_id: '创建人ID', admin_name: '创建人', create_time: '创建时间', update_time: '更新时间',
+  check_status: '审核状态', review_time: '审核时间', type: '类型', type_name: '类型',
+  status: '状态', status_msg: '状态', status_name: '状态', start_time: '开始时间', end_time: '结束时间',
+  duration: '时长', department_name: '部门', check_user: '当前审核人', file_ids: '附件ID',
+  invoice_title: '发票抬头', invoice_tax: '税号', open_time: '开具时间', open_name: '开票人',
+  enter_amount: '已到账', deal_amount: '成交金额', arrears_amount: '欠款', deal_time: '成交时间',
+  mobile: '手机', tel: '电话', email: '邮箱', wechat: '微信', qq: 'QQ', position: '职务',
+  department: '部门', nickname: '昵称', sex: '性别', goods_no: '货号', cate_title: '分类',
+  price_desc: '价格', specs: '规格', species: '种属', application: '应用', brand: '品牌',
+  address: '地址', source: '来源', grade: '级别', belong_name: '归属人', last_time: '最近跟进',
+  from_name: '发送人', to_name: '接收人', send_time: '发送时间', read_time: '阅读时间',
+  msg_type: '消息类型', filename: '存储名', filepath: '路径', filesize: '大小', fileext: '扩展名',
+  group_title: '分组', uploadip: '上传IP', mimetype: 'MIME', measure_no: '测量号',
+  measurement_no: '测量号', storage_location: '存储位置', remaining_situation: '剩余量',
+  recipient_name: '收件人', recipient_phone: '收件电话', tracking_no: '快递单号',
+  customer: '所属客户', customer_orders: '关联订单', product_info: '产品明细', pay_record: '到账记录',
+  is_cash: '现金', cash_type: '结算方式', invoice_type: '发票类型', invoice_class: '发票类别',
+  order_ids: '订单ID', order_subject_name: '订单主体', stage_name: '阶段', type_title: '类别',
+  desc: '摘要', keywords: '关键词', user: '用户', region: '地区', organizer: '主办方',
+  budget: '预算', exhibits: '展品', requirements: '要求', next_time: '下次跟进',
+  follow_time: '跟进时间', hours: '用时', chance: '关联机会', contact_id: '联系人ID',
+};
+
+/** 取值辅助：数字/时间戳 → 可读字符串 */
+function normVal(k: string, v: any): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') {
+    // 秒级时间戳 → 日期时间
+    if (/time$/.test(k) && v > 1e9) {
+      const d = new Date(v * 1000);
+      const p2 = (n: number) => (n < 10 ? '0' + n : '' + n);
+      return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    }
+    return String(v);
+  }
+  if (typeof v === 'string') return v.replace(/<[^>]+>/g, '').trim();
+  return '';
+}
+
 const TITLE_KEYS = ['title', 'name', 'order_no', 'goods_no', 'customer_name', 'remark', 'content'];
 const SUB_KEYS = ['customer_name', 'name', 'sub', 'desc', 'cate_title', 'type_name', 'remark'];
 const AMOUNT_KEYS = ['amount', 'money', 'price', 'total', 'total_amount', 'order_amount', 'price_desc'];
-const STATUS_KEYS = ['status_text', 'status_name', 'state_text', 'status'];
+const STATUS_KEYS = ['status_text', 'status_name', 'status_msg', 'state_text', 'check_status', 'status'];
 const TIME_KEYS = ['create_time', 'add_time', 'time', 'update_time'];
-const SKIP = new Set(['id', 'pwd', 'password', 'salt', 'token', 'session_id']);
+const SKIP = new Set(['id', 'pwd', 'password', 'salt', 'token', 'session_id', 'sha1', 'md5', 'template']);
 
 /** 真实后端字段形态不可预知：挑常见字段组装，其余字段原样进详情 */
 export function mapRemoteRow(r: Record<string, any>, i: number): BizRow {
   const pick = (keys: string[]): string => {
     for (const k of keys) {
       const v = r[k];
-      if (v !== undefined && v !== null && v !== '') return String(v);
+      if (v !== undefined && v !== null && v !== '') {
+        // check_status 数字 → 中文
+        if (k === 'check_status') return CHECK_STATUS[String(v)] || String(v);
+        return normVal(k, v);
+      }
     }
     return '';
   };
   const title = pick(TITLE_KEYS) || `记录 ${i + 1}`;
   const sub = pick(SUB_KEYS.filter((k) => k !== 'name' || true));
   const status = pick(STATUS_KEYS);
-  const tone: Tone = /驳回|取消|作废|关闭|失败|拒绝/.test(status)
+  const tone: Tone = /驳回|取消|作废|关闭|失败|拒绝|撤销/.test(status)
     ? 'no'
-    : /待|处理中|审核|运输中|进行中|投标/.test(status)
+    : /待|处理中|审核|运输中|进行中|投标|计划中/.test(status)
     ? 'wait'
     : /已|完成|生效|成交|解决/.test(status)
     ? 'ok'
     : 'info';
   const detail: [string, string][] = Object.entries(r)
-    .filter(([k, v]) => !SKIP.has(k) && v !== null && v !== undefined && v !== '' && typeof v !== 'object')
-    .slice(0, 24)
-    .map(([k, v]) => [k, String(v)] as [string, string]);
+    .filter(([k, v]) => {
+      if (SKIP.has(k)) return false;
+      if (v === null || v === undefined || v === '') return false;
+      if (typeof v === 'object') return false;
+      if (typeof v === 'string' && v.length > 300) return false;
+      return true;
+    })
+    .slice(0, 26)
+    .map(([k, v]) => [FIELD_LABEL[k] || k, normVal(k, v)] as [string, string]);
 
   return {
     id: String(r.id ?? `${i}`),

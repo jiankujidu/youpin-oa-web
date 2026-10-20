@@ -1,20 +1,41 @@
 /**
- * 桌面端产品管理 — 左列表 / 右详情（说明书 预览 / 收藏 / 转发）
+ * 产品中心 › 产品列表（/product/index/list）
+ * PC 后台统一版式：工具栏 + 数据表格 + 分页 + 详情弹层（说明书 预览/收藏/转发）
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProducts } from '../core/api';
+import { CONFIG } from '../core/config';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { fmtTime, plain, sanitizeName, toast } from '../core/util';
-import { Empty, Loading, Modal } from './ui';
-import { Icon } from '../core/icons';
+import { Modal } from './ui';
+import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
+
+/** 「100UL;2230;53ul;1560;10ul;368」→「100UL ¥2230 / 53ul ¥1560」 */
+function fmtPrice(s?: string): string {
+  if (!s) return '—';
+  if (/[元目录价经销]/.test(s)) return s.replace(/\n+/g, ' ').slice(0, 60);
+  const parts = s.split(';').map((x) => x.trim()).filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) out.push(`${parts[i]} ¥${parts[i + 1]}`);
+  return out.length ? out.join(' / ') : s.slice(0, 60);
+}
+
+/** 说明书地址：优先 OSS 直链（协议相对补齐 https），否则走同源代理 */
+function docUrl(g: { goods_no_url?: string; pc_goods_no_url?: string }): string {
+  const a = g.goods_no_url || '';
+  if (a) return a.startsWith('//') ? 'https:' + a : a;
+  const b = g.pc_goods_no_url || '';
+  return b ? `${CONFIG.oaProxy}${b}` : '';
+}
 
 export default function DesktopProduct() {
   const [list, setList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
+  const [cate, setCate] = useState('');
   const [cur, setCur] = useState<Product | null>(null);
   const [folders, setFolders] = useState<FavFolder[]>([]);
   const [saving, setSaving] = useState<{ name: string; url: string; productId: string } | null>(null);
@@ -22,11 +43,15 @@ export default function DesktopProduct() {
 
   const load = useCallback((kw: string) => {
     setLoading(true);
-    fetchProducts(kw).then((rows) => {
-      setList(rows);
-      setLoading(false);
-      setCur((prev) => (prev ? rows.find((r) => r.id === prev.id) || rows[0] || null : rows[0] || null));
-    });
+    fetchProducts(kw)
+      .then((rows) => {
+        setList(rows);
+        setLoading(false);
+      })
+      .catch((e: unknown) => {
+        setLoading(false);
+        toast('产品列表加载失败：' + (e instanceof Error ? e.message : '网络异常'));
+      });
   }, []);
 
   useEffect(() => {
@@ -34,162 +59,227 @@ export default function DesktopProduct() {
   }, [query, load]);
   useEffect(() => setFolders(getFolders()), []);
 
+  const cates = useMemo(() => {
+    const s = new Set<string>();
+    list.forEach((p) => p.cate_title && s.add(p.cate_title));
+    return [...s].sort();
+  }, [list]);
+
+  const rows = useMemo(() => (cate ? list.filter((p) => p.cate_title === cate) : list), [list, cate]);
+
   async function shareDoc(name: string, url: string) {
     if (!url) {
       toast('该说明书暂无可访问地址');
       return;
     }
     const r = await shareFile({ url, name });
-    if (r.ok) toast(r.via === 'clipboard' ? '已复制可分享链接' : r.via === 'download' ? '已下载' : '已调起分享');
+    if (r.ok) toast(r.via === 'clipboard' ? '已复制链接' : r.via === 'download' ? '已下载' : '已调起分享');
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
+  const cols: Column<Product>[] = [
+    { key: 'title', title: '产品名称', render: (r) => <span className="pc-td-strong">{plain(r.title)}</span> },
+    { key: 'no', title: '货号', width: 190, render: (r) => String(r.goods_no || '').split(';')[0] || '—' },
+    { key: 'cate', title: '产品分类', width: 200, render: (r) => r.cate_title || '—' },
+    { key: 'price', title: '规格 / 价格', width: 230, render: (r) => fmtPrice(r.price_desc) },
+    { key: 'species', title: '物种', width: 130, render: (r) => r.species || '—' },
+    { key: 'app', title: '应用', width: 150, render: (r) => r.application || '—' },
+    { key: 'dl', title: '下载数', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
+    { key: 'time', title: '更新时间', width: 150, render: (r) => fmtTime(r.create_time) },
+    {
+      key: 'op',
+      title: '操作',
+      width: 130,
+      render: (r) => (
+        <span className="pc-link" onClick={() => setCur(r)}>
+          说明书 · 详情
+        </span>
+      ),
+    },
+  ];
+
+  const docs = (cur?.goods_no_list || []).map((g) => ({
+    no: g.goods_no,
+    url: docUrl(g),
+    name: `${sanitizeName(g.goods_no)}-${sanitizeName(plain(cur?.title || ''))}.pdf`,
+  }));
+
   return (
     <div>
-      <div className="d-page-head">
-        <span className="d-page-title">产品管理</span>
-        <span className="d-page-sub">共 {list.length} 个产品</span>
-        <span className="d-page-actions">
-          <div className="d-search" style={{ maxWidth: 260 }}>
-            <span className="d-search-ico"><Icon name="search" size={16} /></span>
+      <PageHead
+        title="产品列表"
+        crumb={['产品中心', '产品列表']}
+        desc={`共 ${rows.length} 个产品`}
+        actions={
+          <button className="pc-btn pc-btn-ghost" onClick={() => load(query)}>
+            刷新
+          </button>
+        }
+      />
+
+      <Panel bodyPad={false}>
+        <div style={{ padding: '14px 16px' }}>
+          <div className="pc-toolbar">
             <input
-              placeholder="产品名称 / 货号"
+              className="pc-input"
+              style={{ width: 280 }}
+              placeholder="搜索产品名称 / 货号"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') setQuery(keyword);
               }}
             />
-          </div>
-          <button className="d-btn d-btn-ghost" onClick={() => setQuery(keyword)}>
-            搜索
-          </button>
-        </span>
-      </div>
-
-      <div className="d-cols-2">
-        <div className="d-list">
-          <div className="d-list-head">产品列表</div>
-          {loading ? (
-            <Loading />
-          ) : list.length === 0 ? (
-            <Empty text="暂无产品" />
-          ) : (
-            list.map((p) => (
-              <div
-                key={p.id}
-                className={`d-list-row${cur?.id === p.id ? ' active' : ''}`}
-                onClick={() => setCur(p)}
+            <select className="pc-input" style={{ width: 220 }} value={cate} onChange={(e) => setCate(e.target.value)}>
+              <option value="">全部分类</option>
+              {cates.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <button className="pc-btn" onClick={() => setQuery(keyword)}>
+              查询
+            </button>
+            {(query || cate) && (
+              <button
+                className="pc-btn pc-btn-ghost"
+                onClick={() => {
+                  setKeyword('');
+                  setQuery('');
+                  setCate('');
+                }}
               >
-                <div className="d-row-main">
-                  <div className="d-row-title">{plain(p.title)}</div>
-                  <div className="d-row-sub">
-                    {p.goods_no} · {p.price_desc || '—'} · {p.specs || '—'}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+                重置
+              </button>
+            )}
+          </div>
         </div>
+        <div style={{ padding: '0 16px 12px' }}>
+          <DataTable
+            columns={cols}
+            rows={rows}
+            rowKey={(r) => String(r.id)}
+            onRowClick={setCur}
+            loading={loading}
+            pageSize={20}
+          />
+        </div>
+      </Panel>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {cur ? (
+      {/* ===== 产品详情 + 说明书 ===== */}
+      {cur ? (
+        <Modal
+          title={plain(cur.title)}
+          onClose={() => setCur(null)}
+          footer={
             <>
-              <div className="d-card">
-                <div className="d-card-title" style={{ fontSize: 16 }}>
-                  {plain(cur.title)}
-                </div>
-                <div className="d-card-line">
-                  {cur.cate_title} · {fmtTime(cur.create_time)}
-                </div>
-                <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '8px 16px' }}>
-                  {(
-                    [
-                      ['货号', cur.goods_no], ['报价', cur.price_desc], ['规格', cur.specs], ['单位', cur.unit],
-                      ['品种', cur.species], ['应用场景', cur.application], ['品牌', cur.brand], ['库存', cur.stock],
-                    ] as [string, string | undefined][]
-                  )
-                    .filter(([, v]) => v)
-                    .map(([k, v]) => (
-                      <div key={k} style={{ fontSize: 13, display: 'flex', gap: 8 }}>
-                        <span style={{ color: 'var(--c-text-3)', width: 56, flex: 'none' }}>{k}</span>
-                        <span style={{ color: 'var(--c-text)' }}>{v}</span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div className="d-card">
-                <div className="d-card-title">说明书</div>
-                {(cur.goods_no_list || []).map((g, gi) => {
-                  const url = g.goods_no_url || g.pc_goods_no_url || '';
-                  const docName = `${sanitizeName(g.goods_no)}-${sanitizeName(cur.title)}.pdf`;
-                  return (
-                    <div
-                      key={gi}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--c-border-2)' }}
-                    >
-                      <span style={{ flex: 1, fontSize: 13.5, fontWeight: 500 }}>{g.goods_no}</span>
-                      <button className="d-btn d-btn-ghost d-btn-sm" onClick={() => window.open(url, '_blank', 'noopener')}>
-                        预览
-                      </button>
-                      <button
-                        className="d-btn d-btn-ghost d-btn-sm"
-                        onClick={() => setSaving({ name: docName, url, productId: cur.id })}
-                      >
-                        收藏
-                      </button>
-                      <button className="d-btn d-btn-primary d-btn-sm" onClick={() => void shareDoc(docName, url)}>
-                        转发
-                      </button>
-                    </div>
-                  );
-                })}
+              <button className="pc-btn pc-btn-ghost" onClick={() => setCur(null)}>
+                关闭
+              </button>
+              {docs.filter((d) => d.url).length ? (
                 <button
-                  className="d-btn d-btn-ghost"
-                  style={{ marginTop: 12 }}
+                  className="pc-btn"
                   onClick={() => {
-                    const items = (cur.goods_no_list || [])
-                      .map((g) => ({
-                        name: `${sanitizeName(g.goods_no)}-${sanitizeName(cur.title)}.pdf`,
-                        url: g.goods_no_url || g.pc_goods_no_url || '',
-                      }))
-                      .filter((x) => x.url);
-                    void shareFilesAsZip(items, cur.title).then((r) => {
+                    void shareFilesAsZip(
+                      docs.filter((d) => d.url).map((d) => ({ name: d.name, url: d.url })),
+                      plain(cur.title),
+                    ).then((r) => {
                       if (r.ok) toast(r.via === 'download' ? '已下载 zip' : '已调起系统分享');
                       else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
                     });
                   }}
                 >
-                  打包转发全部
+                  打包转发说明书
                 </button>
-              </div>
-
-              {cur.content ? (
-                <div className="d-card">
-                  <div className="d-card-title">产品详情</div>
-                  <div
-                    style={{ fontSize: 13, lineHeight: 1.9, color: 'var(--c-text-2)' }}
-                    dangerouslySetInnerHTML={{ __html: cur.content }}
-                  />
-                </div>
               ) : null}
             </>
-          ) : (
-            <div className="d-card">
-              <Empty text="请选择左侧产品" />
-            </div>
-          )}
-        </div>
-      </div>
+          }
+        >
+          <dl className="pc-kv">
+            {(
+              [
+                ['产品编号', cur.id],
+                ['货号', cur.goods_no],
+                ['产品分类', cur.cate_title],
+                ['规格 / 价格', fmtPrice(cur.price_desc)],
+                ['物种', cur.species],
+                ['应用', cur.application],
+                ['方法学', cur.methodology],
+                ['表达系统', cur.expression_system],
+                ['浓度', cur.concentration],
+                ['关键词', cur.keywords],
+                ['下载数', String(cur.down_load_num ?? 0)],
+                ['更新时间', fmtTime(cur.create_time)],
+              ] as [string, string | undefined][]
+            )
+              .filter(([, v]) => v !== undefined && v !== null && v !== '')
+              .map(([k, v]) => (
+                <div key={k} style={{ display: 'contents' }}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+          </dl>
 
+          <div style={{ marginTop: 16, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+            说明书（{docs.length}）
+          </div>
+          {docs.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--c-text-4)' }}>该产品暂无说明书</div>
+          ) : (
+            docs.map((d) => (
+              <div
+                key={d.no}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 0',
+                  borderTop: '1px solid var(--c-border)',
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.no}</span>
+                {d.url ? (
+                  <>
+                    <span className="pc-link" onClick={() => window.open(d.url, '_blank', 'noopener')}>
+                      预览
+                    </span>
+                    <span className="pc-link" onClick={() => setSaving({ name: d.name, url: d.url, productId: String(cur.id) })}>
+                      收藏
+                    </span>
+                    <span className="pc-link" onClick={() => void shareDoc(d.name, d.url)}>
+                      转发
+                    </span>
+                  </>
+                ) : (
+                  <StatusTag tone="info">未提供文件</StatusTag>
+                )}
+              </div>
+            ))
+          )}
+
+          {cur.content ? (
+            <>
+              <div style={{ marginTop: 16, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>产品详情</div>
+              <div
+                className="ai-doc-body"
+                dangerouslySetInnerHTML={{ __html: cur.content }}
+              />
+            </>
+          ) : null}
+        </Modal>
+      ) : null}
+
+      {/* ===== 收藏到文件夹 ===== */}
       {saving ? (
         <Modal
-          title="收藏到文件夹"
+          title="收藏说明书"
           onClose={() => setSaving(null)}
           footer={
             <button
-              className="d-btn d-btn-primary"
+              className="pc-btn"
               onClick={() => {
                 const n = newName.trim();
                 if (!n) {
@@ -215,7 +305,8 @@ export default function DesktopProduct() {
               folders.map((f) => (
                 <div
                   key={f.id}
-                  className="d-nav-item"
+                  className="pc-list-row"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => {
                     addDocToFolder(f.id, saving.name, saving.url, saving.productId);
                     setFolders(getFolders());
@@ -229,7 +320,7 @@ export default function DesktopProduct() {
             )}
           </div>
           <input
-            className="d-field"
+            className="pc-input"
             style={{ width: '100%' }}
             placeholder="新文件夹名称"
             value={newName}
