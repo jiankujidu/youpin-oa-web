@@ -7,8 +7,9 @@
  *
  * 断点：mobile ≤ 768px / desktop > 768px（core/breakpoint.ts BREAKPOINT.MOBILE_MAX）
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BREAKPOINT, useDevice, type Device } from './core/breakpoint';
+import { initRealSnapshot } from './core/api';
 import MobileApp from './mobile/MobileApp';
 import DesktopApp from './desktop/DesktopApp';
 
@@ -16,6 +17,11 @@ export default function App() {
   const natural = useDevice();
   /** 手动切换（手机端顶栏「桌面版」/ 桌面端「手机版」按钮） */
   const [forced, setForced] = useState<Device | null>(null);
+
+  // 后台预载真实数据快照（public/data/realdata.json），不阻塞渲染
+  useEffect(() => {
+    void initRealSnapshot();
+  }, []);
 
   const effective: Device = forced ?? natural;
 

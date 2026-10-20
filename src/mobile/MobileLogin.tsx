@@ -7,7 +7,7 @@
  *  - 真实模式（配置了 VITE_OA_PROXY）：显示后端 /oa/captcha.html 的真实验证码图片
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchCaptchaUrl, login } from '../core/api';
+import { fetchCaptchaUrl, initRealSnapshot, login, realSnapshotInfo } from '../core/api';
 import { IS_DEMO_DATA } from '../core/config';
 import { getRemembered, setRemembered } from '../core/session';
 import type { Session } from '../core/types';
@@ -44,6 +44,7 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
   const [captchaUrl, setCaptchaUrl] = useState<string | null>(null);
   const [tip, setTip] = useState('');
   const [busy, setBusy] = useState(false);
+  const [snap, setSnap] = useState(realSnapshotInfo());
   const loadedOnce = useRef(false);
 
   useEffect(() => {
@@ -54,6 +55,8 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
       setRemember(true);
     }
     loadedOnce.current = true;
+    // 快照加载完成后刷新数据源标识
+    void initRealSnapshot().then(() => setSnap(realSnapshotInfo()));
   }, []);
 
   const refreshCaptcha = useCallback(async () => {
@@ -188,7 +191,14 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
       <div className="m-login-foot">
         © 2026 优品生物 · 移动端版 v{APP_VERSION}
         {IS_DEMO_DATA ? (
-          <div className="m-demo-flag">演示模式 · 未连接真实后端</div>
+          snap.loaded ? (
+            <div className="m-demo-flag ok">
+              真实数据快照 · {snap.fetchedAt.slice(0, 10)}
+              {snap.masked ? '（手机号已脱敏）' : ''}
+            </div>
+          ) : (
+            <div className="m-demo-flag">演示模式 · 未连接真实后端</div>
+          )
         ) : (
           <div className="m-demo-flag ok">已连接真实后端（代理模式）</div>
         )}

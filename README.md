@@ -95,9 +95,33 @@ workflow 里的默认值是 `vars.VITE_BASE \|\| '/youpin-oa-web/'`，没配变�
 
 ---
 
-## 接真实数据（代理 + 你的 OA 账号）【推荐真实数据路线】
+## 当前数据源：真实数据快照（realdata.json）
 
-演示数据只是占位。**要让站点显示你公司的真实 OA 数据**，走这条路线：部署一个 Cloudflare Worker 代理，然后在网页里用你自己的 OA 账号登录即可。
+站点当前展示的是**真实 OA 业务数据快照**，由 `scripts/fetch-realdata.mjs` 用真实 OA 账号登录 `oa.upingbio.cn` 后抓取烘焙：
+
+| 数据 | 条数 | 说明 |
+|---|---|---|
+| 审批 | 15 | 全量（含状态/类型/申请人映射） |
+| 客户 | 500 | 最新 500 条（等级已按 APP 字典映射） |
+| 产品 | 80 | 最新 80 条 |
+| 公告 / 问答 / 消息 | 9 / 60 / 150 | 抽样 |
+| 通讯录 | 161 | **已剔除 pwd/salt 等凭据字段** |
+| 附件 | 60 | OSS 签名 URL（**有时效**，过期后需重新抓取） |
+
+快照存于 `public/data/realdata.json`（运行时按需 fetch，不进 JS bundle）。登录页底部会显示「真实数据快照 · 日期」标识。
+
+**更新快照**（重新登录 OA 取一个新 PHPSESSID 后）：
+
+```bash
+node scripts/fetch-realdata.mjs <PHPSESSID>          # 明文抓取
+node scripts/fetch-realdata.mjs <PHPSESSID> --mask   # 手机号中间四位脱敏
+```
+
+**⚠️ 隐私提示**：GitHub Pages 是公开 URL，任何人都可访问该快照（客户名、手机号等）。如需下线快照：删除 `public/data/realdata.json` 并重新部署，站点自动回落演示数据集。
+
+## 接实时真实数据（代理 + 你的 OA 账号）【可选升级】
+
+快照是静态的。**要让站点实时拉取你公司的真实 OA 数据**，走这条路线：部署一个 Cloudflare Worker 代理，然后在网页里用你自己的 OA 账号登录即可。
 
 ### 为什么必须走代理
 

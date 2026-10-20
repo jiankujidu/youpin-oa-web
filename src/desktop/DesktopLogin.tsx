@@ -3,7 +3,7 @@
  * 双模式：演示模式用本地算式验证码；真实模式（配置了代理）显示后端 /oa/captcha.html 真实验证码图片。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { fetchCaptchaUrl, login } from '../core/api';
+import { fetchCaptchaUrl, initRealSnapshot, login, realSnapshotInfo } from '../core/api';
 import { IS_DEMO_DATA } from '../core/config';
 import { getRemembered, setRemembered } from '../core/session';
 import type { Session } from '../core/types';
@@ -37,6 +37,7 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
   const [captchaUrl, setCaptchaUrl] = useState<string | null>(null);
   const [tip, setTip] = useState('');
   const [busy, setBusy] = useState(false);
+  const [snap, setSnap] = useState(realSnapshotInfo());
 
   useEffect(() => {
     const r = getRemembered();
@@ -45,6 +46,7 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
       setP(r.p);
       setRemember(true);
     }
+    void initRealSnapshot().then(() => setSnap(realSnapshotInfo()));
   }, []);
 
   const refresh = useCallback(async () => {
@@ -181,7 +183,14 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
           <div className="d-login-foot">
             © 2026 优品生物 · 网页版 v1.0
             {IS_DEMO_DATA ? (
-              <div style={{ marginTop: 4 }}>演示模式 · 未连接真实后端</div>
+              snap.loaded ? (
+                <div style={{ marginTop: 4, color: '#0a8f4c' }}>
+                  真实数据快照 · {snap.fetchedAt.slice(0, 10)}
+                  {snap.masked ? '（手机号已脱敏）' : ''}
+                </div>
+              ) : (
+                <div style={{ marginTop: 4 }}>演示模式 · 未连接真实后端</div>
+              )
             ) : (
               <div style={{ marginTop: 4 }}>已连接真实后端（代理模式）</div>
             )}

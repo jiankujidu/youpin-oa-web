@@ -17,6 +17,82 @@ import { uid } from './util';
 const K_UPLOADED = 'youpin_uploaded_meta';
 const K_OA_SID = 'youpin_oa_sid';
 
+/* ======================= 真实数据快照（public/data/realdata.json） ======================= */
+
+/**
+ * 由 scripts/fetch-realdata.mjs 用真实 OA 账号抓取烘焙的业务数据快照。
+ * 未配置代理时的数据源：有快照用快照（真实数据），无快照回落演示数据集。
+ */
+interface RealSnapshot {
+  fetchedAt: string;
+  source: string;
+  masked: boolean;
+  home: { msg_num: number };
+  approves: ApproveItem[];
+  customers: Customer[];
+  products: Product[];
+  notes: Note[];
+  articles: Article[];
+  messages: Message[];
+  mails: MailContact[];
+  attachments: Attachment[];
+}
+
+let REAL: RealSnapshot | null = null;
+let realInit: Promise<void> | null = null;
+
+/** 应用启动时调用：异步加载真实数据快照（不阻塞 UI，失败静默回落演示数据） */
+export function initRealSnapshot(): Promise<void> {
+  if (!IS_DEMO_DATA || REAL) return Promise.resolve();
+  if (!realInit) {
+    const base = CONFIG.base.endsWith('/') ? CONFIG.base : CONFIG.base + '/';
+    realInit = fetch(`${base}data/realdata.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<RealSnapshot>) : null))
+      .then((d) => {
+        REAL = d;
+      })
+      .catch(() => {
+        REAL = null;
+      });
+  }
+  return realInit;
+}
+
+/** 快照状态（登录页据此显示「真实数据快照」或「演示模式」） */
+export function realSnapshotInfo(): { loaded: boolean; fetchedAt: string; source: string; masked: boolean } {
+  return {
+    loaded: !!REAL,
+    fetchedAt: REAL?.fetchedAt || '',
+    source: REAL?.source || '',
+    masked: !!REAL?.masked,
+  };
+}
+
+/** 演示模式数据源：优先真实快照，回落演示数据集（统一键名） */
+function S() {
+  return REAL
+    ? {
+        approves: REAL.approves,
+        customers: REAL.customers,
+        products: REAL.products,
+        attachments: REAL.attachments,
+        notes: REAL.notes,
+        articles: REAL.articles,
+        messages: REAL.messages,
+        mails: REAL.mails,
+      }
+    : {
+        approves: DEMO.APPROVES,
+        customers: DEMO.CUSTOMERS,
+        products: DEMO.PRODUCTS,
+        attachments: DEMO.ATTACHMENTS,
+        notes: DEMO.NOTES,
+        articles: DEMO.ARTICLES,
+        messages: DEMO.MESSAGES,
+        mails: DEMO.MAILS,
+      };
+}
+
 /* ======================= OA 代理会话（仅存随机 sessionId，绝不存 OA Cookie） ======================= */
 
 function getOaSid(): string {
@@ -217,7 +293,7 @@ export async function login(
 
 export function fetchApproves(status: 0 | 1 | 2 | 3): Promise<ApproveItem[]> {
   if (!IS_DEMO_DATA) return oaList<ApproveItem>('/approve/index', { status });
-  const all = DEMO.APPROVES;
+  const all = S().approves;
   return delay(status === 0 ? all : all.filter((a) => a.status === status));
 }
 
@@ -226,7 +302,7 @@ export function fetchCustomers(type: 1 | 2 | 3, keyword = ''): Promise<Customer[
     const path = type === 2 ? '/customer/index/sea' : type === 3 ? '/customer/index/trash' : '/customer/index/index';
     return oaList<Customer>(path, { keywords: keyword });
   }
-  let list = DEMO.CUSTOMERS;
+  let list = S().customers;
   if (type === 2) list = list.filter((c) => c.grade === 'lead');
   else if (type === 3) list = list.filter((c) => c.grade === 'sleep');
   else list = list.filter((c) => c.grade !== 'sleep');
@@ -241,7 +317,7 @@ export function fetchCustomers(type: 1 | 2 | 3, keyword = ''): Promise<Customer[
 
 export function fetchProducts(keyword = ''): Promise<Product[]> {
   if (!IS_DEMO_DATA) return oaList<Product>('/product/index/list', { keywords: keyword });
-  let list = DEMO.PRODUCTS;
+  let list = S().products;
   if (keyword) {
     const k = keyword.toLowerCase();
     list = list.filter((p) => p.title.toLowerCase().includes(k) || p.goods_no.toLowerCase().includes(k));
@@ -252,7 +328,7 @@ export function fetchProducts(keyword = ''): Promise<Product[]> {
 /** 附件 = 内置样本 + 本机真实上传（真实上传的排前面） */
 export function fetchAttachments(keyword = ''): Promise<Attachment[]> {
   const uploaded = readUploaded();
-  const list = [...uploaded, ...DEMO.ATTACHMENTS];
+  const list = [...uploaded, ...S().attachments];
   const filtered = keyword
     ? list.filter((a) => a.name.toLowerCase().includes(keyword.toLowerCase()))
     : list;
@@ -261,22 +337,22 @@ export function fetchAttachments(keyword = ''): Promise<Attachment[]> {
 
 export function fetchNotes(): Promise<Note[]> {
   if (!IS_DEMO_DATA) return oaList<Note>('/note/index/index');
-  return delay(DEMO.NOTES);
+  return delay(S().notes);
 }
 
 export function fetchArticles(): Promise<Article[]> {
   if (!IS_DEMO_DATA) return oaList<Article>('/article/index/index');
-  return delay(DEMO.ARTICLES);
+  return delay(S().articles);
 }
 
 export function fetchMessages(): Promise<Message[]> {
   if (!IS_DEMO_DATA) return oaList<Message>('/message/index/inbox');
-  return delay(DEMO.MESSAGES);
+  return delay(S().messages);
 }
 
 export function fetchMails(keyword = ''): Promise<MailContact[]> {
   if (!IS_DEMO_DATA) return oaList<MailContact>('/home/index/mail_list', { keywords: keyword });
-  let list = DEMO.MAILS;
+  let list = S().mails;
   if (keyword) {
     const k = keyword.toLowerCase();
     list = list.filter((m) => m.name.includes(k) || (m.department || '').includes(k));
@@ -291,7 +367,15 @@ export function fetchHomeStats(): Promise<typeof DEMO.HOME_STATS> {
       .then((r) => extractObj<typeof DEMO.HOME_STATS>(r, DEMO.HOME_STATS))
       .catch(() => DEMO.HOME_STATS);
   }
-  return delay(DEMO.HOME_STATS, 120);
+  const src = S();
+  const stats = {
+    pendingApprove: src.approves.filter((a) => a.status === 1).length,
+    myCustomer: src.customers.filter((c) => c.grade !== 'sleep').length,
+    monthOrder: 0,
+    monthAmount: '—',
+    unreadMsg: src.messages.filter((m) => !m.is_read).length,
+  };
+  return delay(stats, 120);
 }
 
 /* ======================= 审批操作 ======================= */
