@@ -3,7 +3,7 @@
  * 分段控件（全部/待审批/已通过/已拒绝）+ 列表卡片 + 详情（流程节点 + 通过/拒绝）
  */
 import { useCallback, useEffect, useState } from 'react';
-import { applyApproveDecision, fetchApproves, getApproveStatus } from '../core/api';
+import { applyApproveDecision, fetchApproves, getApproveRemark, getApproveStatus } from '../core/api';
 import type { ApproveItem } from '../core/types';
 import { fmtTime, toast } from '../core/util';
 import { Dialog, Empty, Loading, PromptDialog } from './ui';
@@ -42,8 +42,13 @@ export default function MobileApprove() {
     load(status);
   }, [status, load]);
 
-  function commit(p: Pending) {
-    applyApproveDecision(p.item.id, p.pass, p.remark);
+  async function commit(p: Pending) {
+    const r = await applyApproveDecision(p.item.id, p.pass, p.remark);
+    if (!r.ok) {
+      toast(r.msg || '提交失败');
+      setPending(null);
+      return;
+    }
     toast(p.pass ? '已通过' : '已拒绝');
     setPending(null);
     setDetail(null);
@@ -114,7 +119,7 @@ export default function MobileApprove() {
           <div className="m-card">
             <div className="m-card-line">
               当前状态：{STATUS_LABEL[st] || '—'}
-              {st === 3 && detail.remark ? ` · ${detail.remark}` : ''}
+              {` · ${getApproveRemark(detail) || '无意见'}`}
             </div>
           </div>
         )}

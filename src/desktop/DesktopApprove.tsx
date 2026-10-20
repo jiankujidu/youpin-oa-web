@@ -3,10 +3,13 @@
  * 与手机端的「分段控件 + 全屏详情」是两套独立设计
  */
 import { useCallback, useEffect, useState } from 'react';
-import { applyApproveDecision, fetchApproves, getApproveStatus } from '../core/api';
+import { applyApproveDecision, createApprove, fetchApproves, getApproveRemark, getApproveStatus } from '../core/api';
 import type { ApproveItem } from '../core/types';
 import { fmtTime, toast } from '../core/util';
+import { Icon } from '../core/icons';
 import { Empty, Loading, Modal } from './ui';
+
+const APPROVE_TYPES = ['请假', '出差', '外出', '加班', '采购', '维修', '用章', '用车'];
 
 function tag(s: number) {
   if (s === 2) return <span className="d-tag d-tag-pass">已通过</span>;
@@ -21,6 +24,7 @@ export default function DesktopApprove() {
   const [cur, setCur] = useState<ApproveItem | null>(null);
   const [remark, setRemark] = useState('');
   const [confirm, setConfirm] = useState<{ pass: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback((s: 0 | 1 | 2 | 3) => {
     setLoading(true);
@@ -35,13 +39,38 @@ export default function DesktopApprove() {
     load(status);
   }, [status, load]);
 
-  function decide(pass: boolean) {
+  /* ===== 发起审批 ===== */
+  const [add, setAdd] = useState(false);
+  const [addType, setAddType] = useState(APPROVE_TYPES[0]);
+  const [addTitle, setAddTitle] = useState('');
+  const [addContent, setAddContent] = useState('');
+
+  async function submitAdd() {
+    if (!addTitle.trim()) return toast('请填写申请事由');
+    setBusy(true);
+    const r = await createApprove({ typeName: addType, title: addTitle, content: addContent });
+    setBusy(false);
+    if (!r.ok) return toast(r.msg || '提交失败');
+    setAdd(false);
+    setAddTitle('');
+    setAddContent('');
+    setStatus(1);
+    toast('已提交，进入待审批');
+    load(1);
+  }
+
+  async function decide(pass: boolean) {
     if (!cur) return;
     if (!pass && !remark.trim()) {
       toast('请填写拒绝理由');
       return;
     }
-    applyApproveDecision(cur.id, pass, remark);
+    const r = await applyApproveDecision(cur.id, pass, remark);
+    if (!r.ok) {
+      toast(r.msg || '提交失败');
+      setConfirm(null);
+      return;
+    }
     toast(pass ? '已通过' : '已拒绝');
     setRemark('');
     setConfirm(null);
@@ -72,8 +101,63 @@ export default function DesktopApprove() {
               {label}
             </button>
           ))}
+          <button className="d-btn d-btn-primary" onClick={() => setAdd(true)}>
+            <Icon name="plus" size={15} /> 发起审批
+          </button>
         </span>
       </div>
+
+      {add ? (
+        <Modal
+          title="发起审批"
+          onClose={() => setAdd(false)}
+          footer={
+            <>
+              <button className="d-btn" onClick={() => setAdd(false)}>
+                取消
+              </button>
+              <button className="d-btn d-btn-primary" onClick={() => void submitAdd()} disabled={busy}>
+                {busy ? '提交中…' : '提交'}
+              </button>
+            </>
+          }
+        >
+          <div className="d-page-sub" style={{ marginBottom: 6 }}>
+            申请类型
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {APPROVE_TYPES.map((t) => (
+              <button
+                key={t}
+                className={`d-btn ${addType === t ? 'd-btn-primary' : 'd-btn-ghost'}`}
+                onClick={() => setAddType(t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="d-page-sub" style={{ marginBottom: 4 }}>
+            申请事由 *
+          </div>
+          <input
+            className="d-field"
+            style={{ width: '100%', marginBottom: 10 }}
+            placeholder="如：10月试剂采购申请"
+            value={addTitle}
+            onChange={(e) => setAddTitle(e.target.value)}
+          />
+          <div className="d-page-sub" style={{ marginBottom: 4 }}>
+            详细说明
+          </div>
+          <input
+            className="d-field"
+            style={{ width: '100%' }}
+            placeholder="补充说明（可选）"
+            value={addContent}
+            onChange={(e) => setAddContent(e.target.value)}
+          />
+        </Modal>
+      ) : null}
 
       <div className="d-cols-2">
         {/* ===== 左：列表 ===== */}
@@ -169,7 +253,7 @@ export default function DesktopApprove() {
                 <div className="d-card">
                   <div className="d-card-line">
                     该审批已处理：{st === 2 ? '已通过' : '已拒绝'}
-                    {st === 3 && cur.remark ? ` · ${cur.remark}` : ''}
+                    {` · ${getApproveRemark(cur) || '无意见'}`}
                   </div>
                 </div>
               )}

@@ -14,6 +14,7 @@ import { UploadUnconfiguredError, activeProvider, isUploadConfigured, uploadFile
 import type { Attachment } from '../core/types';
 import { downloadBlob, fmtSize, fmtTime, toast, urlToFile } from '../core/util';
 import { Empty, Loading } from './ui';
+import { Icon } from '../core/icons';
 
 interface UploadingItem {
   id: string;
@@ -167,7 +168,7 @@ export default function MobileFiles() {
           ＋ 上传文件
         </div>
         <div className="m-att-btn m-att-btn-ghost" onClick={() => cameraInput.current?.click()}>
-          📷 拍照上传
+          <Icon name="upload" size={15} /> 拍照上传
         </div>
       </div>
       <input

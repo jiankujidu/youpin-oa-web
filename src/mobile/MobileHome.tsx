@@ -4,37 +4,38 @@
  */
 import { useEffect, useState } from 'react';
 import { fetchHomeStats } from '../core/api';
+import { Icon } from '../core/icons';
 
 /** 快捷审批 8 项（APPROVE_TYPES，app.js） */
 const QUICK_APPROVE: [number, string, string][] = [
-  [1, '请假', '🏖'],
-  [2, '出差', '✈'],
-  [3, '外出', '🏃'],
-  [4, '加班', '⏰'],
-  [15, '采购', '🛒'],
-  [7, '维修', '🔧'],
-  [9, '用章', '🔏'],
-  [10, '用车', '🚗'],
+  [1, '请假', 'calendar'],
+  [2, '出差', 'plane'],
+  [3, '外出', 'walk'],
+  [4, '加班', 'clock'],
+  [15, '采购', 'cart'],
+  [7, '维修', 'wrench'],
+  [9, '用章', 'stamp'],
+  [10, '用车', 'car'],
 ];
 
-/** 办公入口（对齐 app.js 的 entries 顺序与图标） */
+/** 办公入口（对齐 app.js 的 entries 顺序，图标统一为线性 SVG） */
 const ENTRIES: { key: string; icon: string; name: string; kind: 'sub' | 'tab' }[] = [
-  { key: 'note', icon: '📢', name: '企业公告', kind: 'sub' },
-  { key: 'article', icon: '💬', name: '问答知识', kind: 'sub' },
-  { key: 'product', icon: '🧪', name: '产品管理', kind: 'sub' },
-  { key: 'files', icon: '📁', name: '附件管理', kind: 'sub' },
-  { key: 'message', icon: '✉️', name: '消息中心', kind: 'sub' },
-  { key: 'mail', icon: '📇', name: '通讯录', kind: 'sub' },
-  { key: 'approve', icon: '📝', name: '发起审批', kind: 'tab' },
-  { key: 'customer', icon: '👥', name: '客户列表', kind: 'tab' },
-  { key: 'order-my', icon: '📦', name: '我的订单', kind: 'sub' },
-  { key: 'sample', icon: '🧫', name: '样本管理', kind: 'sub' },
-  { key: 'school', icon: '🏫', name: '校展管理', kind: 'sub' },
-  { key: 'after', icon: '🔨', name: '售后管理', kind: 'sub' },
-  { key: 'contact', icon: '👤', name: '客户联系人', kind: 'sub' },
-  { key: 'chance', icon: '🎯', name: '销售机会', kind: 'sub' },
-  { key: 'trace', icon: '📝', name: '跟进记录', kind: 'sub' },
-  { key: 'customer-add', icon: '➕', name: '新增客户', kind: 'sub' },
+  { key: 'note', icon: 'note', name: '企业公告', kind: 'sub' },
+  { key: 'article', icon: 'article', name: '问答知识', kind: 'sub' },
+  { key: 'product', icon: 'product', name: '产品管理', kind: 'sub' },
+  { key: 'files', icon: 'file', name: '附件管理', kind: 'sub' },
+  { key: 'message', icon: 'message', name: '消息中心', kind: 'sub' },
+  { key: 'mail', icon: 'mail', name: '通讯录', kind: 'sub' },
+  { key: 'approve-add', icon: 'approve', name: '发起审批', kind: 'sub' },
+  { key: 'customer', icon: 'customer', name: '客户列表', kind: 'tab' },
+  { key: 'order-my', icon: 'order', name: '我的订单', kind: 'sub' },
+  { key: 'sample', icon: 'sample', name: '样本管理', kind: 'sub' },
+  { key: 'school', icon: 'school', name: '校展管理', kind: 'sub' },
+  { key: 'after', icon: 'after', name: '售后管理', kind: 'sub' },
+  { key: 'contact', icon: 'contact', name: '客户联系人', kind: 'sub' },
+  { key: 'chance', icon: 'chance', name: '销售机会', kind: 'sub' },
+  { key: 'trace', icon: 'trace', name: '跟进记录', kind: 'sub' },
+  { key: 'customer-add', icon: 'plus', name: '新增客户', kind: 'sub' },
 ];
 
 export default function MobileHome({
@@ -67,7 +68,7 @@ export default function MobileHome({
             className="m-grid-item"
             onClick={() => onSwitchTab('approve')}
           >
-            <span className="m-gi-icon">{icon}</span>
+            <span className="m-gi-icon"><Icon name={icon} size={24} /></span>
             <span className="m-gi-text">{name}</span>
           </div>
         ))}
@@ -82,7 +83,7 @@ export default function MobileHome({
             className="m-grid-item"
             onClick={() => (e.kind === 'tab' ? onSwitchTab(e.key as 'approve' | 'customer') : onOpenSub(e.key))}
           >
-            <span className="m-gi-icon">{e.icon}</span>
+            <span className="m-gi-icon"><Icon name={e.icon} size={24} /></span>
             <span className="m-gi-text">{e.name}</span>
           </div>
         ))}

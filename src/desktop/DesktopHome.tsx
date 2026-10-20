@@ -7,21 +7,22 @@ import { fetchApproves, fetchHomeStats, fetchMessages, fetchNotes } from '../cor
 import type { ApproveItem, Message, Note } from '../core/types';
 import { fmtTime } from '../core/util';
 import { Empty, Loading } from './ui';
+import { Icon } from '../core/icons';
 
 const QUICK: [string, string][] = [
-  ['请假', '🏖'], ['出差', '✈'], ['外出', '🏃'], ['加班', '⏰'],
-  ['采购', '🛒'], ['维修', '🔧'], ['用章', '🔏'], ['用车', '🚗'],
+  ['请假', 'calendar'], ['出差', 'plane'], ['外出', 'walk'], ['加班', 'clock'],
+  ['采购', 'cart'], ['维修', 'wrench'], ['用章', 'stamp'], ['用车', 'car'],
 ];
 
 const ENTRIES: [string, string, string][] = [
-  ['product', '🧪', '产品管理'],
-  ['files', '📁', '附件管理'],
-  ['note', '📢', '企业公告'],
-  ['article', '💬', '问答知识'],
-  ['mail', '📇', '通讯录'],
-  ['sample', '🧫', '样本管理'],
-  ['school', '🏫', '校展管理'],
-  ['after', '🔨', '售后管理'],
+  ['product', 'product', '产品管理'],
+  ['files', 'file', '附件管理'],
+  ['note', 'note', '企业公告'],
+  ['article', 'article', '问答知识'],
+  ['mail', 'mail', '通讯录'],
+  ['sample', 'sample', '样本管理'],
+  ['school', 'school', '校展管理'],
+  ['after', 'after', '售后管理'],
 ];
 
 export default function DesktopHome({
@@ -100,7 +101,7 @@ export default function DesktopHome({
                   style={{ flexDirection: 'column', gap: 4, padding: '10px 4px', fontSize: 12 }}
                   onClick={() => onNavigate('approve')}
                 >
-                  <span style={{ fontSize: 20 }}>{icon}</span>
+                  <span style={{ display: "inline-flex" }}><Icon name={icon} size={20} /></span>
                   <span>{name}</span>
                 </div>
               ))}
@@ -112,7 +113,7 @@ export default function DesktopHome({
             <div style={{ padding: 6 }}>
               {ENTRIES.map(([key, icon, name]) => (
                 <div key={key} className="d-nav-item" onClick={() => onNavigate(key)}>
-                  <span className="d-nav-ico">{icon}</span>
+                  <span className="d-nav-ico"><Icon name={icon} size={18} /></span>
                   <span>{name}</span>
                 </div>
               ))}

@@ -7,6 +7,7 @@ import { fetchCustomers } from '../core/api';
 import type { Customer } from '../core/types';
 import { fmtTime } from '../core/util';
 import { Empty, Loading } from './ui';
+import { Icon } from '../core/icons';
 
 const GRADES: ['' | Customer['grade'], string][] = [
   ['', '全部'],
@@ -17,14 +18,14 @@ const GRADES: ['' | Customer['grade'], string][] = [
 ];
 
 const FEATURES: [string, string, string][] = [
-  ['contact', '👤', '联系人'],
-  ['chance', '🎯', '销售机会'],
-  ['trace', '📝', '跟进记录'],
-  ['order-my', '📦', '我的订单'],
-  ['order-handle', '⚙️', '订单处理'],
-  ['sample', '🧫', '样本管理'],
-  ['school', '🏫', '校展管理'],
-  ['after', '🔨', '售后管理'],
+  ['contact', 'contact', '联系人'],
+  ['chance', 'chance', '销售机会'],
+  ['trace', 'trace', '跟进记录'],
+  ['order-my', 'order', '我的订单'],
+  ['order-handle', 'settings', '订单处理'],
+  ['sample', 'sample', '样本管理'],
+  ['school', 'school', '校展管理'],
+  ['after', 'after', '售后管理'],
 ];
 
 export default function MobileCustomer({ onOpenSub }: { onOpenSub: (key: string) => void }) {
@@ -175,7 +176,7 @@ export default function MobileCustomer({ onOpenSub }: { onOpenSub: (key: string)
             </div>
             {c.contact ? (
               <div className="m-cust-row">
-                <span className="ci">👤</span>
+                <span className="ci"><Icon name="user" size={15} /></span>
                 <span className="ct">
                   {c.contact}
                   {c.tel ? ` · ${c.tel}` : ''}
@@ -183,7 +184,7 @@ export default function MobileCustomer({ onOpenSub }: { onOpenSub: (key: string)
               </div>
             ) : null}
             <div className="m-cust-row">
-              <span className="ci">🏷</span>
+              <span className="ci"><Icon name="document" size={15} /></span>
               <span className="ct">来源：{c.source || '—'}{c.has_wechat ? ' · 已加微信' : ''}</span>
             </div>
             <div className="m-cust-foot">
@@ -198,7 +199,7 @@ export default function MobileCustomer({ onOpenSub }: { onOpenSub: (key: string)
       <div className="m-grid">
         {FEATURES.map(([key, icon, name]) => (
           <div key={key} className="m-grid-item" onClick={() => onOpenSub(key)}>
-            <span className="m-gi-icon">{icon}</span>
+            <span className="m-gi-icon"><Icon name={icon} size={24} /></span>
             <span className="m-gi-text">{name}</span>
           </div>
         ))}

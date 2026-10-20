@@ -11,6 +11,7 @@ import { UploadUnconfiguredError, activeProvider, isUploadConfigured, uploadFile
 import type { Attachment } from '../core/types';
 import { downloadBlob, fmtSize, fmtTime, toast, urlToFile } from '../core/util';
 import { Empty, Loading, Modal } from './ui';
+import { Icon } from '../core/icons';
 
 interface UpItem {
   id: string;
@@ -134,7 +135,7 @@ export default function DesktopFiles() {
         }}
         onDrop={onDrop}
       >
-        <div className="d-drop-ico">📁</div>
+        <div className="d-drop-ico"><Icon name="upload" size={28} /></div>
         <div className="d-drop-title">把文件拖到这里，或点击选择文件</div>
         <div className="d-drop-sub">
           支持 {FILE_EXTS.length} 种格式（{FILE_EXTS.slice(0, 8).join(' / ')} …），单文件 ≤ 10MB
@@ -208,7 +209,7 @@ export default function DesktopFiles() {
       {/* ===== 文件表格 ===== */}
       <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
         <div className="d-search" style={{ maxWidth: 320 }}>
-          <span className="d-search-ico">🔍</span>
+          <span className="d-search-ico"><Icon name="search" size={16} /></span>
           <input
             placeholder="搜索文件名"
             value={keyword}

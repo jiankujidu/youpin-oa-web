@@ -1,6 +1,7 @@
 /** 手机端通用 UI 原子组件（Toast / Dialog / Sheet），样式全部来自 mobile.css */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { onToast } from '../core/util';
+import { Icon } from '../core/icons';
 
 /* ======================= Toast ======================= */
 
@@ -104,7 +105,7 @@ export function Sheet(props: {
         <div className="m-sheet-head">
           <span>{props.title}</span>
           <span className="m-sheet-close" onClick={props.onClose}>
-            ✕
+            <Icon name="close" size={16} />
           </span>
         </div>
         <div className="m-sheet-body">{props.children}</div>

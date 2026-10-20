@@ -5,6 +5,7 @@ import { shareContent } from '../core/share';
 import type { Article, MailContact, Message, Note } from '../core/types';
 import { fmtTime, toast } from '../core/util';
 import { Empty, Loading } from './ui';
+import { Icon } from '../core/icons';
 
 /* ======================= 公告 ======================= */
 
@@ -185,7 +186,7 @@ export function DesktopMail() {
         <span className="d-page-sub">共 {list.length} 人</span>
         <span className="d-page-actions">
           <div className="d-search" style={{ maxWidth: 260 }}>
-            <span className="d-search-ico">🔍</span>
+            <span className="d-search-ico"><Icon name="search" size={16} /></span>
             <input
               placeholder="姓名 / 部门"
               value={kw}

@@ -16,7 +16,9 @@ import MobileCustomer from './MobileCustomer';
 import MobileMine from './MobileMine';
 import MobileFiles from './MobileFiles';
 import MobileProduct from './MobileProduct';
-import { MobileArticle, MobileMail, MobileMessage, MobileNote, MobilePlaceholder } from './MobileContent';
+import { MobileArticle, MobileMail, MobileMessage, MobileNote } from './MobileContent';
+import { MobileApproveAdd, MobileCustomerAdd, MobilePassword, MobileProfile, MobileSub } from './MobileSub';
+import { Icon } from '../core/icons';
 import { ToastHost } from './ui';
 
 type Tab = 'home' | 'approve' | 'customer' | 'mine';
@@ -32,6 +34,7 @@ const SUB_TITLES: Record<string, string> = {
   mail: '通讯录',
   profile: '基本资料',
   password: '修改密码',
+  'approve-add': '发起审批',
   'finance-advance': '预存款',
   'finance-income': '到账（发票）',
   'finance-order': '到账（订单）',
@@ -123,11 +126,11 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
         <span className="m-topbar-title">{title}</span>
         <span className="m-topbar-right">
           <span className="m-topbar-btn m-bell" onClick={() => openSub('message')}>
-            🔔
+            <Icon name="bell" size={18} />
             {unread > 0 ? <span className="m-bell-badge">{unread}</span> : null}
           </span>
           <span className="m-topbar-btn" onClick={onSwitchView}>
-            桌面版
+            <Icon name="monitor" size={16} />
           </span>
         </span>
       </div>
@@ -140,9 +143,17 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
         {sub === 'files' ? <MobileFiles /> : null}
         {sub === 'message' ? <MobileMessage /> : null}
         {sub === 'mail' ? <MobileMail /> : null}
-        {sub ? (!['note', 'article', 'product', 'files', 'message', 'mail'].includes(sub)
-          ? <MobilePlaceholder pageKey={sub} />
-          : null) : null}
+        {sub === 'profile' ? <MobileProfile /> : null}
+        {sub === 'password' ? <MobilePassword /> : null}
+        {sub === 'customer-add' ? (
+          <MobileCustomerAdd onDone={() => { setSub(null); switchTab('customer'); }} />
+        ) : null}
+        {sub === 'approve-add' ? (
+          <MobileApproveAdd onDone={() => { setSub(null); switchTab('approve'); }} />
+        ) : null}
+        {sub && !['note', 'article', 'product', 'files', 'message', 'mail', 'profile', 'password', 'customer-add', 'approve-add'].includes(sub) ? (
+          <MobileSub pageKey={sub} />
+        ) : null}
 
         {!sub && tab === 'home' ? <MobileHome onOpenSub={openSub} onSwitchTab={switchTab} /> : null}
         {!sub && tab === 'approve' ? <MobileApprove /> : null}
@@ -161,18 +172,20 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
       <div className="m-tabbar">
         {(
           [
-            ['home', '⌂', '首页'],
-            ['approve', '✓', '审批'],
-            ['customer', '☰', '客户'],
-            ['mine', '●', '我的'],
+            ['home', '首页', 'home'],
+            ['approve', '审批', 'approve'],
+            ['customer', '客户', 'customer'],
+            ['mine', '我的', 'user'],
           ] as [Tab, string, string][]
-        ).map(([key, icon, label]) => (
+        ).map(([key, label, icon]) => (
           <div
             key={key}
             className={`m-tab${!sub && tab === key ? ' active' : ''}`}
             onClick={() => switchTab(key)}
           >
-            <span className="m-tab-icon">{icon}</span>
+            <span className="m-tab-icon">
+              <Icon name={icon} size={22} />
+            </span>
             <span>{label}</span>
           </div>
         ))}

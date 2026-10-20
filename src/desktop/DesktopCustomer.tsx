@@ -7,6 +7,7 @@ import { fetchCustomers } from '../core/api';
 import type { Customer } from '../core/types';
 import { fmtTime } from '../core/util';
 import { Empty, Loading } from './ui';
+import { Icon } from '../core/icons';
 
 const GRADES: ['' | Customer['grade'], string][] = [
   ['', '全部等级'],
@@ -70,7 +71,7 @@ export default function DesktopCustomer() {
           <div className="d-list-head">筛选</div>
           <div style={{ padding: 12 }}>
             <div className="d-search" style={{ maxWidth: 'none', marginBottom: 12 }}>
-              <span className="d-search-ico">🔍</span>
+              <span className="d-search-ico"><Icon name="search" size={16} /></span>
               <input
                 placeholder="名称 / 联系人 / 电话"
                 value={keyword}

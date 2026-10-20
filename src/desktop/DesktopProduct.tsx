@@ -8,6 +8,7 @@ import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { fmtTime, plain, sanitizeName, toast } from '../core/util';
 import { Empty, Loading, Modal } from './ui';
+import { Icon } from '../core/icons';
 
 export default function DesktopProduct() {
   const [list, setList] = useState<Product[]>([]);
@@ -50,7 +51,7 @@ export default function DesktopProduct() {
         <span className="d-page-sub">共 {list.length} 个产品</span>
         <span className="d-page-actions">
           <div className="d-search" style={{ maxWidth: 260 }}>
-            <span className="d-search-ico">🔍</span>
+            <span className="d-search-ico"><Icon name="search" size={16} /></span>
             <input
               placeholder="产品名称 / 货号"
               value={keyword}

@@ -3,9 +3,10 @@
  * 双模式：演示模式用本地算式验证码；真实模式（配置了代理）显示后端 /oa/captcha.html 真实验证码图片。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { fetchCaptchaUrl, initRealSnapshot, login, realSnapshotInfo } from '../core/api';
+import { DEMO_ACCOUNT_HINT, fetchCaptchaUrl, initRealSnapshot, login, realSnapshotInfo } from '../core/api';
 import { IS_DEMO_DATA } from '../core/config';
 import { getRemembered, setRemembered } from '../core/session';
+import { Icon } from '../core/icons';
 import type { Session } from '../core/types';
 
 interface MathCaptcha {
@@ -104,29 +105,41 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
         </div>
         <div className="d-login-slogan">优品生物 · 移动办公平台</div>
         <div className="d-login-feats">
-          <div>✓ 审批 / 客户 / 订单 / 财务 一屏掌握</div>
-          <div>✓ 附件上传直达对象存储，链接可转发</div>
-          <div>✓ 说明书在线预览、收藏、打包转发</div>
+          <div>
+            <Icon name="check" size={15} /> 审批 / 客户 / 订单 / 财务 一屏掌握
+          </div>
+          <div>
+            <Icon name="upload" size={15} /> 附件上传直达对象存储，链接可转发
+          </div>
+          <div>
+            <Icon name="document" size={15} /> 说明书在线预览、收藏、打包转发
+          </div>
         </div>
       </div>
 
       <div className="d-login-right">
         <div className="d-login-box">
           <h2>欢迎登录</h2>
-          <div className="sub">请使用您的 OA 账号登录</div>
+          <div className="sub">
+            {IS_DEMO_DATA ? DEMO_ACCOUNT_HINT : '请使用您的 OA 账号登录'}
+          </div>
 
           <div className="d-field">
-            <span className="d-field-ico">👤</span>
+            <span className="d-field-ico">
+              <Icon name="user" size={18} />
+            </span>
             <input
               type="text"
-              placeholder="账户或手机号码"
+              placeholder={IS_DEMO_DATA ? '演示账号 chenmeilong' : '账户或手机号码'}
               autoComplete="off"
               value={username}
               onChange={(e) => setU(e.target.value)}
             />
           </div>
           <div className="d-field">
-            <span className="d-field-ico">🔒</span>
+            <span className="d-field-ico">
+              <Icon name="lock" size={18} />
+            </span>
             <input
               type="password"
               placeholder="登录密码"

@@ -15,7 +15,9 @@ import DesktopApprove from './DesktopApprove';
 import DesktopCustomer from './DesktopCustomer';
 import DesktopFiles from './DesktopFiles';
 import DesktopProduct from './DesktopProduct';
-import { DesktopArticle, DesktopMail, DesktopMessage, DesktopNote, DesktopPlaceholder } from './DesktopContent';
+import { DesktopArticle, DesktopMail, DesktopMessage, DesktopNote } from './DesktopContent';
+import { DesktopPassword, DesktopProfile, DesktopSub } from './DesktopSub';
+import { Icon } from '../core/icons';
 import { ToastHost } from './ui';
 
 type PageKey =
@@ -23,51 +25,84 @@ type PageKey =
   | 'note' | 'article' | 'message' | 'mail'
   | string;
 
-const NAV: { group: string; items: [PageKey, string, string][] }[] = [
+const NAV: { group: string; items: [PageKey, string][] }[] = [
   {
     group: '工作台',
     items: [
-      ['home', '🏠', '首页'],
-      ['approve', '✓', '审批'],
-      ['customer', '👥', '客户'],
-      ['product', '🧪', '产品管理'],
-      ['files', '📁', '附件管理'],
+      ['home', '首页'],
+      ['approve', '审批'],
+      ['customer', '客户'],
+      ['product', '产品管理'],
+      ['files', '附件管理'],
     ],
   },
   {
     group: '办公',
     items: [
-      ['note', '📢', '企业公告'],
-      ['article', '💬', '问答知识'],
-      ['message', '✉️', '消息中心'],
-      ['mail', '📇', '通讯录'],
+      ['note', '企业公告'],
+      ['article', '问答知识'],
+      ['message', '消息中心'],
+      ['mail', '通讯录'],
     ],
   },
   {
     group: '客户业务',
     items: [
-      ['contact', '👤', '客户联系人'],
-      ['chance', '🎯', '销售机会'],
-      ['trace', '📝', '跟进记录'],
-      ['order-my', '📦', '我的订单'],
-      ['order-handle', '⚙️', '订单处理'],
-      ['sample', '🧫', '样本管理'],
-      ['school', '🏫', '校展管理'],
-      ['after', '🔨', '售后管理'],
+      ['contact', '客户联系人'],
+      ['chance', '销售机会'],
+      ['trace', '跟进记录'],
+      ['order-my', '我的订单'],
+      ['order-handle', '订单处理'],
+      ['sample', '样本管理'],
+      ['school', '校展管理'],
+      ['after', '售后管理'],
     ],
   },
   {
     group: '财务',
     items: [
-      ['finance-advance', '💰', '预存款'],
-      ['deduction', '🎫', '抵扣券'],
-      ['margin', '🛡', '保证金'],
-      ['invoice-my', '🧾', '发票申请'],
-      ['finance-income', '📊', '到账（发票）'],
-      ['finance-order', '📈', '到账（订单）'],
+      ['finance-advance', '预存款'],
+      ['deduction', '抵扣券（我申请的）'],
+      ['deduction-checked', '抵扣券（管理专用）'],
+      ['margin', '保证金'],
+      ['invoice-my', '发票申请'],
+      ['invoice-handle', '发票处理'],
+      ['finance-income', '到账（发票）'],
+      ['finance-order', '到账（订单）'],
+      ['orderapply-handle', '到账处理'],
     ],
   },
 ];
+
+/** 侧边栏图标（与手机端共用同一套线性 SVG，非 emoji） */
+const NAV_ICON: Record<string, string> = {
+  home: 'home',
+  approve: 'approve',
+  customer: 'customer',
+  product: 'product',
+  files: 'file',
+  note: 'note',
+  article: 'article',
+  message: 'message',
+  mail: 'mail',
+  contact: 'contact',
+  chance: 'chance',
+  trace: 'trace',
+  'order-my': 'order',
+  'order-handle': 'settings',
+  sample: 'sample',
+  school: 'school',
+  after: 'after',
+  'finance-advance': 'wallet',
+  deduction: 'deduction',
+  'deduction-checked': 'deduction',
+  margin: 'margin',
+  'invoice-my': 'invoice',
+  'invoice-handle': 'invoice',
+  'finance-income': 'finance',
+  'finance-order': 'finance',
+  'orderapply-handle': 'receipt',
+};
 
 export default function DesktopApp({
   breakpoint,
@@ -133,13 +168,15 @@ export default function DesktopApp({
           {NAV.map((g) => (
             <div key={g.group}>
               <div className="d-nav-group">{g.group}</div>
-              {g.items.map(([key, icon, label]) => (
+              {g.items.map(([key, label]) => (
                 <div
                   key={key}
                   className={`d-nav-item${page === key ? ' active' : ''}`}
                   onClick={() => setPage(key)}
                 >
-                  <span className="d-nav-ico">{icon}</span>
+                  <span className="d-nav-ico">
+                    <Icon name={NAV_ICON[key] || 'grid'} size={18} />
+                  </span>
                   <span>{label}</span>
                   {key === 'message' && unread > 0 ? <span className="d-nav-badge">{unread}</span> : null}
                 </div>
@@ -148,9 +185,9 @@ export default function DesktopApp({
           ))}
         </nav>
         <div className="d-sidebar-foot">
-          断点：desktop &gt; {breakpoint}px
+          优品OA 网页版
           <br />
-          手机端为独立组件树
+          双端独立视图 · 桌面端 {breakpoint}px 以上
         </div>
       </aside>
 
@@ -158,7 +195,9 @@ export default function DesktopApp({
       <div className="d-main">
         <header className="d-topbar">
           <div className="d-search">
-            <span className="d-search-ico">🔍</span>
+            <span className="d-search-ico">
+              <Icon name="search" size={16} />
+            </span>
             <input placeholder="搜索审批 / 客户 / 产品 / 附件" />
           </div>
           <div className="d-topbar-right">
@@ -168,10 +207,10 @@ export default function DesktopApp({
               </button>
             ) : null}
             <button className="d-btn d-btn-ghost d-btn-sm" onClick={onSwitchView}>
-              手机版
+              <Icon name="phone" size={15} /> 手机版
             </button>
             <span className="d-icon-btn" onClick={() => setPage('message')} title="消息">
-              🔔
+              <Icon name="bell" size={18} />
               {unread > 0 ? <span className="d-badge">{unread}</span> : null}
             </span>
             <div className="d-user" onClick={() => setMenuOpen((v) => !v)}>
@@ -183,13 +222,13 @@ export default function DesktopApp({
           {menuOpen ? (
             <div className="d-user-menu" onMouseLeave={() => setMenuOpen(false)}>
               <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); setPage('profile'); }}>
-                👤 基本资料
+                <Icon name="user" size={15} /> 基本资料
               </div>
               <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); setPage('password'); }}>
-                🔒 修改密码
+                <Icon name="lock" size={15} /> 修改密码
               </div>
               <div className="d-user-menu-item danger" onClick={handleLogout}>
-                ⎋ 退出登录
+                <Icon name="logout" size={15} /> 退出登录
               </div>
             </div>
           ) : null}
@@ -206,8 +245,10 @@ export default function DesktopApp({
             {page === 'article' ? <DesktopArticle /> : null}
             {page === 'message' ? <DesktopMessage /> : null}
             {page === 'mail' ? <DesktopMail /> : null}
-            {!['home', 'approve', 'customer', 'product', 'files', 'note', 'article', 'message', 'mail'].includes(page) ? (
-              <DesktopPlaceholder pageKey={page} />
+            {page === 'profile' ? <DesktopProfile /> : null}
+            {page === 'password' ? <DesktopPassword /> : null}
+            {!['home', 'approve', 'customer', 'product', 'files', 'note', 'article', 'message', 'mail', 'profile', 'password'].includes(page) ? (
+              <DesktopSub pageKey={page} />
             ) : null}
           </div>
         </main>

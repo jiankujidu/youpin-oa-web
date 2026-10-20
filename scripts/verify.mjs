@@ -34,7 +34,7 @@ async function solveCaptcha(page) {
 
 async function login(page) {
   const answer = await solveCaptcha(page);
-  await page.type('input[placeholder="账户或手机号码"], input[placeholder="账号或手机号码"]', 'demo');
+  await page.type('input#m-username, input[placeholder*="账号"]', 'demo');
   await page.type('input[type="password"]', 'demo1234');
   const sel = await page.$('input[placeholder^="填算式"], input[placeholder^="算式结果"]');
   await sel.type(String(answer));

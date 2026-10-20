@@ -7,9 +7,10 @@
  *  - 真实模式（配置了 VITE_OA_PROXY）：显示后端 /oa/captcha.html 的真实验证码图片
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchCaptchaUrl, initRealSnapshot, login, realSnapshotInfo } from '../core/api';
+import { DEMO_ACCOUNT_HINT, fetchCaptchaUrl, initRealSnapshot, login, realSnapshotInfo } from '../core/api';
 import { IS_DEMO_DATA } from '../core/config';
 import { getRemembered, setRemembered } from '../core/session';
+import { Icon } from '../core/icons';
 import type { Session } from '../core/types';
 
 const APP_VERSION = '1.0';
@@ -116,18 +117,22 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
 
       <div className="m-login-form">
         <div className="m-field">
-          <span className="m-field-ico">👤</span>
+          <span className="m-field-ico">
+            <Icon name="user" size={18} />
+          </span>
           <input
             id="m-username"
             type="text"
-            placeholder="账户或手机号码"
+            placeholder={IS_DEMO_DATA ? '演示账号 chenmeilong' : '账户或手机号码'}
             autoComplete="off"
             value={username}
             onChange={(e) => setU(e.target.value)}
           />
         </div>
         <div className="m-field">
-          <span className="m-field-ico">🔒</span>
+          <span className="m-field-ico">
+            <Icon name="lock" size={18} />
+          </span>
           <input
             id="m-password"
             type="password"
@@ -140,7 +145,9 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
           />
         </div>
         <div className="m-field">
-          <span className="m-field-ico">✏️</span>
+          <span className="m-field-ico">
+            <Icon name="edit" size={18} />
+          </span>
           <input
             id="m-captcha"
             type="text"
@@ -190,6 +197,7 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
 
       <div className="m-login-foot">
         © 2026 优品生物 · 移动端版 v{APP_VERSION}
+        {IS_DEMO_DATA ? <div className="m-demo-flag">{DEMO_ACCOUNT_HINT}</div> : null}
         {IS_DEMO_DATA ? (
           snap.loaded ? (
             <div className="m-demo-flag ok">
