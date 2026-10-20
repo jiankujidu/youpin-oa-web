@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import '../mobile/mobile.css';
 import { setSession, getSession, clearSession, setDisplayName, getDisplayName } from '../core/session';
+import { clearOaSession } from '../core/api';
 import { fetchHomeStats } from '../core/api';
 import type { Session } from '../core/types';
 import MobileLogin from './MobileLogin';
@@ -85,6 +86,7 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
 
   const handleLogout = useCallback(() => {
     clearSession();
+    clearOaSession();
     setSessionState(null);
     setSub(null);
     setTab('home');

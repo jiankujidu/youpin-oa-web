@@ -1,26 +1,25 @@
 /**
  * 手机端登录页 — 复刻 app-source/index.html 的 #login-view
- * 渐变背景 + Logo + 三字段（账号 / 密码 / 算式验证码）+ 记住密码 + 登录按钮 + 版本号
+ * 渐变背景 + Logo + 三字段（账号 / 密码 / 验证码）+ 记住密码 + 登录按钮 + 版本号
+ *
+ * 双模式：
+ *  - 演示模式（未配置代理）：本地算式验证码
+ *  - 真实模式（配置了 VITE_OA_PROXY）：显示后端 /oa/captcha.html 的真实验证码图片
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { login } from '../core/api';
+import { fetchCaptchaUrl, login } from '../core/api';
 import { IS_DEMO_DATA } from '../core/config';
 import { getRemembered, setRemembered } from '../core/session';
 import type { Session } from '../core/types';
 
 const APP_VERSION = '1.0';
 
-interface Captcha {
-  expr: string;
+interface MathCaptcha {
   answer: number;
   dataUrl: string;
 }
 
-/**
- * 演示模式：本地生成算式验证码（假设 A6 / 限制 L-6）。
- * 真实模式（配置了代理）时应由后端 /captcha.html 提供；这里保留同构接口。
- */
-function makeCaptcha(): Captcha {
+function makeMathCaptcha(): MathCaptcha {
   const a = 1 + Math.floor(Math.random() * 9);
   const b = 1 + Math.floor(Math.random() * 9);
   const op = Math.random() < 0.5 ? '+' : '−';
@@ -32,15 +31,17 @@ function makeCaptcha(): Captcha {
     `<text x="56" y="23" font-size="17" font-family="monospace" fill="#1E6FFF" ` +
     `text-anchor="middle" letter-spacing="1">${expr.replace(/−/g, '-').replace('&', '&amp;')}</text>` +
     `</svg>`;
-  return { expr, answer, dataUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}` };
+  return { answer, dataUrl: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}` };
 }
 
 export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => void }) {
+  const proxyMode = !IS_DEMO_DATA;
   const [username, setU] = useState('');
   const [password, setP] = useState('');
   const [captchaInput, setC] = useState('');
   const [remember, setRemember] = useState(false);
-  const [captcha, setCaptcha] = useState<Captcha>(() => makeCaptcha());
+  const [math, setMath] = useState<MathCaptcha>(makeMathCaptcha);
+  const [captchaUrl, setCaptchaUrl] = useState<string | null>(null);
   const [tip, setTip] = useState('');
   const [busy, setBusy] = useState(false);
   const loadedOnce = useRef(false);
@@ -55,7 +56,22 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
     loadedOnce.current = true;
   }, []);
 
-  const refreshCaptcha = useCallback(() => setCaptcha(makeCaptcha()), []);
+  const refreshCaptcha = useCallback(async () => {
+    if (proxyMode) {
+      try {
+        setCaptchaUrl(await fetchCaptchaUrl());
+      } catch {
+        setCaptchaUrl(null);
+        setTip('验证码加载失败，请重试');
+      }
+    } else {
+      setMath(makeMathCaptcha());
+    }
+  }, [proxyMode]);
+
+  useEffect(() => {
+    void refreshCaptcha();
+  }, [refreshCaptcha]);
 
   async function doLogin() {
     if (busy) return;
@@ -66,7 +82,7 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
     }
     setBusy(true);
     try {
-      const r = await login(username.trim(), password, captchaInput.trim(), captcha.answer);
+      const r = await login(username.trim(), password, captchaInput.trim(), proxyMode ? undefined : math.answer);
       if (r.ok) {
         if (remember) setRemembered(username.trim(), password);
         const s: Session = {
@@ -77,12 +93,12 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
         onSuccess(s);
       } else {
         setTip(r.msg || '登录失败');
-        refreshCaptcha();
+        void refreshCaptcha();
         setC('');
       }
     } catch {
       setTip('网络异常，请重试');
-      refreshCaptcha();
+      void refreshCaptcha();
     } finally {
       setBusy(false);
     }
@@ -116,7 +132,7 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
             value={password}
             onChange={(e) => setP(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') doLogin();
+              if (e.key === 'Enter') void doLogin();
             }}
           />
         </div>
@@ -125,37 +141,45 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
           <input
             id="m-captcha"
             type="text"
-            placeholder="填算式结果，如 2+6 填 8"
+            placeholder={proxyMode ? '请输入图中字符' : '填算式结果，如 2+6 填 8'}
             autoComplete="off"
             value={captchaInput}
             onChange={(e) => setC(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') doLogin();
+              if (e.key === 'Enter') void doLogin();
             }}
           />
         </div>
         <div className="m-captcha-row">
-          <img
-            className="m-captcha-img"
-            src={captcha.dataUrl}
-            alt="验证码"
-            title="点击刷新"
-            onClick={refreshCaptcha}
-          />
-          <span className="m-captcha-hint">算式验证码 · 点击图片刷新</span>
+          {proxyMode ? (
+            <img
+              className="m-captcha-img"
+              src={captchaUrl || ''}
+              alt="验证码"
+              title="点击刷新"
+              onClick={() => void refreshCaptcha()}
+            />
+          ) : (
+            <img
+              className="m-captcha-img"
+              src={math.dataUrl}
+              alt="验证码"
+              title="点击刷新"
+              onClick={() => void refreshCaptcha()}
+            />
+          )}
+          <span className="m-captcha-hint">
+            {proxyMode ? '请输入图中字符 · 点击图片刷新' : '算式验证码 · 点击图片刷新'}
+          </span>
         </div>
         <div className="m-remember">
           <label>
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-            />
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
             <span>记住账号密码</span>
           </label>
         </div>
 
-        <button className="m-login-btn" disabled={busy} onClick={doLogin}>
+        <button className="m-login-btn" disabled={busy} onClick={() => void doLogin()}>
           {busy ? '登录中…' : '登 录'}
         </button>
         <div className="m-login-tip">{tip}</div>
@@ -163,7 +187,11 @@ export default function MobileLogin({ onSuccess }: { onSuccess: (s: Session) => 
 
       <div className="m-login-foot">
         © 2026 优品生物 · 移动端版 v{APP_VERSION}
-        {IS_DEMO_DATA ? <div className="m-demo-flag">演示模式 · 未连接真实后端</div> : null}
+        {IS_DEMO_DATA ? (
+          <div className="m-demo-flag">演示模式 · 未连接真实后端</div>
+        ) : (
+          <div className="m-demo-flag ok">已连接真实后端（代理模式）</div>
+        )}
       </div>
     </div>
   );

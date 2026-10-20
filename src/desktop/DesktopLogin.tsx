@@ -1,16 +1,19 @@
-/** 桌面端登录页 — 左右分栏（与手机端登录页为两套独立视图） */
+/**
+ * 桌面端登录页 — 左右分栏（与手机端登录页为两套独立视图）
+ * 双模式：演示模式用本地算式验证码；真实模式（配置了代理）显示后端 /oa/captcha.html 真实验证码图片。
+ */
 import { useCallback, useEffect, useState } from 'react';
-import { login } from '../core/api';
+import { fetchCaptchaUrl, login } from '../core/api';
 import { IS_DEMO_DATA } from '../core/config';
 import { getRemembered, setRemembered } from '../core/session';
 import type { Session } from '../core/types';
 
-interface Captcha {
+interface MathCaptcha {
   answer: number;
   dataUrl: string;
 }
 
-function makeCaptcha(): Captcha {
+function makeMathCaptcha(): MathCaptcha {
   const a = 1 + Math.floor(Math.random() * 9);
   const b = 1 + Math.floor(Math.random() * 9);
   const op = Math.random() < 0.5 ? '+' : '-';
@@ -25,11 +28,13 @@ function makeCaptcha(): Captcha {
 }
 
 export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) => void }) {
+  const proxyMode = !IS_DEMO_DATA;
   const [username, setU] = useState('');
   const [password, setP] = useState('');
   const [captchaInput, setC] = useState('');
   const [remember, setRemember] = useState(false);
-  const [captcha, setCaptcha] = useState<Captcha>(makeCaptcha);
+  const [math, setMath] = useState<MathCaptcha>(makeMathCaptcha);
+  const [captchaUrl, setCaptchaUrl] = useState<string | null>(null);
   const [tip, setTip] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -42,7 +47,22 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
     }
   }, []);
 
-  const refresh = useCallback(() => setCaptcha(makeCaptcha()), []);
+  const refresh = useCallback(async () => {
+    if (proxyMode) {
+      try {
+        setCaptchaUrl(await fetchCaptchaUrl());
+      } catch {
+        setCaptchaUrl(null);
+        setTip('验证码加载失败，请重试');
+      }
+    } else {
+      setMath(makeMathCaptcha());
+    }
+  }, [proxyMode]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   async function doLogin() {
     if (busy) return;
@@ -53,7 +73,7 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
     }
     setBusy(true);
     try {
-      const r = await login(username.trim(), password, captchaInput.trim(), captcha.answer);
+      const r = await login(username.trim(), password, captchaInput.trim(), proxyMode ? undefined : math.answer);
       if (r.ok) {
         if (remember) setRemembered(username.trim(), password);
         onSuccess({
@@ -63,12 +83,12 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
         });
       } else {
         setTip(r.msg || '登录失败');
-        refresh();
+        void refresh();
         setC('');
       }
     } catch {
       setTip('网络异常，请重试');
-      refresh();
+      void refresh();
     } finally {
       setBusy(false);
     }
@@ -116,18 +136,28 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
             />
           </div>
           <div className="d-captcha-row">
-            <img
-              className="d-captcha-img"
-              src={captcha.dataUrl}
-              alt="验证码"
-              title="点击刷新"
-              onClick={refresh}
-            />
+            {proxyMode ? (
+              <img
+                className="d-captcha-img"
+                src={captchaUrl || ''}
+                alt="验证码"
+                title="点击刷新"
+                onClick={() => void refresh()}
+              />
+            ) : (
+              <img
+                className="d-captcha-img"
+                src={math.dataUrl}
+                alt="验证码"
+                title="点击刷新"
+                onClick={() => void refresh()}
+              />
+            )}
             <div style={{ flex: 1 }}>
               <div className="d-field" style={{ marginBottom: 0, height: 42 }}>
                 <input
                   type="text"
-                  placeholder="算式结果，如 2+6 填 8"
+                  placeholder={proxyMode ? '请输入图中字符' : '算式结果，如 2+6 填 8'}
                   value={captchaInput}
                   onChange={(e) => setC(e.target.value)}
                   onKeyDown={(e) => {
@@ -139,11 +169,7 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
           </div>
 
           <label className="d-remember" style={{ marginBottom: 14 }}>
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-            />
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
             记住账号密码
           </label>
 
@@ -154,7 +180,11 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
 
           <div className="d-login-foot">
             © 2026 优品生物 · 网页版 v1.0
-            {IS_DEMO_DATA ? <div style={{ marginTop: 4 }}>演示模式 · 未连接真实后端</div> : null}
+            {IS_DEMO_DATA ? (
+              <div style={{ marginTop: 4 }}>演示模式 · 未连接真实后端</div>
+            ) : (
+              <div style={{ marginTop: 4 }}>已连接真实后端（代理模式）</div>
+            )}
           </div>
         </div>
       </div>

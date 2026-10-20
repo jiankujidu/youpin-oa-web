@@ -95,17 +95,69 @@ workflow 里的默认值是 `vars.VITE_BASE \|\| '/youpin-oa-web/'`，没配变�
 
 ---
 
-## 接真实 OA 后端（可选）
+## 接真实数据（代理 + 你的 OA 账号）【推荐真实数据路线】
 
-实测后端 `https://oa.upingbio.cn` 对跨域请求返回 **403 且无任何 `Access-Control-Allow-Origin`**，浏览器无法直连。默认使用内置演示数据集（站点完整可用）。
+演示数据只是占位。**要让站点显示你公司的真实 OA 数据**，走这条路线：部署一个 Cloudflare Worker 代理，然后在网页里用你自己的 OA 账号登录即可。
 
-要接真实数据：
+### 为什么必须走代理
 
-1. 把 `workers/oa-proxy.js` 部署到 Cloudflare Workers
-2. 仓库 Variables 里设 `VITE_OA_PROXY=https://<你的worker>.workers.dev`
-3. 重新部署
+实测后端 `https://oa.upingbio.cn`：
 
-数据层（`src/core/api.ts`）两种模式返回**完全相同的数据结构**，视图层零改动。
+- 对跨域请求返回 **403 且无任何 `Access-Control-Allow-Origin`** → 浏览器跨域被拦，GitHub Pages 站点读不到它的响应；
+- 数据接口要求**登录会话** → 纯静态站点无法替你持有 OA 登录态。
+
+`workers/oa-proxy.js` 用 Cloudflare KV 维护了「有状态会话」：浏览器只持有一个随机 `sessionId`（放在 `x-oa-session` 头里），代理侧保存 OA 的登录 Cookie 并透传，使「取验证码 → 登录 → 拉数据」三步共用同一 OA 会话。**OA 的 Cookie 绝不下发到浏览器**，安全。
+
+### 步骤一：部署代理（Cloudflare Workers）
+
+```bash
+# 1) 安装并登录 wrangler
+npm i -g wrangler && wrangler login
+
+# 2) 创建 KV 命名空间（保存 OA 会话），把返回的 id 填进 wrangler.toml
+wrangler kv namespace create OA_SESSIONS
+
+# 3) 部署
+wrangler deploy
+#   部署后得到地址，例如 https://youpin-oa-proxy.<你的子域>.workers.dev
+```
+
+> 可选：上传服务想用 Cloudflare R2 时，代理还内置 `/presign` 预签名端点（见 `.env.example` 的 `VITE_R2_PRESIGN_URL`）。
+
+### 步骤二：告诉站点代理地址
+
+仓库 **Settings → Secrets and variables → Actions → Variables** 加：
+
+| 变量名 | 值 |
+|---|---|
+| `VITE_OA_PROXY` | `https://youpin-oa-proxy.<你的子域>.workers.dev` |
+
+也可本地 `.env.local` 加 `VITE_OA_PROXY=...` 后 `npm run dev` 自测。重新部署后生效。
+
+### 步骤三：用真实账号登录
+
+打开站点 → 登录页会显示**后端下发的真实验证码图片**（不再是本地算式）→ 输入你的 OA 账号、密码、图中字符 → 登录。之后审批 / 客户 / 产品 / 公告等全部是真实数据。
+
+退出登录会清掉本地 `sessionId`；OA 服务端会话由后端自行过期。
+
+### 本地 / 线上自测（无需重新构建）
+
+站点支持运行时覆盖代理地址：`https://<你的pages>/?oa_proxy=https://<你的worker>`。便于先验证链路再正式配置。
+
+### 本地端到端验证脚本
+
+`scripts/oa-mock.mjs` 模拟了「有状态会话 Worker + 最小 OA 后端」，`scripts/verify-realdata.mjs` 用无头 Chrome 跑通整条链路（取验证码 → 登录 → 拉真实列表）。复跑：
+
+```bash
+npm run build && cd dist && python -m http.server 4173 &
+node scripts/verify-realdata.mjs "http://127.0.0.1:4173"
+```
+
+### 注意事项
+
+- **响应形态兼容**：真实后端返回结构未知，数据层 `src/core/api.ts` 对 `{data:[...]}` / `{data:{list:[...]}}` / `{list:[...]}` 等做了最大兼容解析；若你的后端字段名与演示数据不同，按需在 `src/core/types.ts` + `api.ts` 对应映射处微调即可。
+- **生产环境**：把 `workers/oa-proxy.js` 里的 `ALLOWED_ORIGINS` 从 `['*']` 改成你的 Pages 域名，避免代理被滥用。
+- **账号安全**：你的 OA 密码只在登录时由本人在网页输入，仅用于本次代理登录，不写死在代码、也不落地存储；会话 Cookie 仅存于 Worker KV。
 
 ---
 

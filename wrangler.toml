@@ -1,0 +1,14 @@
+name = "youpin-oa-proxy"
+main = "workers/oa-proxy.js"
+compatibility_date = "2024-09-23"
+
+# OA 会话存储。首次部署前先创建命名空间并填入下面的 id：
+#   npx wrangler kv namespace create OA_SESSIONS
+[[kv_namespaces]]
+binding = "OA_SESSIONS"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# 可选：R2 预签名（上传服务选 R2 时才需要）
+# [[r2_buckets]]
+# binding = "OA_UPLOADS"
+# bucket_name = "youpin-oa-uploads"

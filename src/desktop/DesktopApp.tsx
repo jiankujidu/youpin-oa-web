@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import '../desktop/desktop.css';
 import { clearSession, getDisplayName, getSession, setDisplayName, setSession } from '../core/session';
+import { clearOaSession } from '../core/api';
 import { fetchHomeStats } from '../core/api';
 import type { Session } from '../core/types';
 import DesktopLogin from './DesktopLogin';
@@ -101,6 +102,7 @@ export default function DesktopApp({
 
   const handleLogout = useCallback(() => {
     clearSession();
+    clearOaSession();
     setSessionState(null);
     setMenuOpen(false);
     setPage('home');

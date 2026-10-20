@@ -5,12 +5,23 @@
 
 const env = import.meta.env;
 
+/** 运行时可被 URL 参数 ?oa_proxy=https://... 覆盖，方便本地/线上自测代理，无需重新构建 */
+function resolveOaProxy(): string {
+  try {
+    const p = new URLSearchParams(typeof location !== 'undefined' ? location.search : '').get('oa_proxy');
+    if (p) return p.replace(/\/+$/, '');
+  } catch {
+    /* ignore */
+  }
+  return ((env.VITE_OA_PROXY as string) || '').replace(/\/+$/, '');
+}
+
 export const CONFIG = {
   /** 站点 base（GitHub Pages 子路径由 workflow 注入 VITE_BASE） */
   base: (env.VITE_BASE as string) || '/',
 
   /** 真实 OA 后端的 CORS 代理地址。留空 = 使用内置演示数据集（见 ARCHITECTURE A2） */
-  oaProxy: ((env.VITE_OA_PROXY as string) || '').replace(/\/+$/, ''),
+  oaProxy: resolveOaProxy(),
 
   /** 上传服务凭证（三选一，按优先级尝试） */
   upload: {
