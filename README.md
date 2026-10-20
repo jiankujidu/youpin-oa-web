@@ -150,7 +150,13 @@ node scripts/fetch-realdata.mjs <PHPSESSID>          # 明文抓取
 node scripts/fetch-realdata.mjs <PHPSESSID> --mask   # 手机号中间四位脱敏
 ```
 
-**⚠️ 隐私提示**：GitHub Pages 是公开 URL，任何人都可访问该快照（客户名、手机号等）。如需下线快照：删除 `public/data/realdata.json` 并重新部署，站点自动回落演示数据集。
+**已脱敏**（当前线上状态）：姓名保留首字（`许莹`→`许*`）、手机号保留前3后4（`138****5678`）、邮箱保留首字符与域名、地址保留前4字符，自由文本中的内嵌手机号同样处理。幂等可重复执行：
+
+```bash
+npm run mask:data        # = node scripts/mask-realdata.mjs，跑完自动校验无完整手机号残留
+```
+
+**⚠️ 隐私提示**：GitHub Pages / 自定义域名都是公开 URL，任何人都可访问该快照。上线代理后快照不再被加载，建议直接删除以彻底消除暴露面：`git rm public/data/realdata.json` 后推送，站点自动回落演示数据集。
 
 ## 接实时真实数据（代理 + 你的 OA 账号）【可选升级】
 
@@ -170,15 +176,12 @@ node scripts/fetch-realdata.mjs <PHPSESSID> --mask   # 手机号中间四位脱�
 **方案 A：Cloudflare Workers（推荐，免费额度够用）**
 
 ```bash
-# 1) 安装并登录 wrangler
-npm i -g wrangler && wrangler login
+# 1) 授权（二选一）
+npx wrangler login                        # 交互：弹浏览器授权
+# 或非交互：export CLOUDFLARE_API_TOKEN=cf_xxxx   # "Edit Cloudflare Workers" 模板
 
-# 2) 创建 KV 命名空间（保存 OA 会话），把返回的 id 填进 wrangler.toml
-wrangler kv namespace create OA_SESSIONS
-
-# 3) 部署
-wrangler deploy
-#   部署后得到地址，例如 https://youpin-oa-proxy.<你的子域>.workers.dev
+# 2) 一键部署：创建 KV → 自动回填 wrangler.toml → wrangler deploy → 打印站点该配的变量
+npm run deploy:worker
 ```
 
 **方案 B：本地 / 自有服务器代理（无 Cloudflare 账号）**

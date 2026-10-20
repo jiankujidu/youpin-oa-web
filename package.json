@@ -13,7 +13,9 @@
     "proxy:local": "node scripts/oa-proxy-local.mjs",
     "verify": "node scripts/verify.mjs",
     "verify:features": "node scripts/verify-features.mjs",
-    "verify:proxy": "node scripts/verify-proxy.mjs"
+    "verify:proxy": "node scripts/verify-proxy.mjs",
+    "deploy:worker": "node scripts/deploy-worker.mjs",
+    "mask:data": "node scripts/mask-realdata.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1",
