@@ -83,15 +83,29 @@ git push -u origin main
 
 workflow 里的默认值是 `vars.VITE_BASE \|\| '/youpin-oa-web/'`，没配变量时会用这个默认值——**如果你的仓库名不是 `youpin-oa-web`，一定要配 `VITE_BASE`**。
 
-也可以直接改 `.github/workflows/deploy.yml` 第 38 行的默认值。
+也可以直接改 `.github/workflows/deploy.yml` 里 `VITE_BASE` 的默认值。
 
-### 4. 自定义域名（可选）
+> 当前仓库已切到**自定义域名模式**：`VITE_BASE` 默认为 `/`（根路径服务）。若想退回项目子路径页，在仓库 Variables 里设 `VITE_BASE=/<仓库名>/` 即可。
 
-1. 在仓库根目录加一个 `CNAME` 文件，内容只有一行：`oa.yourdomain.com`
-2. 在 `public/` 下也放一份（workflow 会把它一起带进 `dist/`）
-3. DNS 加 CNAME 记录指向 `<用户名>.github.io`
-4. **Settings → Pages → Custom domain** 填入并等 DNS 校验通过，勾选 *Enforce HTTPS*
-5. 因为域名在根路径，把 `VITE_BASE` 设为 `/`
+### 4. 自定义域名（已绑定 OA1.jk93.qzz.io）
+
+本项目已把自定义域名 `OA1.jk93.qzz.io` 写进自动化流程，无需每次手动在 Pages 设置里填：
+
+- `public/CNAME`：内容 `OA1.jk93.qzz.io`，构建时自动带进 `dist/` 根目录；
+- `.github/workflows/deploy.yml`：`actions/configure-pages` 带 `cname: OA1.jk93.qzz.io`，每次部署自动把 Pages 自定义域名设回它（`enablement: true` 同时保证首次自动启用 Pages）。
+
+**你只需在域名服务商（qzz.io）侧配一条 DNS：**
+
+| 类型 | 主机记录 | 值 |
+|---|---|---|
+| CNAME | `OA1`（在 `jk93.qzz.io` 域下） | `jiankujidu.github.io` |
+
+配完后：
+1. 等待 DNS 生效（通常几分钟到几小时）；
+2. GitHub 会自动校验域名并签发 TLS 证书（*Enforce HTTPS* 默认开启），`http://OA1.jk93.qzz.io` 会 301 跳转到 `https://`；
+3. 之后站点从 `https://OA1.jk93.qzz.io/` 访问，原 `jiankujidu.github.io/youpin-oa-web/` 子路径仍存在但资源会指向根路径（自定义域名模式下以自定义域名为准）。
+
+> 若以后换域名：改 `public/CNAME` + `deploy.yml` 的 `cname` 两处即可。
 
 ---
 

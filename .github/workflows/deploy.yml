@@ -35,10 +35,10 @@ jobs:
 
       - name: Build
         env:
-          # ===== 站点 base（子路径部署必填）=====
-          # 项目页 https://<用户名>.github.io/<仓库名>/  → VITE_BASE=/<仓库名>/
-          # 自定义域名（CNAME，用户/组织页）              → VITE_BASE=/
-          VITE_BASE: ${{ vars.VITE_BASE || '/youpin-oa-web/' }}
+          # ===== 站点 base =====
+          # 自定义域名模式（已绑定 OA1.jk93.qzz.io，根路径服务）→ VITE_BASE=/
+          # 若改回项目子路径页 https://<用户名>.github.io/<仓库名>/ → 设仓库变量 VITE_BASE=/<仓库名>/
+          VITE_BASE: ${{ vars.VITE_BASE || '/' }}
           # ===== 可选：真实 OA 后端的 CORS 代理（留空则用内置演示数据）=====
           VITE_OA_PROXY: ${{ vars.VITE_OA_PROXY }}
           # ===== 可选：上传服务凭证（留空则上传按钮明确提示「未配置」）=====
@@ -54,6 +54,8 @@ jobs:
         with:
           # 若仓库尚未启用 Pages，自动启用并设为 GitHub Actions 构建源，避免首次部署失败
           enablement: true
+          # 自定义域名：每次部署自动把 Pages 自定义域名设回 OA1.jk93.qzz.io（根路径服务）
+          cname: OA1.jk93.qzz.io
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
