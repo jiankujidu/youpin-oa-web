@@ -6,7 +6,7 @@ compatibility_date = "2024-09-23"
 #   npx wrangler kv namespace create OA_SESSIONS
 [[kv_namespaces]]
 binding = "OA_SESSIONS"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "4144d3bdbfe2462296db2631f0a01891"
 
 # 可选：R2 预签名（上传服务选 R2 时才需要）
 # [[r2_buckets]]

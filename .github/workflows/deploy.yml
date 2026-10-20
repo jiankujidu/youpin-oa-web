@@ -39,8 +39,9 @@ jobs:
           # 自定义域名模式（已绑定 OA1.jk93.qzz.io，根路径服务）→ VITE_BASE=/
           # 若改回项目子路径页 https://<用户名>.github.io/<仓库名>/ → 设仓库变量 VITE_BASE=/<仓库名>/
           VITE_BASE: ${{ vars.VITE_BASE || '/' }}
-          # ===== 可选：真实 OA 后端的 CORS 代理（留空则用内置演示数据）=====
-          VITE_OA_PROXY: ${{ vars.VITE_OA_PROXY }}
+          # ===== OA 后端 CORS 代理（默认已部署的 youpin-oa-proxy Worker）=====
+          # 置仓库变量 VITE_OA_PROXY 可覆盖；设为空字符串则回落演示数据模式
+          VITE_OA_PROXY: ${{ vars.VITE_OA_PROXY || 'https://youpin-oa-proxy.jiankujidu.workers.dev' }}
           # ===== 可选：上传服务凭证（留空则上传按钮明确提示「未配置」）=====
           VITE_CLOUDINARY_CLOUD: ${{ vars.VITE_CLOUDINARY_CLOUD }}
           VITE_CLOUDINARY_PRESET: ${{ vars.VITE_CLOUDINARY_PRESET }}
