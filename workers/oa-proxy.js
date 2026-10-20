@@ -13,33 +13,48 @@
  *      这样「取验证码图片 → 登录 → 拉数据」三步共用同一个 OA 会话。
  *   3) 为 Cloudflare R2 签发预签名 PUT URL（密钥只在 Worker 侧）
  *
- * 部署：见 README「接真实数据（代理 + 你的 OA 账号）」一节。
+ * 路径约定（★ 与 src/core/api.ts 严格一致）：
+ *   完整路径透传，不做任何前缀改写。前端 oaFetch(path) 直接以真实 OA 相对路径请求：
+ *     /oa/approve/check        → https://oa.upingbio.cn/oa/approve/check
+ *     /home/login/login_submit → https://oa.upingbio.cn/home/login/login_submit
+ *     /captcha.html            → https://oa.upingbio.cn/captcha.html
+ *
+ * 部署：见 README「接实时真实数据（代理 + 你的 OA 账号）」一节。
+ * 本地等价实现（无 Cloudflare 账号时可用）：scripts/oa-proxy-local.mjs
  */
 
 const OA_ORIGIN = 'https://oa.upingbio.cn';
 
-/** 允许访问本 Worker 的源；生产环境务必改成你的 Pages 域名，例如 ['https://jiankujidu.github.io'] */
+/** 允许访问本 Worker 的源；'*' 表示任意（部署后建议收紧为你的 Pages 域名，如 ['https://oa1.jk93.qzz.io']） */
 const ALLOWED_ORIGINS = ['*'];
 
 /** OA 会话在 KV 里的过期时间（秒），与 OA 服务端会话时长保持一致即可 */
 const SESSION_TTL = 60 * 60 * 8;
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGINS[0],
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session',
-  'Access-Control-Expose-Headers': 'x-oa-session',
-  'Access-Control-Max-Age': '86400',
-};
-
-function corsPreflight() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
+function corsHeaders(origin) {
+  const allow =
+    ALLOWED_ORIGINS.includes('*') || !origin
+      ? '*'
+      : ALLOWED_ORIGINS.includes(origin)
+      ? origin
+      : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allow,
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session',
+    'Access-Control-Expose-Headers': 'x-oa-session',
+    'Access-Control-Max-Age': '86400',
+  };
 }
 
-function json(obj, status = 200) {
+function corsPreflight(origin) {
+  return new Response(null, { status: 204, headers: corsHeaders(origin) });
+}
+
+function json(obj, status = 200, origin = null) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders(origin) },
   });
 }
 
@@ -77,20 +92,21 @@ function mergeCookies(existing, setCookies) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const origin = request.headers.get('origin');
 
-    if (request.method === 'OPTIONS') return corsPreflight();
+    if (request.method === 'OPTIONS') return corsPreflight(origin);
 
     /* ===== R2 预签名（PUT） ===== */
     if (url.pathname === '/presign' && request.method === 'POST') {
       const missing = ['R2_ACCOUNT_ID', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_PUBLIC_URL'].filter(
         (k) => !env[k],
       );
-      if (missing.length) return json({ error: `Worker 缺少环境变量：${missing.join(', ')}` }, 500);
+      if (missing.length) return json({ error: `Worker 缺少环境变量：${missing.join(', ')}` }, 500, origin);
       let body;
       try {
         body = await request.json();
       } catch {
-        return json({ error: '请求体不是合法 JSON' }, 400);
+        return json({ error: '请求体不是合法 JSON' }, 400, origin);
       }
       const key = `uploads/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${
         String(body.filename || 'file').replace(/[^\w.\-一-龥]/g, '_')
@@ -104,17 +120,13 @@ export default {
         contentType: body.contentType || 'application/octet-stream',
         expiresIn: 900,
       });
-      return json({ url: signUrl, key, publicUrl: `${env.R2_PUBLIC_URL.replace(/\/+$/, '')}/${key}` });
+      return json({ url: signUrl, key, publicUrl: `${env.R2_PUBLIC_URL.replace(/\/+$/, '')}/${key}` }, 200, origin);
     }
 
     /* ===== OA 后端转发（带会话） =====
-     * 约定：/oa<path>?<query> → https://oa.upingbio.cn<path>?<query>
+     * ★ 完整路径透传：pathname 原样拼到 OA_ORIGIN 之后，绝不增删前缀。
+     *   这保证与前端 oaFetch() 的约定零偏差（/oa/... 与 /home/... 都能正确到达）。
      */
-    if (!url.pathname.startsWith('/oa')) {
-      return json({ error: '路径需以 /oa 开头' }, 404);
-    }
-
-    // 1) 解析 / 创建会话 id
     let sid = request.headers.get('x-oa-session');
     let storedCookie = sid ? await env.OA_SESSIONS.get(sid) : null;
     if (!sid || storedCookie === null) {
@@ -123,11 +135,10 @@ export default {
       await env.OA_SESSIONS.put(sid, '', { expirationTtl: SESSION_TTL });
     }
 
-    // 2) 组装转发请求
-    const target = OA_ORIGIN + url.pathname.slice('/oa'.length) + (url.search || '');
+    // 组装转发请求
+    const target = OA_ORIGIN + url.pathname + (url.search || '');
     const headers = new Headers(request.headers);
     headers.delete('origin');
-    headers.delete('referer');
     headers.delete('x-oa-session'); // 不下发到 OA
     headers.set('Referer', OA_ORIGIN + '/');
     headers.set('User-Agent', 'Mozilla/5.0 (YoupinOA-Web/1.0)');
@@ -141,26 +152,47 @@ export default {
       }
     }
 
-    const upstream = await fetch(target, {
-      method: request.method,
-      headers,
-      body: request.method === 'POST' ? body : undefined,
-      redirect: 'follow',
-    });
+    let upstream;
+    try {
+      upstream = await fetch(target, {
+        method: request.method,
+        headers,
+        body: request.method === 'POST' ? body : undefined,
+        redirect: 'follow',
+      });
+    } catch (e) {
+      return json({ error: `OA 后端不可达：${e instanceof Error ? e.message : String(e)}` }, 502, origin);
+    }
 
-    // 3) 抓取 OA 下发的 Set-Cookie，存进 KV（覆盖同名）
-    const setCookies = typeof upstream.headers.getSetCookie === 'function'
-      ? upstream.headers.getSetCookie()
-      : [upstream.headers.get('set-cookie')].filter(Boolean);
+    // 抓取 OA 下发的 Set-Cookie，存进 KV（覆盖同名）
+    const setCookies =
+      typeof upstream.headers.getSetCookie === 'function'
+        ? upstream.headers.getSetCookie()
+        : [upstream.headers.get('set-cookie')].filter(Boolean);
     if (setCookies.length) {
       const merged = mergeCookies(storedCookie, setCookies);
       await env.OA_SESSIONS.put(sid, merged, { expirationTtl: SESSION_TTL });
     }
 
-    // 4) 回传给浏览器：剥离 Set-Cookie，补 CORS，并回显 sessionId
-    const out = new Headers(upstream.headers);
-    out.delete('set-cookie');
-    for (const [k, v] of Object.entries(CORS_HEADERS)) out.set(k, v);
+    // 回传给浏览器：剥离 Set-Cookie / hop-by-hop 头 / 上游自带的 CORS 头，
+    // 再补本代理的 CORS（同名头叠加会产生 "*, *" 这类非法值，浏览器会直接拒收）
+    const SKIP_HEADERS = new Set([
+      'set-cookie',
+      'access-control-allow-origin',
+      'access-control-allow-methods',
+      'access-control-allow-headers',
+      'access-control-expose-headers',
+      'access-control-max-age',
+      'transfer-encoding',
+      'connection',
+      'keep-alive',
+      'content-length',
+    ]);
+    const out = new Headers();
+    upstream.headers.forEach((v, k) => {
+      if (!SKIP_HEADERS.has(k.toLowerCase())) out.set(k, v);
+    });
+    for (const [k, v] of Object.entries(corsHeaders(origin))) out.set(k, v);
     out.set('x-oa-session', sid);
     return new Response(upstream.body, {
       status: upstream.status,

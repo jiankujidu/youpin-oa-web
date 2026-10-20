@@ -165,7 +165,9 @@ node scripts/fetch-realdata.mjs <PHPSESSID> --mask   # 手机号中间四位脱�
 
 `workers/oa-proxy.js` 用 Cloudflare KV 维护了「有状态会话」：浏览器只持有一个随机 `sessionId`（放在 `x-oa-session` 头里），代理侧保存 OA 的登录 Cookie 并透传，使「取验证码 → 登录 → 拉数据」三步共用同一 OA 会话。**OA 的 Cookie 绝不下发到浏览器**，安全。
 
-### 步骤一：部署代理（Cloudflare Workers）
+### 步骤一：部署代理（二选一）
+
+**方案 A：Cloudflare Workers（推荐，免费额度够用）**
 
 ```bash
 # 1) 安装并登录 wrangler
@@ -179,7 +181,18 @@ wrangler deploy
 #   部署后得到地址，例如 https://youpin-oa-proxy.<你的子域>.workers.dev
 ```
 
-> 可选：上传服务想用 Cloudflare R2 时，代理还内置 `/presign` 预签名端点（见 `.env.example` 的 `VITE_R2_PRESIGN_URL`）。
+**方案 B：本地 / 自有服务器代理（无 Cloudflare 账号）**
+
+`scripts/oa-proxy-local.mjs` 与 Worker 逻辑完全一致（完整路径透传 + 会话托管 + CORS），Node ≥18 即可运行：
+
+```bash
+OA_BASE=https://oa.upingbio.cn node scripts/oa-proxy-local.mjs 8788
+# 对外地址即为 VITE_OA_PROXY（如需公网访问，套一层 nginx/caddy 反代 + HTTPS）
+```
+
+> 代理的路径约定与前端 `src/core/api.ts` 严格一致：**完整路径透传，绝不增删前缀**。
+> `/oa/approve/index` → `oa.upingbio.cn/oa/approve/index`；`/home/login/login_submit` → `oa.upingbio.cn/home/login/login_submit`。
+> （早期版本会剥掉 `/oa` 前缀，导致所有 `/oa/*` 请求 404，已修复。）
 
 ### 步骤二：告诉站点代理地址
 
@@ -193,7 +206,19 @@ wrangler deploy
 
 ### 步骤三：用真实账号登录
 
-打开站点 → 登录页会显示**后端下发的真实验证码图片**（不再是本地算式）→ 输入你的 OA 账号、密码、图中字符 → 登录。之后审批 / 客户 / 产品 / 公告等全部是真实数据。
+打开站点 → 登录页会显示**后端下发的真实验证码图片**（不再是本地算式）→ 输入你的 OA 账号、密码、图中字符 → 登录。之后审批 / 客户 / 产品 / 公告等全部是真实数据；审批通过、发起审批、新增客户等写操作会真实提交到 OA（`POST /oa/approve/check`、`/oa/approve/add`、`/customer/index/add`）。
+
+### 链路自检（不需要真实后端）
+
+```bash
+# 起本地 mock OA 后端 + 本地代理 + 站点，跑 18 项端到端断言
+npm run mock:oa          # 终端 1：mock OA 后端 :8787
+npm run proxy:local      # 终端 2：本地代理 :8788（OA_BASE 指向 mock）
+VITE_OA_PROXY=http://localhost:8788 VITE_BASE=./ npm run build
+npm run verify:proxy     # 终端 3：CORS / 会话 / 验证码 / 读写 / 双端 全链路
+```
+
+`verify:proxy` 会真实断言：验证码由服务端下发、错误密码返回后端报错、写操作到达后端（mock 侧有调用日志）、浏览器不持有 OA Cookie、会话跨请求保持。
 
 退出登录会清掉本地 `sessionId`；OA 服务端会话由后端自行过期。
 

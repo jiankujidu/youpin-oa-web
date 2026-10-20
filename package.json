@@ -8,7 +8,12 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mock:oa": "node scripts/oa-mock.mjs",
+    "proxy:local": "node scripts/oa-proxy-local.mjs",
+    "verify": "node scripts/verify.mjs",
+    "verify:features": "node scripts/verify-features.mjs",
+    "verify:proxy": "node scripts/verify-proxy.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1",
