@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import '../desktop/desktop.css';
+import './pc.css';
 import { clearSession, getDisplayName, getSession, setDisplayName, setSession } from '../core/session';
 import { clearOaSession } from '../core/api';
 import { fetchHomeStats } from '../core/api';
@@ -119,6 +120,8 @@ export default function DesktopApp({
   const [page, setPage] = useState<PageKey>('home');
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  /** 侧边栏分组折叠（默认收起长分组，避免菜单过长） */
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 客户业务: true, 财务: true });
 
   useEffect(() => {
     if (!session) return;
@@ -165,24 +168,38 @@ export default function DesktopApp({
           <span className="d-brand-sub">网页版</span>
         </div>
         <nav className="d-nav">
-          {NAV.map((g) => (
-            <div key={g.group}>
-              <div className="d-nav-group">{g.group}</div>
-              {g.items.map(([key, label]) => (
+          {NAV.map((g) => {
+            const isCollapsed = !!collapsed[g.group];
+            const activeInGroup = g.items.some(([k]) => k === page);
+            const open = isCollapsed && !activeInGroup ? false : true;
+            return (
+              <div key={g.group}>
                 <div
-                  key={key}
-                  className={`d-nav-item${page === key ? ' active' : ''}`}
-                  onClick={() => setPage(key)}
+                  className={`d-nav-group${open ? '' : ' collapsed'}`}
+                  onClick={() => setCollapsed((c) => ({ ...c, [g.group]: !c[g.group] }))}
                 >
-                  <span className="d-nav-ico">
-                    <Icon name={NAV_ICON[key] || 'grid'} size={18} />
-                  </span>
-                  <span>{label}</span>
-                  {key === 'message' && unread > 0 ? <span className="d-nav-badge">{unread}</span> : null}
+                  {g.group}
                 </div>
-              ))}
-            </div>
-          ))}
+                {open
+                  ? g.items.map(([key, label]) => (
+                      <div
+                        key={key}
+                        className={`d-nav-item${page === key ? ' active' : ''}`}
+                        onClick={() => setPage(key)}
+                      >
+                        <span className="d-nav-ico">
+                          <Icon name={NAV_ICON[key] || 'grid'} size={18} />
+                        </span>
+                        <span>{label}</span>
+                        {key === 'message' && unread > 0 ? (
+                          <span className="d-nav-badge">{unread}</span>
+                        ) : null}
+                      </div>
+                    ))
+                  : null}
+              </div>
+            );
+          })}
         </nav>
         <div className="d-sidebar-foot">
           优品OA 网页版

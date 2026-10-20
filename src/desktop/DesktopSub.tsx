@@ -1,22 +1,21 @@
 /**
- * 桌面端子页面（财务管理 / 客户子类 / 订单 等）+ 表单页（基本资料 / 修改密码）。
- *
- * 桌面端用表格 + 详情弹窗的独立布局（与手机端卡片流是两套组件树，非媒体查询缩放）。
- * 数据层与手机端共用 fetchSubRows：演示模式读内置业务集，配置代理后走 OA 真实接口。
+ * 桌面端子页面（财务管理 / 客户子类 / 订单 等）+ 表单页（基本资料 / 修改密码）
+ * PC 后台版式：工具栏（搜索 / 筛选）+ 数据表格 + 分页 + 详情弹层
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   changePassword, fetchSubRows, getProfile, saveProfile, subPageTitle,
 } from '../core/api';
 import type { BizRow } from '../core/biz';
 import { fmtTime, toast } from '../core/util';
-import { Empty, Loading, Modal } from './ui';
+import { Modal } from './ui';
+import { PageHead, Panel, StatusTag, DataTable, type Column } from './pc';
 
-function tagCls(tone?: string): string {
-  if (tone === 'ok') return 'd-tag d-tag-pass';
-  if (tone === 'no') return 'd-tag d-tag-reject';
-  if (tone === 'wait') return 'd-tag d-tag-pending';
-  return 'd-tag';
+function tagTone(tone?: string): 'ok' | 'no' | 'wait' | '' {
+  if (tone === 'ok') return 'ok';
+  if (tone === 'no') return 'no';
+  if (tone === 'wait') return 'wait';
+  return '';
 }
 
 export function DesktopSub({ pageKey }: { pageKey: string }) {
@@ -37,79 +36,90 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
     load();
   }, [load]);
 
-  const list = q.trim()
-    ? rows.filter((r) => (r.title + r.sub).toLowerCase().includes(q.trim().toLowerCase()))
-    : rows;
+  const list = useMemo(() => {
+    const k = q.trim().toLowerCase();
+    return k ? rows.filter((r) => (r.title + r.sub + (r.status || '')).toLowerCase().includes(k)) : rows;
+  }, [rows, q]);
+
+  const cols: Column<BizRow>[] = [
+    { key: 'title', title: '名称', render: (r) => <span className="pc-td-strong">{r.title}</span> },
+    { key: 'sub', title: '说明', render: (r) => r.sub || '—' },
+    { key: 'amount', title: '金额 / 数量', width: 130, align: 'right', render: (r) => r.amount || '—' },
+    {
+      key: 'status',
+      title: '状态',
+      width: 120,
+      render: (r) => (r.status ? <StatusTag tone={tagTone(r.tone)}>{r.status}</StatusTag> : '—'),
+    },
+    { key: 'time', title: '时间', width: 160, render: (r) => (r.time ? fmtTime(r.time) : '—') },
+    {
+      key: 'op',
+      title: '操作',
+      width: 90,
+      render: () => <span className="pc-link">详情</span>,
+    },
+  ];
 
   return (
     <div>
-      <div className="d-page-head">
-        <div>
-          <div className="d-page-title">{subPageTitle(pageKey)}</div>
-          <div className="d-page-sub">共 {rows.length} 条记录</div>
+      <PageHead
+        title={subPageTitle(pageKey)}
+        crumb={['业务', subPageTitle(pageKey)]}
+        desc={`共 ${rows.length} 条记录`}
+        actions={
+          <button className="pc-btn pc-btn-ghost" onClick={load}>
+            刷新
+          </button>
+        }
+      />
+
+      <Panel bodyPad={false}>
+        <div style={{ padding: '12px 16px 0' }}>
+          <div className="pc-toolbar">
+            <input
+              className="pc-input"
+              style={{ width: 240 }}
+              placeholder="搜索名称 / 说明 / 状态"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            {q ? (
+              <button className="pc-btn pc-btn-ghost" onClick={() => setQ('')}>
+                清空
+              </button>
+            ) : null}
+          </div>
         </div>
-        <div className="d-page-actions">
-          <input
-            className="d-field"
-            style={{ width: 220 }}
-            placeholder="搜索关键词"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+        <div style={{ padding: '0 16px 12px' }}>
+          <DataTable
+            columns={cols}
+            rows={list}
+            rowKey={(r) => r.id}
+            onRowClick={setDetail}
+            pageSize={20}
+            loading={loading}
           />
         </div>
-      </div>
-
-      {loading ? (
-        <Loading />
-      ) : list.length === 0 ? (
-        <Empty />
-      ) : (
-        <table className="d-table">
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>说明</th>
-              <th>金额 / 数量</th>
-              <th>状态</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((r) => (
-              <tr key={r.id} onClick={() => setDetail(r)} style={{ cursor: 'pointer' }}>
-                <td className="d-td-name">{r.title}</td>
-                <td>{r.sub}</td>
-                <td>{r.amount || '—'}</td>
-                <td>
-                  <span className={tagCls(r.tone)}>{r.status || '—'}</span>
-                </td>
-                <td>{r.time ? fmtTime(r.time) : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      </Panel>
 
       {detail ? (
         <Modal
           title={detail.title}
           onClose={() => setDetail(null)}
           footer={
-            <button className="d-btn" onClick={() => setDetail(null)}>
+            <button className="pc-btn" onClick={() => setDetail(null)}>
               关闭
             </button>
           }
         >
-          <div className="d-card">
+          <dl className="pc-kv">
             {(detail.detail || []).map(([k, v], i) => (
-              <div className="d-card-line" key={i}>
-                <span style={{ color: 'var(--c-text-4)', display: 'inline-block', minWidth: 96 }}>
-                  {k}
-                </span>
-                <span>{v}</span>
+              <div key={i} style={{ display: 'contents' }}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
               </div>
             ))}
-          </div>
+          </dl>
         </Modal>
       ) : null}
     </div>
@@ -130,13 +140,11 @@ export function DesktopProfile() {
   }
 
   const f = (key: keyof typeof p, label: string, ph: string) => (
-    <div style={{ marginBottom: 12 }}>
-      <div className="d-page-sub" style={{ marginBottom: 4 }}>
-        {label}
-      </div>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 12.5, color: '#8a919f', marginBottom: 5 }}>{label}</div>
       <input
-        className="d-field"
-        style={{ width: 320 }}
+        className="pc-input"
+        style={{ width: 340, height: 36 }}
         placeholder={ph}
         value={p[key] || ''}
         onChange={(e) => setP({ ...p, [key]: e.target.value })}
@@ -146,22 +154,17 @@ export function DesktopProfile() {
 
   return (
     <div>
-      <div className="d-page-head">
-        <div>
-          <div className="d-page-title">基本资料</div>
-          <div className="d-page-sub">修改后即时保存，下次登录自动带出</div>
-        </div>
-      </div>
-      <div className="d-card">
+      <PageHead title="基本资料" crumb={['个人', '基本资料']} desc="修改后即时保存，下次登录自动带出" />
+      <Panel>
         {f('nickname', '姓名', '请输入姓名')}
         {f('mobile', '手机号', '请输入手机号')}
         {f('email', '邮箱', '请输入邮箱')}
         {f('department', '部门', '如：销售部')}
         {f('position', '职务', '如：销售代表')}
-        <button className="d-btn d-btn-primary" onClick={save} disabled={saving}>
+        <button className="pc-btn" onClick={save} disabled={saving}>
           {saving ? '保存中…' : '保存'}
         </button>
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -189,13 +192,11 @@ export function DesktopPassword() {
   }
 
   const f = (label: string, v: string, set: (s: string) => void, ph: string) => (
-    <div style={{ marginBottom: 12 }}>
-      <div className="d-page-sub" style={{ marginBottom: 4 }}>
-        {label}
-      </div>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 12.5, color: '#8a919f', marginBottom: 5 }}>{label}</div>
       <input
-        className="d-field"
-        style={{ width: 320 }}
+        className="pc-input"
+        style={{ width: 340, height: 36 }}
         type="password"
         placeholder={ph}
         value={v}
@@ -206,20 +207,15 @@ export function DesktopPassword() {
 
   return (
     <div>
-      <div className="d-page-head">
-        <div>
-          <div className="d-page-title">修改密码</div>
-          <div className="d-page-sub">新密码至少 6 位，且不能与旧密码相同</div>
-        </div>
-      </div>
-      <div className="d-card">
+      <PageHead title="修改密码" crumb={['个人', '修改密码']} desc="新密码至少 6 位，且不能与旧密码相同" />
+      <Panel>
         {f('原密码', oldPwd, setOld, '请输入原密码')}
         {f('新密码', newPwd, setNew, '至少 6 位')}
         {f('确认新密码', re, setRe, '请再次输入新密码')}
-        <button className="d-btn d-btn-primary" onClick={submit} disabled={busy}>
+        <button className="pc-btn" onClick={submit} disabled={busy}>
           {busy ? '提交中…' : '确认修改'}
         </button>
-      </div>
+      </Panel>
     </div>
   );
 }

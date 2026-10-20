@@ -97,6 +97,8 @@ const server = http.createServer(async (req, res) => {
   delete headers['x-oa-session'];
   headers.referer = OA_BASE + '/';
   headers['user-agent'] = 'Mozilla/5.0 (YoupinOA-Web/1.0)';
+  // 显式要求不压缩，彻底避免 content-encoding 与已解压 body 不一致
+  headers['accept-encoding'] = 'identity';
   if (storedCookie) headers.cookie = storedCookie;
 
   let body;
@@ -141,6 +143,9 @@ const server = http.createServer(async (req, res) => {
     'connection',
     'keep-alive',
     'content-length',
+    // Node 的 fetch 已自动解压；若把上游的 content-encoding 原样回传，
+    // 浏览器会对「已解压的 body」二次解压 → blob() 抛 "Failed to fetch"
+    'content-encoding',
   ]);
   const out = {};
   upstream.headers.forEach((v, k) => {

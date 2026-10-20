@@ -7,3 +7,4 @@ verify-shots/
 
 # Vite 构建期临时文件
 vite.config.ts.timestamp-*.mjs
+.tmp-*/
