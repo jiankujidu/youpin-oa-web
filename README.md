@@ -106,23 +106,28 @@ workflow 里的默认值是 `vars.VITE_BASE \|\| '/youpin-oa-web/'`，没配变�
 
 > 当前仓库已切到**自定义域名模式**：`VITE_BASE` 默认为 `/`（根路径服务）。若想退回项目子路径页，在仓库 Variables 里设 `VITE_BASE=/<仓库名>/` 即可。
 
-### 4. 自定义域名（已绑定 OA1.jk93.qzz.io）
+### 4. 自定义域名（已绑定 web.jk93.qzz.io）
 
-本项目已把自定义域名 `OA1.jk93.qzz.io` 写进自动化流程，无需每次手动在 Pages 设置里填：
+本项目已把自定义域名 `web.jk93.qzz.io` 写进自动化流程，无需每次手动在 Pages 设置里填：
 
-- `public/CNAME`：内容 `OA1.jk93.qzz.io`，构建时自动带进 `dist/` 根目录；
-- `.github/workflows/deploy.yml`：`actions/configure-pages` 带 `cname: OA1.jk93.qzz.io`，每次部署自动把 Pages 自定义域名设回它（`enablement: true` 同时保证首次自动启用 Pages）。
+- `public/CNAME`：内容 `web.jk93.qzz.io`，构建时自动带进 `dist/` 根目录；
+- `.github/workflows/deploy.yml`：`actions/configure-pages` 带 `cname: web.jk93.qzz.io`，每次部署自动把 Pages 自定义域名设回它（`enablement: true` 同时保证首次自动启用 Pages）。
 
-**你只需在域名服务商（qzz.io）侧配一条 DNS：**
+> ⚠️ **GitHub Pages 一个站点只支持一个自定义域名**。历史上曾绑过 `OA1.jk93.qzz.io`（其 DNS 从未配通），现已切到 `web`。若两个域名都要能访问，另一个只能在 DNS 侧做转发（如 Cloudflare Redirect Rule），Pages 本身不认。
 
-| 类型 | 主机记录 | 值 |
-|---|---|---|
-| CNAME | `OA1`（在 `jk93.qzz.io` 域下） | `jiankujidu.github.io` |
+**你只需在 Cloudflare（jk93.qzz.io 的 NS 已委托到 CF）侧配一条 DNS：**
+
+| 类型 | 名称 | 目标 | 代理状态 |
+|---|---|---|---|
+| CNAME | `web` | `jiankujidu.github.io` | **灰云（DNS only）** |
 
 配完后：
 1. 等待 DNS 生效（通常几分钟到几小时）；
-2. GitHub 会自动校验域名并签发 TLS 证书（*Enforce HTTPS* 默认开启），`http://OA1.jk93.qzz.io` 会 301 跳转到 `https://`；
-3. 之后站点从 `https://OA1.jk93.qzz.io/` 访问，原 `jiankujidu.github.io/youpin-oa-web/` 子路径仍存在但资源会指向根路径（自定义域名模式下以自定义域名为准）。
+2. GitHub 会自动校验域名并签发 TLS 证书（*Enforce HTTPS* 默认开启），`http://web.jk93.qzz.io` 会 301 跳转到 `https://`；
+3. 之后站点从 `https://web.jk93.qzz.io/` 访问，原 `jiankujidu.github.io/youpin-oa-web/` 子路径仍存在但资源会指向根路径（自定义域名模式下以自定义域名为准）。
+
+> 注意：若 CF 里 `web` 已存在 A 记录（曾指向内网 IP 等），需先删除，CNAME 才能创建。
+> 有 `Zone.DNS:Edit` 权限的 API Token 时，也可一键完成：`CLOUDFLARE_API_TOKEN=cf_xxx node scripts/cf-setup.mjs`（自动清理冲突记录 + 建 CNAME + 设 SSL）。
 
 > 若以后换域名：改 `public/CNAME` + `deploy.yml` 的 `cname` 两处即可。
 

@@ -36,7 +36,7 @@ jobs:
       - name: Build
         env:
           # ===== 站点 base =====
-          # 自定义域名模式（已绑定 OA1.jk93.qzz.io，根路径服务）→ VITE_BASE=/
+          # 自定义域名模式（已绑定 web.jk93.qzz.io，根路径服务）→ VITE_BASE=/
           # 若改回项目子路径页 https://<用户名>.github.io/<仓库名>/ → 设仓库变量 VITE_BASE=/<仓库名>/
           VITE_BASE: ${{ vars.VITE_BASE || '/' }}
           # ===== OA 后端 CORS 代理（默认已部署的 youpin-oa-proxy Worker）=====
@@ -55,8 +55,9 @@ jobs:
         with:
           # 若仓库尚未启用 Pages，自动启用并设为 GitHub Actions 构建源，避免首次部署失败
           enablement: true
-          # 自定义域名：每次部署自动把 Pages 自定义域名设回 OA1.jk93.qzz.io（根路径服务）
-          cname: OA1.jk93.qzz.io
+          # 自定义域名：每次部署自动把 Pages 自定义域名设回 web.jk93.qzz.io（根路径服务）
+          # 注意：GitHub Pages 一个站点只支持一个自定义域名；换域名必须同时改 public/CNAME
+          cname: web.jk93.qzz.io
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
