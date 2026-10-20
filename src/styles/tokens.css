@@ -1,0 +1,130 @@
+/* ============================================================
+   设计令牌（Design Tokens）
+   全部取值来自 app-source/assets/www/css/style.css 实测反推
+   双端共用色彩与语义变量；尺寸/布局变量由各端独立 css 覆写
+   ============================================================ */
+:root {
+  /* ---- 主色系（对齐 APP）---- */
+  --c-primary: #1E6FFF;
+  --c-primary-light: #4A9BFF;
+  --c-primary-dark: #0F5FE0;
+  --c-primary-50: #eef4ff;
+  --c-primary-100: #e8f3ff;
+  --c-primary-border: #dbe6ff;
+
+  /* ---- 中性色 ---- */
+  --c-bg: #f5f6f8;
+  --c-surface: #ffffff;
+  --c-text: #1f2329;
+  --c-text-2: #4e5969;
+  --c-text-3: #8a919f;
+  --c-text-4: #a9aeb8;
+  --c-border: #e8ecf2;
+  --c-border-2: #f2f4f7;
+  --c-divider: #f0f2f5;
+
+  /* ---- 语义色 ---- */
+  --c-success: #52c41a;
+  --c-success-2: #07c160;
+  --c-success-bg: #f6ffed;
+  --c-warn: #d48806;
+  --c-warn-2: #ff9500;
+  --c-warn-bg: #fff7e6;
+  --c-danger: #ff4d4f;
+  --c-danger-2: #f53f3f;
+  --c-danger-bg: #fff1f0;
+  --c-badge: #FF3B30;
+  --c-quote: #f59e0b;
+  --c-quote-green: #22c55e;
+  --c-purple: #7c3aed;
+
+  /* ---- 圆角 ---- */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-2xl: 14px;
+  --r-3xl: 18px;
+  --r-pill: 999px;
+
+  /* ---- 阴影 ---- */
+  --sh-card: 0 1px 4px rgba(0, 0, 0, 0.05);
+  --sh-card-2: 0 2px 8px rgba(30, 111, 255, 0.06);
+  --sh-float: 0 6px 20px rgba(0, 0, 0, 0.12);
+  --sh-modal: 0 12px 40px rgba(0, 0, 0, 0.25);
+
+  /* ---- 字号（rem，随根字号缩放；禁止 px 固定字体）---- */
+  --f-11: 0.6875rem;
+  --f-12: 0.75rem;
+  --f-13: 0.8125rem;
+  --f-14: 0.875rem;
+  --f-15: 0.9375rem;
+  --f-16: 1rem;
+  --f-17: 1.0625rem;
+  --f-20: 1.25rem;
+  --f-26: 1.625rem;
+  --f-38: clamp(2rem, 9vw, 2.375rem);
+
+  /* ---- 断点（显式声明，供文档与 JS 对照）----
+     mobile:  ≤ 768px
+     desktop: > 768px                                */
+  --bp-mobile-max: 768px;
+
+  /* ---- 安全区 ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* ---- 字体族（对齐 APP）---- */
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* 全局重置 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--c-bg);
+  color: var(--c-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+a {
+  color: var(--c-primary);
+  text-decoration: none;
+}
+
+/* 隐藏滚动条但保留滚动（横向 chip 行等） */
+.no-sb {
+  scrollbar-width: none;
+}
+.no-sb::-webkit-scrollbar {
+  display: none;
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env.local
+.env.*.local
+verify-shots/
+*.log
+
+# Vite 构建期临时文件
+vite.config.ts.timestamp-*.mjs

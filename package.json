@@ -1,0 +1,25 @@
+{
+  "name": "youpin-oa-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "优品OA 静态网站 — 手机端复刻 APP，桌面端独立设计，上传与转发真实可用",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
