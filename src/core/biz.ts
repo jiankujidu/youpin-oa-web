@@ -267,6 +267,66 @@ export function subPageDef(key: string): SubPageDef | null {
   return SUB_PAGES[key] || null;
 }
 
+/* ============================ 动态真实列（对齐原站每页各自的表格列） ============================ */
+
+/** 列顺序偏好：越靠前越优先展示（与 gouguOA 列表页常见顺序一致） */
+const COL_ORDER = [
+  'id', 'code', 'order_no', 'name', 'title', 'customer_name', 'product_msg', 'goods_no',
+  'cate_title', 'type', 'type_name', 'flow_type', 'stage_name', 'group_title',
+  'amount', 'price_desc', 'before', 'after', 'deal_amount', 'enter_amount',
+  'status', 'status_name', 'check_status', 'check_status_name', 'intent_status_name', 'grade',
+  'admin_name', 'belong_name', 'check_user', 'user', 'department_name', 'belong_department',
+  'mobile', 'tel', 'contact', 'customer_contact', 'recipient_name',
+  'create_time', 'update_time', 'follow_time', 'next_time', 'deal_time', 'start_time', 'end_time',
+  'remark', 'content', 'desc', 'research_direction', 'purchase_inquiry',
+];
+
+/** 不适合作为表格列的字段 */
+const COL_SKIP = new Set([
+  'id', 'pwd', 'password', 'salt', 'token', 'session_id', 'sha1', 'md5', 'template',
+  'delete_time', 'file_ids', 'order_ids', 'share_ids', 'customer_ids', 'check_admin_ids',
+  'check_flow', 'flow', 'detail', 'children', 'list', 'pay_record', 'product_info',
+]);
+
+/** 由真实接口返回的行，推断出该页面「应该有哪些列」（原站同页就是这些字段） */
+export function dynamicColumns(rows: Record<string, any>[]): { key: string; title: string }[] {
+  if (!rows.length) return [];
+  const sample = rows.slice(0, 20);
+  const score = new Map<string, number>();
+  for (const r of sample) {
+    for (const [k, v] of Object.entries(r)) {
+      if (COL_SKIP.has(k)) continue;
+      if (v === null || v === undefined || v === '') continue;
+      if (typeof v === 'object') continue;
+      if (typeof v === 'string' && v.length > 120) continue; // 富文本正文不进表格
+      score.set(k, (score.get(k) || 0) + 1);
+    }
+  }
+  const keys = [...score.keys()];
+  const rank = (k: string) => {
+    const i = COL_ORDER.indexOf(k);
+    return i < 0 ? 999 : i;
+  };
+  keys.sort((a, b) => rank(a) - rank(b) || (score.get(b) || 0) - (score.get(a) || 0));
+  return keys.slice(0, 12).map((k) => ({ key: k, title: FIELD_LABEL[k] || k }));
+}
+
+/** 单元格文本（时间戳 / 富文本 / 长串都收敛成短文本） */
+export function cellText(v: any): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'number') {
+    if (v > 1e9 && v < 4e9) {
+      const d = new Date(v * 1000);
+      const p2 = (n: number) => (n < 10 ? '0' + n : '' + n);
+      return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    }
+    return String(v);
+  }
+  let s = String(v).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (s.length > 40) s = s.slice(0, 40) + '…';
+  return s || '—';
+}
+
 /* ============================ 真实响应 → BizRow ============================ */
 
 /** 审批/审核状态（gouguOA check_status 数字 → 中文） */
@@ -275,7 +335,7 @@ const CHECK_STATUS: Record<string, string> = {
 };
 
 /** gouguOA 常见字段 → 中文列名（详情字段对展示用） */
-const FIELD_LABEL: Record<string, string> = {
+export const FIELD_LABEL: Record<string, string> = {
   id: '编号', code: '单号', title: '标题', name: '名称', content: '内容', remark: '备注',
   amount: '金额', before: '变动前', after: '变动后', customer_id: '客户ID', customer_name: '客户',
   admin_id: '创建人ID', admin_name: '创建人', create_time: '创建时间', update_time: '更新时间',

@@ -3,7 +3,7 @@
  * PC 后台统一版式：工具栏 + 数据表格 + 分页 + 详情弹层（说明书 预览/收藏/转发）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchProducts } from '../core/api';
+import { fetchProductPage } from '../core/api';
 import { CONFIG } from '../core/config';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
@@ -32,40 +32,65 @@ function docUrl(g: { goods_no_url?: string; pc_goods_no_url?: string }): string 
 
 export default function DesktopProduct() {
   const [list, setList] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
   const [cate, setCate] = useState('');
+  const [speciesF, setSpeciesF] = useState('');
+  const [appF, setAppF] = useState('');
   const [cur, setCur] = useState<Product | null>(null);
   const [folders, setFolders] = useState<FavFolder[]>([]);
   const [saving, setSaving] = useState<{ name: string; url: string; productId: string } | null>(null);
   const [newName, setNewName] = useState('');
 
-  const load = useCallback((kw: string) => {
-    setLoading(true);
-    fetchProducts(kw)
-      .then((rows) => {
-        setList(rows);
+  /** 逐页载入（后端 12 万+ 条，一次拉完会超时） */
+  const load = useCallback((kw: string, p: number, append: boolean) => {
+    if (!append) setLoading(true);
+    else setLoadingMore(true);
+    fetchProductPage(kw, p)
+      .then(({ rows, total }) => {
+        setList((prev) => (append ? [...prev, ...rows] : rows));
+        setTotal(total);
         setLoading(false);
+        setLoadingMore(false);
       })
       .catch((e: unknown) => {
         setLoading(false);
+        setLoadingMore(false);
         toast('产品列表加载失败：' + (e instanceof Error ? e.message : '网络异常'));
       });
   }, []);
 
   useEffect(() => {
-    load(query);
+    setPage(1);
+    load(query, 1, false);
   }, [query, load]);
   useEffect(() => setFolders(getFolders()), []);
 
-  const cates = useMemo(() => {
-    const s = new Set<string>();
-    list.forEach((p) => p.cate_title && s.add(p.cate_title));
-    return [...s].sort();
+  /** 筛选项取自真实数据（与原站下拉内容一致） */
+  const opts = useMemo(() => {
+    const uniq = (get: (p: Product) => string | undefined) =>
+      [...new Set(list.map(get).filter((v): v is string => !!v))].sort();
+    return {
+      cate: uniq((p) => p.cate_title),
+      species: uniq((p) => p.species),
+      app: uniq((p) => p.application),
+    };
   }, [list]);
 
-  const rows = useMemo(() => (cate ? list.filter((p) => p.cate_title === cate) : list), [list, cate]);
+  const rows = useMemo(
+    () =>
+      list.filter(
+        (p) =>
+          (!cate || p.cate_title === cate) &&
+          (!speciesF || p.species === speciesF) &&
+          (!appF || p.application === appF),
+      ),
+    [list, cate, speciesF, appF],
+  );
 
   async function shareDoc(name: string, url: string) {
     if (!url) {
@@ -77,22 +102,42 @@ export default function DesktopProduct() {
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
+  /** 与原站一致：编号 / 货号 / 状态 / 分类 / 价格 / 标题 / 种属 / 应用 / 基因名 / 别称 / 分子量 / 方法学 / 英文名 / Tag / 表达系统 / 下载量 / 更新时间 */
   const cols: Column<Product>[] = [
-    { key: 'title', title: '产品名称', render: (r) => <span className="pc-td-strong">{plain(r.title)}</span> },
-    { key: 'no', title: '货号', width: 190, render: (r) => String(r.goods_no || '').split(';')[0] || '—' },
-    { key: 'cate', title: '产品分类', width: 200, render: (r) => r.cate_title || '—' },
-    { key: 'price', title: '规格 / 价格', width: 230, render: (r) => fmtPrice(r.price_desc) },
-    { key: 'species', title: '物种', width: 130, render: (r) => r.species || '—' },
+    { key: 'id', title: '编号', width: 80, render: (r) => String(r.id ?? '—') },
+    { key: 'no', title: '产品货号', width: 180, render: (r) => String(r.goods_no || '').split(';')[0] || '—' },
+    {
+      key: 'status',
+      title: '状态',
+      width: 90,
+      render: (r) => {
+        const s = String((r as any).status ?? '');
+        if (s === '1' || s === '已上架' || s === '在售') return <StatusTag tone="ok">上架</StatusTag>;
+        if (s === '0' || s === '已下架') return <StatusTag tone="no">下架</StatusTag>;
+        return <StatusTag tone="info">{s || '—'}</StatusTag>;
+      },
+    },
+    { key: 'cate', title: '产品分类', width: 190, render: (r) => r.cate_title || '—' },
+    { key: 'price', title: '价格明细', width: 210, render: (r) => fmtPrice(r.price_desc) },
+    { key: 'title', title: '产品标题', width: 300, render: (r) => <span className="pc-td-strong">{plain(r.title)}</span> },
+    { key: 'species', title: '种属', width: 120, render: (r) => r.species || '—' },
     { key: 'app', title: '应用', width: 150, render: (r) => r.application || '—' },
-    { key: 'dl', title: '下载数', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
+    { key: 'gene', title: '基因名称', width: 120, render: (r) => (r as any).gene_name || '—' },
+    { key: 'alias', title: '其他别称', width: 140, render: (r) => (r as any).other_name || '—' },
+    { key: 'mw', title: '分子量', width: 100, render: (r) => (r as any).da || '—' },
+    { key: 'method', title: '方法学', width: 110, render: (r) => (r as any).methodology || '—' },
+    { key: 'eng', title: '英文名称', width: 160, render: (r) => (r as any).eng_name || '—' },
+    { key: 'tag', title: 'Tag', width: 100, render: (r) => (r as any).tag || '—' },
+    { key: 'expr', title: '表达系统', width: 130, render: (r) => (r as any).expression_system || '—' },
+    { key: 'dl', title: '下载量', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
     { key: 'time', title: '更新时间', width: 150, render: (r) => fmtTime(r.create_time) },
     {
       key: 'op',
       title: '操作',
       width: 130,
       render: (r) => (
-        <span className="pc-link" onClick={() => setCur(r)}>
-          说明书 · 详情
+        <span className="gg-xs blue" onClick={() => setCur(r)}>
+          说明书
         </span>
       ),
     },
@@ -109,11 +154,26 @@ export default function DesktopProduct() {
       <PageHead
         title="产品列表"
         crumb={['产品中心', '产品列表']}
-        desc={`共 ${rows.length} 个产品`}
+        desc={`共 ${total || rows.length} 个产品 · 已载入 ${list.length} 个`}
         actions={
-          <button className="pc-btn pc-btn-ghost" onClick={() => load(query)}>
-            刷新
-          </button>
+          <>
+            <button className="pc-btn pc-btn-ghost" onClick={() => load(query, 1, false)}>
+              刷新
+            </button>
+            {list.length < total ? (
+              <button
+                className="pc-btn"
+                disabled={loadingMore}
+                onClick={() => {
+                  const p = page + 1;
+                  setPage(p);
+                  load(query, p, true);
+                }}
+              >
+                {loadingMore ? '载入中…' : `载入更多（${list.length}/${total}）`}
+              </button>
+            ) : null}
+          </>
         }
       />
 
@@ -130,14 +190,28 @@ export default function DesktopProduct() {
                 if (e.key === 'Enter') setQuery(keyword);
               }}
             />
-            <select className="pc-input" style={{ width: 220 }} value={cate} onChange={(e) => setCate(e.target.value)}>
-              <option value="">全部分类</option>
-              {cates.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            {(
+              [
+                ['全部分类', cate, setCate, opts.cate, 210],
+                ['全部种属', speciesF, setSpeciesF, opts.species, 150],
+                ['全部应用', appF, setAppF, opts.app, 170],
+              ] as [string, string, (v: string) => void, string[], number][]
+            ).map(([label, val, set, values, w]) => (
+              <select
+                key={label}
+                className="pc-input"
+                style={{ width: w }}
+                value={val}
+                onChange={(e) => set(e.target.value)}
+              >
+                <option value="">{label}</option>
+                {values.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            ))}
             <button className="pc-btn" onClick={() => setQuery(keyword)}>
               查询
             </button>
@@ -148,6 +222,8 @@ export default function DesktopProduct() {
                   setKeyword('');
                   setQuery('');
                   setCate('');
+                  setSpeciesF('');
+                  setAppF('');
                 }}
               >
                 重置

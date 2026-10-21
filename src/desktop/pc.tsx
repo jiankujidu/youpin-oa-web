@@ -131,6 +131,9 @@ export function DataTable<T>({
   empty = '暂无数据',
   loading = false,
   indexCol = true,
+  page: pageProp,
+  total: totalProp,
+  onPageChange,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -140,12 +143,19 @@ export function DataTable<T>({
   empty?: string;
   loading?: boolean;
   indexCol?: boolean;
+  /** 服务端分页：受控页码 + 后端总数 + 翻页回调（不传则前端分页） */
+  page?: number;
+  total?: number;
+  onPageChange?: (page: number) => void;
 }) {
-  const [page, setPage] = useState(1);
-  const total = rows.length;
+  const [innerPage, setInnerPage] = useState(1);
+  const server = typeof pageProp === 'number' && !!onPageChange;
+  const setPage = (p: number) => (server ? onPageChange!(p) : setInnerPage(p));
+  const page = server ? pageProp : innerPage;
+  const total = server ? (totalProp ?? rows.length) : rows.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const cur = Math.min(page, pages);
-  const slice = useMemo(() => rows.slice((cur - 1) * pageSize, cur * pageSize), [rows, cur, pageSize]);
+  const slice = server ? rows : rows.slice((cur - 1) * pageSize, cur * pageSize);
 
   return (
     <div className="pc-table-wrap">

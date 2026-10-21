@@ -246,6 +246,26 @@ function extractObj<T>(r: any, fallback: T): T {
   return (r as T) ?? fallback;
 }
 
+/** 带分页的列表请求：返回原始行 + 后端总数（gouguOA 返回 count） */
+async function oaPage(
+  path: string,
+  params: Record<string, unknown> = {},
+): Promise<{ rows: Record<string, any>[]; total: number }> {
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join('&');
+  const res = await oaFetch(`${path}${qs ? '?' + qs : ''}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const r = (await res.json()) as any;
+  const rows = extractList<Record<string, any>>(r);
+  const total =
+    Number(r?.count ?? r?.total ?? r?.data?.count ?? r?.data?.total ?? rows.length) || rows.length;
+  return { rows, total };
+}
+
+export { oaPage };
+
 /* ======================= 上传后的附件（持久化元数据，非文件字节） ======================= */
 
 function readUploaded(): Attachment[] {
@@ -403,6 +423,29 @@ export function fetchCustomers(type: 1 | 2 | 3, keyword = ''): Promise<Customer[
   return delay(list);
 }
 
+/** 列表分页结果（真实总数 + 当页数据） */
+export interface ListPage<T> {
+  rows: T[];
+  total: number;
+}
+
+/** 客户分页取数：后端总数为 1000+，逐页载入后可翻页浏览全部 */
+export function fetchCustomerPage(
+  type: 1 | 2 | 3,
+  keyword = '',
+  page = 1,
+  limit = 100,
+): Promise<ListPage<Customer>> {
+  const path = type === 2 ? '/customer/index/sea' : type === 3 ? '/customer/index/trash' : '/customer/index/index';
+  if (!IS_DEMO_DATA) {
+    return oaPage(path, { keywords: keyword, page, limit }).then(({ rows, total }) => ({
+      rows: rows as unknown as Customer[],
+      total,
+    }));
+  }
+  return fetchCustomers(type, keyword).then((rows) => ({ rows, total: rows.length }));
+}
+
 export function fetchProducts(keyword = ''): Promise<Product[]> {
   if (!IS_DEMO_DATA) return oaList<Product>('/product/index/list', { keywords: keyword, limit: 50 });
   let list = S().products;
@@ -411,6 +454,17 @@ export function fetchProducts(keyword = ''): Promise<Product[]> {
     list = list.filter((p) => p.title.toLowerCase().includes(k) || p.goods_no.toLowerCase().includes(k));
   }
   return delay(list);
+}
+
+/** 产品分页取数：后端 12 万+，逐页载入后可翻页浏览 */
+export function fetchProductPage(keyword = '', page = 1, limit = 50): Promise<ListPage<Product>> {
+  if (!IS_DEMO_DATA) {
+    return oaPage('/product/index/list', { keywords: keyword, page, limit }).then(({ rows, total }) => ({
+      rows: rows as unknown as Product[],
+      total,
+    }));
+  }
+  return fetchProducts(keyword).then((rows) => ({ rows, total: rows.length }));
 }
 
 /** 附件 = 真实 OA 文件库（/home/files/index）+ 本机上传（本机上传的排前面） */
@@ -595,15 +649,34 @@ function sessionDisplayName(): string {
  * 子页面列表。真实模式按注册表里的真实接口路径取数并映射为统一 BizRow；
  * 演示模式用内置业务数据集（结构与真实响应一致）。
  */
-export function fetchSubRows(key: string): Promise<BizRow[]> {
+/** 子页面分页结果：BizRow（列表/详情用）+ 原始行（动态真实列用）+ 后端总数 */
+export interface SubPageResult {
+  rows: BizRow[];
+  raw: Record<string, any>[];
+  total: number;
+}
+
+/** 子页面取数（服务端分页 + 后端关键词搜索） */
+export function fetchSubPage(
+  key: string,
+  page = 1,
+  limit = 20,
+  keywords = '',
+): Promise<SubPageResult> {
   const def = SUB_PAGES[key];
-  if (!def) return delay([] as BizRow[], 120);
+  if (!def) return delay({ rows: [], raw: [], total: 0 } as SubPageResult, 100);
   if (!IS_DEMO_DATA) {
-    return oaList<Record<string, any>>(def.path)
-      .then((rows) => rows.map(mapRemoteRow))
-      .catch(() => def.demo());
+    return oaPage(def.path, { page, limit, keywords })
+      .then(({ rows, total }) => ({ rows: rows.map(mapRemoteRow), raw: rows, total }))
+      .catch(() => ({ rows: def.demo(), raw: [], total: def.demo().length }));
   }
-  return delay(def.demo(), 200);
+  const d = def.demo();
+  return delay({ rows: d, raw: [], total: d.length } as SubPageResult, 150);
+}
+
+/** 兼容旧调用：一次性取前 100 条（手机端用） */
+export function fetchSubRows(key: string): Promise<BizRow[]> {
+  return fetchSubPage(key, 1, 100).then((r) => r.rows);
 }
 
 /** 子页面标题（两端共用） */

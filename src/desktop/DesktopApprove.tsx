@@ -49,6 +49,7 @@ export default function DesktopApprove() {
   const [list, setList] = useState<ApproveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [typeF, setTypeF] = useState('');
   const [cur, setCur] = useState<ApproveItem | null>(null);
   const [remark, setRemark] = useState('');
   const [busy, setBusy] = useState(false);
@@ -76,12 +77,28 @@ export default function DesktopApprove() {
     const k = q.trim().toLowerCase();
     return list.filter((r) => {
       if (status !== 0 && statusOf(r) !== status) return false;
+      if (typeF && typeOf(r) !== typeF) return false;
       if (!k) return true;
-      return (titleOf(r) + typeOf(r) + (r.admin_name || '') + (r.content || '') + ((r as any).name || ''))
+      return (
+        titleOf(r) +
+        typeOf(r) +
+        (r.admin_name || '') +
+        (r.content || '') +
+        ((r as any).name || '') +
+        ((r as any).product_msg || '') +
+        ((r as any).department_name || '') +
+        ((r as any).check_user || '')
+      )
         .toLowerCase()
         .includes(k);
     });
-  }, [list, q, status]);
+  }, [list, q, status, typeF]);
+
+  /** 审批类型下拉：取自真实数据 */
+  const typeOpts = useMemo(
+    () => [...new Set(list.map((r) => typeOf(r)).filter((v) => v && v !== '—'))].sort(),
+    [list],
+  );
 
   async function submitAdd() {
     if (!addTitle.trim()) return toast('请填写申请事由');
@@ -112,12 +129,23 @@ export default function DesktopApprove() {
     load();
   }
 
+  /** 与原站一致：ID号 / 申请人 / 申请时间 / 审批类型 / 所属部门 / 物品名称 / 当前审批人 / 审批状态 */
   const cols: Column<ApproveItem>[] = [
-    { key: 'type', title: '类型', width: 120, render: (r) => typeOf(r) },
-    { key: 'title', title: '审批事项', render: (r) => <span className="pc-td-strong">{titleOf(r)}</span> },
-    { key: 'admin', title: '申请人', width: 110, render: (r) => r.admin_name || '—' },
-    { key: 'time', title: '提交时间', width: 150, render: (r) => fmtTime(r.create_time) },
-    { key: 'status', title: '状态', width: 110, render: (r) => tag(statusOf(r)) },
+    { key: 'id', title: 'ID号', width: 80, render: (r) => r.id },
+    { key: 'admin', title: '申请人', width: 100, render: (r) => r.admin_name || '—' },
+    { key: 'time', title: '申请时间', width: 150, render: (r) => fmtTime(r.create_time) },
+    { key: 'ftype', title: '审批类型', width: 120, render: (r) => typeOf(r) },
+    { key: 'dept', title: '所属部门', width: 160, render: (r) => (r as any).department_name || '—' },
+    {
+      key: 'product',
+      title: '物品名称',
+      width: 230,
+      render: (r) => (
+        <span className="pc-td-strong">{(r as any).product_msg || titleOf(r)}</span>
+      ),
+    },
+    { key: 'checker', title: '当前审批人', width: 110, render: (r) => (r as any).check_user || '—' },
+    { key: 'status', title: '审批状态', width: 110, render: (r) => tag(statusOf(r)) },
     {
       key: 'op',
       title: '操作',
@@ -125,11 +153,16 @@ export default function DesktopApprove() {
       render: (r) => {
         const s = statusOf(r);
         return s === 1 ? (
-          <span className="pc-link" onClick={() => setCur(r)}>
-            审批 · 详情
+          <span className="pc-ops">
+            <span className="gg-xs orange" onClick={() => setCur(r)}>
+              审批
+            </span>
+            <span className="gg-xs blue" onClick={() => setCur(r)}>
+              详情
+            </span>
           </span>
         ) : (
-          <span className="pc-link" onClick={() => setCur(r)}>
+          <span className="gg-xs blue" onClick={() => setCur(r)}>
             详情
           </span>
         );
@@ -160,8 +193,20 @@ export default function DesktopApprove() {
         <div style={{ padding: '12px 16px 0' }}>
           <FilterTabs tabs={TABS} value={status} onChange={(v: 0 | 1 | 2 | 3) => setStatus(v)} />
           <div className="pc-toolbar">
-            <input className="pc-input" style={{ width: 260 }} placeholder="搜索事由 / 类型 / 申请人" value={q} onChange={(e) => setQ(e.target.value)} />
-            {q ? <button className="pc-btn pc-btn-ghost" onClick={() => setQ('')}>清空</button> : null}
+            <input className="pc-input" style={{ width: 260 }} placeholder="物品名称 / 申请人 / 部门" value={q} onChange={(e) => setQ(e.target.value)} />
+            <select className="pc-input" style={{ width: 160 }} value={typeF} onChange={(e) => setTypeF(e.target.value)}>
+              <option value="">全部类型</option>
+              {typeOpts.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            {q || typeF ? (
+              <button className="pc-btn pc-btn-ghost" onClick={() => { setQ(''); setTypeF(''); }}>
+                清空
+              </button>
+            ) : null}
           </div>
         </div>
         <div style={{ padding: '0 16px 12px' }}>
@@ -200,6 +245,9 @@ export default function DesktopApprove() {
           <dl className="pc-kv">
             <div style={{ display: 'contents' }}><dt>编号</dt><dd>{cur.id}</dd></div>
             <div style={{ display: 'contents' }}><dt>类型</dt><dd>{typeOf(cur)}</dd></div>
+            <div style={{ display: 'contents' }}><dt>物品名称</dt><dd>{(cur as any).product_msg || titleOf(cur)}</dd></div>
+            <div style={{ display: 'contents' }}><dt>所属部门</dt><dd>{(cur as any).department_name || '—'}</dd></div>
+            <div style={{ display: 'contents' }}><dt>当前审批人</dt><dd>{(cur as any).check_user || '—'}</dd></div>
             <div style={{ display: 'contents' }}><dt>申请人</dt><dd>{cur.admin_name || '—'}</dd></div>
             <div style={{ display: 'contents' }}><dt>提交时间</dt><dd>{fmtTime(cur.create_time)}</dd></div>
             <div style={{ display: 'contents' }}><dt>状态</dt><dd>{st === 2 ? '已通过' : st === 3 ? '已拒绝' : st === 4 ? '已撤销' : '待审批'}</dd></div>

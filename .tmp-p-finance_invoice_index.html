@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="renderer" content="webkit"/>
+	<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="mobile-prefetch" href=""/>
+
+
+	<title>优品OA</title>		
+
+
+	<meta name="keywords" content="优品OA"/>
+	<meta name="description" content="优品办公是一款基于ThinkPHP6 + Layui + MySql打造的，简单实用的开源免费的企业办公系统框架。系统集成了系统设置、人事管理、消息管理、审批管理、日常办公、客户管理、合同管理、项目管理、财务管理、知识管理、产品管理、附件管理等模块。系统简约，易于功能扩展，方便二次开发，让开发者更专注于业务深度需求的开发，帮助开发者简单高效降低二次开发成本，通过二次开发之后可以用来做CRM，ERP，业务管理等系统。"/>
+
+
+	<link rel="stylesheet" href="/static/assets/gougu/css/gougu.css?v=4.0.24" media="all">
+
+
+<style>
+    .layui-table-cell {
+        height: auto;
+    }
+    .children-modal .layui-table {
+        margin-top: 0;
+    }
+    .children-summary {
+        background: #f8f8f8;
+        padding: 10px 15px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+        border-left: 4px solid #1e9fff;
+    }
+    .children-summary .layui-badge {
+        margin-right: 10px;
+    }
+</style>
+
+<script>
+	const login_admin=84;
+</script>
+
+</head>
+<body class="main-body">
+	<!-- 主体 -->
+	
+<div class="p-3">
+    <form class="layui-form gg-form-bar border-x border-t" lay-filter="barsearchform">
+        <div class="layui-input-inline" style="width:300px;">
+            <input type="text" class="layui-input" id="diff_time" placeholder="选择申请时间区间" readonly name="diff_time">
+        </div>
+        <div class="layui-input-inline" style="width:300px;">
+            <input type="text" class="layui-input" id="check_open_time" placeholder="选择开具时间区间" readonly name="check_open_time">
+        </div>
+        <div class="layui-input-inline">
+            <select name="check_status">
+                <option value="">请选择状态</option>
+                <option value="1">审核中</option>
+                <option value="2">审核通过,待开具</option>
+                <option value="3">审核拒绝</option>
+                <option value="4">撤销</option>
+                <option value="5">已开具</option>
+                <option value="6">等待通知开票</option>
+                <option value="10">已作废</option>
+            </select>
+        </div>
+        <div class="layui-input-inline" style="width:150px;">
+            <select name="invoice_class">
+                <option value="">请选择发票类型</option>
+                <option value="1">统称</option>
+                <option value="2">明细</option>
+            </select>
+        </div>
+        <div class="layui-input-inline" style="width:150px;">
+            <select name="flag">
+                <option value="">请选择发票标识</option>
+                <option value="1">订单发票</option>
+                <option value="2">无订单发票</option>
+                <option value="3">第三方发票</option>
+            </select>
+        </div>
+        <div class="layui-input-inline">
+            <select name="invoice_subject">
+                <option value="">请选择开票主体</option>
+                                <option value="32">博研微信</option>
+                                <option value="31">湖北仁优生物科技有限公司</option>
+                                <option value="30">南京研检生物科技有限公司</option>
+                                <option value="29">湖北省祐乾生物科技有限公司</option>
+                                <option value="25">黄石市精检生物科技有限公司</option>
+                                <option value="22">湖北麦科维思生物科技有限公司</option>
+                                <option value="19">林总建行</option>
+                                <option value="18">择优支付宝</option>
+                                <option value="17">泉州睿信一检生物科技有限公司</option>
+                                <option value="15">预存款抵扣</option>
+                                <option value="14">择优微信</option>
+                                <option value="13">睿信微信</option>
+                                <option value="12">湖北省择优生物科技有限公司</option>
+                                <option value="11">黄石市蓝图生物科技有限公司</option>
+                                <option value="10">泉州市睿信生物科技有限公司</option>
+                                <option value="9">泉州康特星生物科技有限公司</option>
+                                <option value="8">湖北臻优品生物科技有限公司</option>
+                                <option value="7">湖北省邦信生物科技有限公司</option>
+                                <option value="6">仑昌硕支付宝</option>
+                                <option value="5">仑昌硕微信</option>
+                                <option value="4">厦门仑昌硕生物科技有限公司</option>
+                                <option value="3">泉州市蓝图生物科技有限公司</option>
+                                <option value="2">湖北省与君生物科技有限公司</option>
+                                <option value="1">杭州臻优品生物科技有限公司</option>
+                            </select>
+        </div>
+        <div class="layui-input-inline" style="width:150px;"> 
+            <input type="text" name="id" placeholder="ID" class="layui-input" autocomplete="off">
+        </div>
+        <div class="layui-input-inline" style="width:20%;">
+            <input type="text" name="keywords" placeholder="开票抬头/打款公司/订单编号/客户名称" class="layui-input" autocomplete="off" />
+        </div>
+        <div class="layui-input-inline" style="width:150px;">
+            <button class="layui-btn layui-btn-normal" lay-submit="" lay-filter="webform"><i class="layui-icon layui-icon-search mr-1"></i>搜索</button>
+            <button type="reset" class="layui-btn layui-btn-reset" lay-filter="reset">清空</button>
+        </div>
+    </form>
+    <table class="layui-hide" id="test" lay-filter="test"></table>
+</div>
+
+<script type="text/html" id="toolbarDemo">
+<div class="layui-btn-container">
+    <h3 class="h3-title" style="height:32px;">
+        <span class="layui-btn layui-btn-sm" lay-event="add">+ 申请开票</span>
+        <span class="layui-btn layui-btn-normal layui-btn-sm" lay-event="parties_add">+ OA无订单开票申请</span>
+        <span style="margin-left: 20px;">
+            总开票金额：<font style="margin-right: 10px;" id="totalamount" color="red">0.00元</font>
+            作废金额：<font style="margin-right: 10px;" id="cancelamount" color="red">0.00元</font>
+            已增加预存款金额：<font style="margin-right: 10px;" id="advancedepositamount" color="red">0.00元</font>
+        </span>
+    </h3>
+</div>
+</script>
+
+<!-- 子发票操作按钮模板 -->
+<script type="text/html" id="childrenOperateTpl">
+    <div class="layui-btn-group layui-btn-group-sm">
+        <button class="layui-btn layui-btn-xs layui-btn-normal" lay-event="view">详情</button>
+		{{# if(d.check_status==4 && d.admin_id==login_admin){ }}
+        <button class="layui-btn layui-btn-xs" lay-event="edit">编辑</button>
+        <button class="layui-btn layui-btn-xs layui-btn-danger" lay-event="del">删除</button>
+		{{# } }}
+    </div>
+</script>
+
+	<!-- /主体 -->
+
+	<!-- 底部 -->
+	
+	<!-- /底部 -->
+	
+	<!-- 脚本 -->
+	
+<script>
+    const moduleInit = ['tool','tablePlus','laydatePlus'];
+    
+    // 全局变量存储当前操作的父级数据
+    var currentParentData = null;
+    
+    function gouguInit() {
+        var form = layui.form, table = layui.tablePlus, tool = layui.tool, laydatePlus = layui.laydatePlus;
+        
+        // 日期范围
+        var diff_time = new laydatePlus({'target':'diff_time'});
+        var check_open_time = new laydatePlus({'target':'check_open_time'});
+        
+        // 监听搜索提交
+        form.on('submit(webform)', function(data) {
+            layui.pageTable.reload({
+                where: data.field,
+                page: {curr: 1}
+            });
+            return false;
+        });
+
+        layui.pageTable = table.render({
+            elem: '#test',
+            title: '发票列表',
+            toolbar: '#toolbarDemo',
+            url: "/finance/invoice/index",
+            page: true,
+            cellMinWidth: 80,
+            limit: 20,
+            is_excel: true,
+            height: 'full-82',
+            cols: [
+                [
+                    {
+                        field: 'id',
+                        title: 'ID号',
+                        align: 'center',
+                        width: 80
+                    }, 
+                    {
+                        field: 'customer_orders',
+                        title: '关联订单',
+                        align: 'left',
+                        width: 300,
+                        templet: function (d) { 
+                            var html = getOrderItemInfo(d.customer_orders);
+                            if (d.chchildren && d.chchildren.length > 0) {
+                                html += '<div><span class="layui-badge layui-bg-orange">包含' + d.chchildren.length + '个子发票</span></div>';
+                            }
+                            return html;
+                        }
+                    }, 
+                    {
+                        field: 'invoice_title',
+                        title: '开票抬头',
+                        minWidth: 200,
+                        templet: function(d){
+                            var html = '';
+                            if(d.type==1){
+                                html='<span class="layui-badge layui-bg-blue">企业</span> ';
+                            } else if(d.type==2){
+                                html='<span class="layui-badge layui-bg-green">个人</span> ';
+                            }
+                            return html + d.invoice_title;
+                        }
+                    },
+                    {
+                        field: 'amount',
+                        title: '开票金额(元)',
+                        align: 'right',
+                        width: 100,
+                    },
+                    {
+                        field: 'flag',
+                        title: '发票标识',
+                        align: 'center',
+                        width: 120,
+                        templet: function(d){
+                            if(d.flag==1) return '<span class="green">订单发票</span>';
+                            else if(d.flag==2) return '<span class="blue">无订单发票</span>';
+                            else if(d.flag==3) return '<span class="blue">第三方发票</span>';
+                            return '-';
+                        }
+                    },
+                    {
+                        field: 'check_status',
+                        title: '发票状态',
+                        align: 'center',
+                        width: 120,
+                        templet: function(d){
+                            var statusMap = {
+                                '0': '<span class="black">待审核</span>',
+                                '1': '<span class="blue">审核中</span>',
+                                '2': '<span class="green">审核通过,待开具</span>',
+                                '3': '<span class="red">审核不通过</span>',
+                                '4': '<span class="red">已撤销</span>',
+                                '5': '<span class="green">已开具</span>',
+                                '6': '<span class="green">等待通知开票</span>',
+                                '10': '<span class="yellow">已作废</span>'
+                            };
+                            return statusMap[d.check_status] || '-';
+                        }
+                    },
+                    {
+                        field: 'advance_deposit',
+                        title: '已增加预存款金额',
+                        align: 'right',
+                        width: 140
+                    },
+                    {
+                        field: 'name',
+                        title: '申请人',
+                        align: 'center',
+                        width: 90
+                    },
+                    {
+                        field: 'create_time',
+                        title: '申请时间',
+                        align: 'center',
+                        width: 150
+                    },
+                    {
+                        field: 'code',
+                        title: '发票号码',
+                        align: 'center',
+                        width: 120
+                    },
+                    {
+                        field: 'open_time',
+                        title: '开票时间',
+                        align: 'center',
+                        width: 120
+                    },
+                    {
+                        field: 'right',
+                        fixed: 'right',
+                        title: '操作',
+                        width: 200,
+                        align: 'center',
+                        templet: function(d){
+                            var html = '<div class="layui-btn-group">';
+                            var btnView = '<button class="layui-btn layui-btn-xs layui-btn-normal" lay-event="view">详情</button>';
+                            var btnEdit = '<button class="layui-btn layui-btn-xs" lay-event="edit">编辑</button>';
+                            var btnDel = '<button class="layui-btn layui-btn-xs layui-btn-danger" lay-event="del">删除</button>';
+                            var btnChildren = '<button class="layui-btn layui-btn-xs layui-btn-warm" lay-event="children">子发票</button>';
+                            var btnAddChildren = '<button class="layui-btn layui-btn-xs layui-btn-checked" lay-event="addChildren">添加子发票</button>';
+                            
+                            html += btnView;
+                            
+                            // 编辑和删除权限控制
+                            if(d.check_status==4 && d.admin_id==login_admin){
+                                html += btnEdit + btnDel;
+                            }
+                            
+                            // 查看子发票按钮
+                            if(d.chchildren && d.chchildren.length > 0){
+                                html += btnChildren;
+                            }
+                            if(d.check_status==6 && d.admin_id==login_admin){ 
+                                html += btnAddChildren;
+                            }
+                            html += '</div>';
+                            return html;
+                        }
+                    }
+                ]
+            ],
+            done: function(res, curr, count){
+                // 调整行高
+                $(".layui-table-main tr").each(function (index, val) {
+                    $($(".layui-table-fixed-l .layui-table-body tbody tr")[index]).height($(val).height());
+                    $($(".layui-table-fixed-r .layui-table-body tbody tr")[index]).height($(val).height());
+                });
+                
+                // 更新统计信息
+                if(res.totalRow){
+                    $('#totalamount').text((res.totalRow.total_amount || 0).toFixed(2) + '元');
+                    $('#cancelamount').text((res.totalRow.cancel_amount || 0).toFixed(2) + '元');
+                    $('#advancedepositamount').text((res.totalRow.advance_deposit_amount || 0).toFixed(2) + '元');
+                }
+            }
+        });
+        
+        // 工具栏事件
+        table.on('toolbar(test)', function(obj){
+            switch(obj.event) {
+                case 'add':
+                    selectCustomerOrder();
+                    break;
+                case 'parties_add':
+                    tool.side("/finance/invoice/add?flagtype=2");
+                    break;
+            }
+        });
+        
+        // 行工具事件处理
+        table.on('tool(test)', function(obj) {
+            var data = obj.data;
+            
+            switch(obj.event) {
+                case 'view':
+                    tool.side("/finance/invoice/view?id=" + data.id);
+                    break;
+                case 'edit':
+                    editInvoice(data);
+                    break;
+                case 'del':
+                    deleteInvoice(data, obj);
+                    break;
+                case 'children':
+                    showChildrenModal(data);
+                    break;
+                case 'addChildren':
+                    tool.side("/finance/invoice/add?flagtype=2&pid=" + data.id);
+                    break;
+            }
+        });
+        
+        // 编辑发票
+        function editInvoice(data) {
+            var url = "/finance/invoice/add";
+            if(data.flag == 2 || data.flag == 3) {
+                url += "?flagtype=2&";
+            } else {
+                url += "?";
+            }
+            url += "id=" + data.id;
+            tool.side(url);
+        }
+        
+        // 删除发票
+        function deleteInvoice(data, tableObj) {
+            layer.confirm('确定删除该发票记录吗？', {
+                icon: 3,
+                title: '提示'
+            }, function(index) {
+                $.ajax({
+                    url: "/finance/invoice/delete",
+                    type: 'post',
+                    data: {id: data.id},
+                    success: function(res) {
+                        layer.msg(res.msg);
+                        if (res.code == 0) {
+                            tableObj.del();
+                        }
+                    }
+                });
+                layer.close(index);
+            });
+        }
+        
+        // 显示子发票弹窗
+        function showChildrenModal(parentData) {
+            currentParentData = parentData;
+            var children = parentData.chchildren || [];
+            
+            if (children.length === 0) {
+                layer.msg('没有子发票记录', {icon: 3});
+                return;
+            }
+            
+            // 计算统计信息
+            var totalAmount = 0;
+            children.forEach(function(child) {
+                if(child.check_status!=3 && child.check_status!=4 && child.check_status!=10){
+                    totalAmount += parseFloat(child.amount || 0);
+                }
+            });
+            
+            // 生成弹窗内容
+            var content = '<div class="children-modal">' +
+                '<div class="children-summary">' +
+                '<span class="layui-badge layui-bg-blue">主发票ID: ' + parentData.id + '</span>' +
+                '<span class="layui-badge layui-bg-green">子发票数量: ' + children.length + '</span>' +
+                '<span class="layui-badge">子发票总额: ¥' + totalAmount.toFixed(2) + '</span>' +
+                '</div>' +
+                '<table id="childrenTable" lay-filter="childrenTable"></table>' +
+                '</div>';
+            
+            var index = layer.open({
+                type: 1,
+                title: '子发票记录 - ' + parentData.invoice_title,
+                area: ['95%', '80%'],
+                content: content,
+                success: function() {
+                    // 渲染子发票表格
+                    table.render({
+                        elem: '#childrenTable',
+                        data: children,
+                        page: false,
+                        height: 'full-100',
+                        cols: [[
+                            {field: 'id', title: 'ID', width: 80, align: 'center'},
+                            {
+                                field: 'invoice_title', 
+                                title: '开票抬头', 
+                                minWidth: 200,
+                                templet: function(d){
+                                    var html = '';
+                                    if(d.type==1) html='<span class="layui-badge layui-bg-blue">企</span> ';
+                                    else if(d.type==2) html='<span class="layui-badge layui-bg-green">个</span> ';
+                                    return html + d.invoice_title;
+                                }
+                            },
+                            {
+                                field: 'amount', 
+                                title: '开票金额', 
+                                width: 120, 
+                                align: 'right',
+                                templet: function(d) { 
+                                    return '¥' + parseFloat(d.amount || 0).toFixed(2); 
+                                }
+                            },
+                            {
+                                field: 'flag', 
+                                title: '发票标识', 
+                                width: 100, 
+                                align: 'center',
+                                templet: function(d){
+                                    if(d.flag==1) return '<span class="green">订单</span>';
+                                    else if(d.flag==2) return '<span class="blue">无订单</span>';
+                                    else if(d.flag==3) return '<span class="blue">三方</span>';
+                                    return '-';
+                                }
+                            },
+                            {
+                                field: 'check_status', 
+                                title: '状态', 
+                                width: 120, 
+                                align: 'center',
+                                templet: function(d){
+                                    var statusMap = {
+                                        '0': '<span class="black">待审核</span>',
+                                        '1': '<span class="blue">审核中</span>',
+                                        '2': '<span class="green">待开具</span>',
+                                        '3': '<span class="red">不通过</span>',
+                                        '4': '<span class="red">已撤销</span>',
+                                        '5': '<span class="green">已开具</span>',
+                                        '6': '<span class="green">等待通知</span>',
+                                        '10': '<span class="yellow">已作废</span>'
+                                    };
+                                    return statusMap[d.check_status] || '-';
+                                }
+                            },
+							{
+								field: 'advance_deposit',
+								title: '已增加预存款金额',
+								align: 'right',
+								width: 140
+							},
+							{
+								field: 'name',
+								title: '申请人',
+								align: 'center',
+								width: 90
+							},
+							{
+								field: 'create_time',
+								title: '申请时间',
+								align: 'center',
+								width: 150
+							},
+							{
+								field: 'code',
+								title: '发票号码',
+								align: 'center',
+								width: 120
+							},
+							{
+								field: 'open_time',
+								title: '开票时间',
+								align: 'center',
+								width: 120
+							},
+                            {
+                                field: 'right', 
+                                title: '操作', 
+                                width: 180, 
+                                fixed: 'right', 
+                                align: 'center', 
+                                toolbar: '#childrenOperateTpl'
+                            }
+                        ]],
+                        done: function() {
+                            // 监听子发票表格行工具事件
+                            table.on('tool(childrenTable)', function(obj) {
+                                var childData = obj.data;
+                                
+                                switch(obj.event) {
+                                    case 'view':
+                                        tool.side("/finance/invoice/view?id=" + childData.id);
+                                        layer.close(index);
+                                        break;
+                                    case 'edit':
+                                        if(childData.flag == 2 || childData.flag == 3) {
+                                            tool.side("/finance/invoice/add?flagtype=2&id=" + childData.id);
+                                        } else {
+                                            tool.side("/finance/invoice/add?id=" + childData.id);
+                                        }
+                                        layer.close(index);
+                                        break;
+                                    case 'del':
+                                        if(childData.check_status == 4 && childData.admin_id == login_admin) {
+                                            deleteInvoice(childData, obj);
+                                        } else {
+                                            layer.msg('没有删除权限', {icon: 2});
+                                        }
+                                        break;
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+        
+        // 选择订单
+        function selectCustomerOrder() {
+            var customerOrderTable;
+            var customeLayer = layer.open({
+                title: '选择您处理的订单',
+                area: ['1200px', '580px'],
+                type: 1,
+                content: '<div class="picker-table">\
+                    <form class="layui-form pb-2">\
+                        <div class="layui-input-inline" style="width:100px;">\
+                            <select name="is_cash">\
+                                <option value="">是否到账</option>\
+                                <option value="0">未到账</option>\
+                                <option value="1">部分到账</option>\
+                                <option value="2">全部到账</option>\
+                            </select>\
+                        </div>\
+                        <div class="layui-input-inline" style="width:60%;">\
+                            <input type="text" name="keywords" placeholder="订单编号/订单名称/打款公司/回款公司/负责人" class="layui-input" autocomplete="off" />\
+                        </div>\
+                        <button class="layui-btn layui-btn-normal" lay-submit="" lay-filter="search_customer_order">提交搜索</button>\
+                    </form>\
+                    <div id="customerOrderTable"></div></div>',
+                success: function (layero, idx, that) {
+                    form.render('select');
+                    customerOrderTable = table.render({
+                        elem: '#customerOrderTable',
+                        url: '/finance/api/get_customer_order',
+                        page: true,
+                        limit: 10,
+                        cols: [[
+                            { type: 'checkbox', title: '选择' },
+                            { field: 'id', width: 10, title: '编号', align: 'center' },
+                            { field: 'code', width: 170, title: '订单编号' },
+                            { field: 'title', title: '订单名称' },
+                            { field: 'customer_name', title: '客户名称' },
+                            { field: 'payment_company', title: '打款公司' },
+                            { field: 'order_subject_name', title: '回款公司' },
+                            { field: 'director_name', title: '负责人' },
+                            { field: 'enter_amount', title: '到账金额', align: 'right' },
+                            { field: 'deal_amount', title: '成交金额', align: 'right' },
+                            { field: 'refund_amount', title: '退款金额', align: 'right' },
+                            {
+                                field: 'is_cash',
+                                title: '是否到账',
+                                align: 'center',
+                                width: 80,
+                                templet: function(d){
+                                    if(d.is_cash==0) return '<span class="red">未到账</span>';
+                                    else if(d.is_cash==1) return '<span class="blue">部分到账</span>';
+                                    else if(d.is_cash==2) return '<span class="green">全部到账</span>';
+                                    return '-';
+                                }
+                            }
+                        ]]
+                    });
+                    
+                    // 客户搜索提交
+                    form.on('submit(search_customer_order)', function (data) {
+                        customerOrderTable.reload({ 
+                            where: { keywords: data.field.keywords }, 
+                            page: { curr: 1 } 
+                        });
+                        return false;
+                    });
+                },
+                btn: ['确定'],
+                yes: function(index){
+                    var checkStatus = table.checkStatus(customerOrderTable.config.id);
+                    var data = checkStatus.data;
+                    
+                    if(data.length > 0){
+                        let ids = data.map(item => item.id);
+                        tool.side("/finance/invoice/add?orderids=" + encodeURIComponent(ids.join(',')));
+                        layer.close(index);
+                    } else {
+                        layer.msg('请先选择您处理的订单');
+                        return false;
+                    }
+                }
+            });
+        }
+    }
+    
+    // 获取订单信息
+    function getOrderItemInfo(objArry) {
+        if(!objArry || !Array.isArray(objArry) || objArry.length === 0) {
+            return '<span class="gray">无关联订单</span>';
+        }
+        var strHtml = "";
+        $.each(objArry, function (i, ele) {
+            strHtml += '<div>' + ele + '</div>';
+        });
+        return strHtml;
+    }
+</script>
+
+	<!-- /脚本 -->
+	<script src="/static/assets/layui/layui.js"></script>
+	<script src="/static/assets/gougu/gouguInit.js"></script>
+	<script type="text/javascript">
+		(function(){
+			document.addEventListener('DOMContentLoaded', function() {
+				const pcWidth = 1000; // PC端设计宽度
+				const scale = window.innerWidth / pcWidth;
+				document.querySelector('meta[name="viewport"]').content = 
+					`width=${pcWidth}, initial-scale=${scale}, minimum-scale=${scale}, maximum-scale=${scale}, user-scalable=no`;
+			});
+		})();
+		// 图片预览函数
+		function previewImage(url, title) {
+			if (!url) return;
+			
+			if (typeof layer.photos !== 'function') {
+				// 如果layer.photos不存在，使用普通的layer.open
+				layer.open({
+					type: 1,
+					title: title || '图片预览',
+					shadeClose: true,
+					shade: 0.8,
+					area: ['90%', '90%'],
+					content: '<div style="text-align:center;padding:20px;"><img src="' + url + '" style="max-width:100%;max-height:100%;"></div>'
+				});
+				return;
+			}
+			
+			// 使用LayerUI的相册预览（更专业的图片查看器）
+			layer.photos({
+				photos: {
+					title: title || '图片预览',
+					id: Math.random().toString(36).substr(2), // 随机ID
+					start: 0, // 初始显示索引
+					data: [{
+						alt: title || '预览图片',
+						pid: 1, // 图片id
+						src: url, // 原图地址
+						thumb: url // 缩略图地址
+					}]
+				},
+				anim: 5, // 0-6的选择，指定弹出图片动画类型，默认随机
+				shadeClose: true,
+				closeBtn: 1,
+				shift: 5 // 切换动画方式，默认0是左右切换，1是上下切换，2是淡入淡出，3是放大缩小，4是左到右渐变，5是上到下渐变，6是左上渐变
+			});
+		}
+	</script>
+	<!-- 统计代码 -->
+	
+	<!-- /统计代码 -->
+</body>
+</html>

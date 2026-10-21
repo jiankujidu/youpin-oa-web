@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="renderer" content="webkit"/>
+	<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="mobile-prefetch" href=""/>
+
+
+	<title>优品OA</title>		
+
+
+	<meta name="keywords" content="优品OA"/>
+	<meta name="description" content="优品办公是一款基于ThinkPHP6 + Layui + MySql打造的，简单实用的开源免费的企业办公系统框架。系统集成了系统设置、人事管理、消息管理、审批管理、日常办公、客户管理、合同管理、项目管理、财务管理、知识管理、产品管理、附件管理等模块。系统简约，易于功能扩展，方便二次开发，让开发者更专注于业务深度需求的开发，帮助开发者简单高效降低二次开发成本，通过二次开发之后可以用来做CRM，ERP，业务管理等系统。"/>
+
+
+	<link rel="stylesheet" href="/static/assets/gougu/css/gougu.css?v=4.0.24" media="all">
+
+
+<style>
+    .gougu-upload-files {
+        background-color: #ffffff;
+        border: 1px solid #e4e7ed;
+        color: #c0c4cc;
+        cursor: not-allowed;
+        padding: 0 12px;
+        width: 180px;
+        box-sizing: border-box;
+        display: inline-block;
+        font-size: inherit;
+        height: 38px;
+        line-height: 35px;
+        margin-right: 8px;
+        border-radius: 2px;
+    }
+    .gougu-upload-tips {
+        color: #969696
+    }
+    .layui-form-item {
+        margin-bottom: 8px;
+    }
+    .layui-input-block {
+        min-height: 24px;
+    }
+    .layui-table-cell {
+        height: auto;
+    }
+    .quick-order-btn {
+        margin-left: 10px;
+    }
+</style>
+
+<script>
+	const login_admin=84;
+</script>
+
+</head>
+<body class="main-body">
+	<!-- 主体 -->
+	
+<div class="p-3">
+    <form class="layui-form gg-form-bar border-x border-t" lay-filter="barsearchform">
+        <div class="layui-input-inline" style="width:300px;">
+            <input type="text" class="layui-input" id="diff_time" placeholder="选择时间区间" readonly name="diff_time">
+        </div>
+        <div class="layui-input-inline">
+            <select name="check_status">
+                <option value="">请选择记录状态</option>
+                <option value="1">审核中</option>
+                <option value="2">审核通过,待发货</option>
+                <option value="3">审核拒绝</option>
+                <option value="4">撤销</option>
+                <option value="5">已发货</option>
+                <option value="10">已作废</option>
+            </select>
+        </div>
+        <div class="layui-input-inline" style="width:200px;">
+            <input type="text" name="indexs" placeholder="指标名称" class="layui-input"
+                autocomplete="off" />
+        </div>
+        <div class="layui-input-inline" style="width:300px;">
+            <input type="text" name="keywords" placeholder="订单主题/订单编号/客户姓名/负责人" class="layui-input"
+                autocomplete="off" />
+        </div>
+        <div class="layui-input-inline" style="width:150px;">
+            <button class="layui-btn layui-btn-normal" lay-submit="" lay-filter="webform"><i
+                    class="layui-icon layui-icon-search mr-1"></i>搜索</button>
+            <button type="reset" class="layui-btn layui-btn-reset" lay-filter="reset">清空</button>
+        </div>
+    </form>
+    <table class="layui-hide" id="test" lay-filter="test"></table>
+</div>
+<script type="text/html" id="toolbarDemo">
+<div class="layui-btn-container" style="height: 80px;">
+    <h3 class="h3-title" style="height:32px;margin-right: 10px;">
+        <span class="layui-btn layui-btn-sm" lay-event="add">+ 申请开单</span><br>
+        <!-- <span class="layui-btn layui-btn-sm layui-btn-warm quick-order-btn" lay-event="quickOrder">+ 快捷下单</span> -->
+        <!-- <span class="layui-btn layui-btn-sm" lay-event="import">+ 批量导入</span> -->
+        <span style="margin-left: 20px;">
+            总实际金额：<font style="margin-right: 10px;" id="totalamount" color="red">0.00元</font>
+            总欠款金额：<font style="margin-right: 10px;" id="arrearsamount" color="red">0.00元</font>
+            总成交金额：<font style="margin-right: 10px;" id="dealamount" color="red">0.00元</font>
+            总到账金额：<font style="margin-right: 10px;" id="enteramount" color="red">0.00元</font>
+            总退款金额：<font style="margin-right: 10px;" id="refundamount" color="red">0.00元</font>
+            <!-- 总预存款金额：<font style="margin-right: 10px;" id="advancedeposit" color="red">0.00元</font> -->
+            总抵扣券金额：<font style="margin-right: 10px;" id="deduction" color="red">0.00元</font>
+        </span>
+    </h3>
+    
+</div>
+</script>
+
+<!-- 快捷下单弹窗模板 -->
+<script type="text/html" id="quickOrderTemplate">
+<div class="layui-form p-3" style="width: 800px; max-height: 600px; overflow-y: auto;">
+    <div class="layui-form-item">
+        <label class="layui-form-label">粘贴内容</label>
+        <div class="layui-input-block">
+            <textarea id="quickOrderContent" placeholder="请粘贴订单内容，例如：
+广州博雅生物科技发展有限公司
+指标1：YP-mAb-14716  科研原料 c-Src Monoclonal Antibody  10uL  158元
+收货地址：广东省深圳市光明区光明招商局科技园A区A1栋405  
+汪涵 13694730607
+小礼品：盲盒卡一张
+备注：有现货的今日先发..." 
+                class="layui-textarea" style="height: 200px;"></textarea>
+            <div class="layui-form-mid layui-word-aux">
+                支持格式：公司名称、指标(产品编号 产品名称 规格 价格)、小礼品、备注、收货地址等信息<br>
+				<font color="red">
+					注意：<br>1.粘贴后可以直接确认下单，解析内容只是确认粘贴内容是否可以被正确识别，请自行确认！<br>
+					2.解析内容只是解析格式问题，最终结果请下单后查看，可能存在公司或产品不存在的情况，请自行确认！
+				</font>
+            </div>
+        </div>
+    </div>
+    
+    <div class="layui-form-item">
+        <label class="layui-form-label">解析结果</label>
+        <div class="layui-input-block">
+            <div id="parseResult" style="border: 1px solid #e6e6e6; padding: 10px; border-radius: 2px; background-color: #f8f8f8; min-height: 150px;">
+                解析结果将在此显示...
+            </div>
+        </div>
+    </div>
+    
+    <div class="layui-form-item">
+        <div class="layui-input-block">
+            <button type="button" class="layui-btn layui-btn-normal" id="parseContent">解析内容</button>
+            <button type="button" class="layui-btn layui-btn-primary" id="clearContent">清空</button>
+        </div>
+    </div>
+</div>
+</script>
+
+	<!-- /主体 -->
+
+	<!-- 底部 -->
+	
+	<!-- /底部 -->
+	
+	<!-- 脚本 -->
+	
+<script>
+    const moduleInit = ['tool', 'tablePlus', 'laydatePlus'];
+    
+    // 解析订单内容的函数
+    function parseOrderContent(content) {
+        const result = {
+            customerName: '',
+            products: [],
+            remark: '',
+            gift: '',
+            receiverInfo: {
+                name: '',
+                phone: '',
+                address: ''
+            },
+            rawText: content
+        };
+        
+        const lines = content.split('\n').filter(line => line.trim() !== '');
+        
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            
+            // 匹配公司名称（通常在第一行，且不包含"指标"、"收货地址"、"备注"等关键词）
+            if (!result.customerName && !trimmedLine.includes('指标') && 
+                !trimmedLine.includes('收货地址') && !trimmedLine.includes('备注') &&
+                !trimmedLine.includes('小礼品')) {
+                result.customerName = trimmedLine;
+            }
+            
+            // 匹配指标/产品
+            if (trimmedLine.includes('指标') && trimmedLine.includes('：')) {
+                const productMatch = trimmedLine.match(/指标\d*：(.+)/);
+                if (productMatch) {
+                    const productStr = productMatch[1].trim();
+                    // 使用更灵活的正则匹配产品信息
+                    const productPattern = /([A-Za-z0-9\-]+)\s+(.+?)\s+(\d+[A-Za-z\u4e00-\u9fa5]+)\s+(\d+(?:\.\d+)?)元/;
+                    const match = productStr.match(productPattern);
+                    
+                    if (match) {
+                        const product = {
+                            code: match[1], // 产品编号
+                            name: match[2], // 产品名称
+                            spec: match[3], // 规格
+                            price: parseFloat(match[4]), // 价格
+                            rawLine: trimmedLine
+                        };
+                        result.products.push(product);
+                    } else {
+                        // 尝试其他格式的解析
+                        const parts = productStr.split(/\s+/).filter(p => p);
+                        if (parts.length >= 4) {
+                            const product = {
+                                code: parts[0],
+                                name: parts.slice(1, parts.length - 2).join(' '),
+                                spec: parts[parts.length - 2],
+                                price: parseFloat(parts[parts.length - 1].replace('元', '')),
+                                rawLine: trimmedLine
+                            };
+                            result.products.push(product);
+                        }
+                    }
+                }
+            }
+            
+            // 匹配收货地址
+            if (trimmedLine.includes('收货地址：')) {
+                const addressMatch = trimmedLine.match(/收货地址：(.+)/);
+                if (addressMatch) {
+                    result.receiverInfo.address = addressMatch[1].trim();
+                    
+                    // 检查下一行是否有收件人信息
+                    const nextLineIndex = lines.indexOf(line) + 1;
+                    if (nextLineIndex < lines.length) {
+                        const nextLine = lines[nextLineIndex].trim();
+                        // 匹配姓名和电话（格式：姓名 电话）
+                        const receiverMatch = nextLine.match(/([\u4e00-\u9fa5]{2,4})\s+(\d{11})/);
+                        if (receiverMatch) {
+                            result.receiverInfo.name = receiverMatch[1];
+                            result.receiverInfo.phone = receiverMatch[2];
+                        } else {
+                            // 尝试在当前行中匹配
+                            const inlineMatch = addressMatch[1].match(/([\u4e00-\u9fa5]{2,4})\s+(\d{11})/);
+                            if (inlineMatch) {
+                                result.receiverInfo.name = inlineMatch[1];
+                                result.receiverInfo.phone = inlineMatch[2];
+                                result.receiverInfo.address = addressMatch[1].replace(inlineMatch[0], '').trim();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 匹配备注
+            if (trimmedLine.includes('备注：')) {
+                const remarkMatch = trimmedLine.match(/备注：(.+)/);
+                if (remarkMatch) {
+                    result.remark = remarkMatch[1].trim();
+                }
+            }
+            
+            // 匹配小礼品
+            if (trimmedLine.includes('小礼品：')) {
+                const giftMatch = trimmedLine.match(/小礼品：(.+)/);
+                if (giftMatch) {
+                    result.gift = giftMatch[1].trim();
+                }
+            }
+        });
+        return result;
+    }
+    
+    // 格式化解析结果显示
+    function formatParseResult(result) {
+        let html = '<div class="parse-result-detail">';
+        
+        html += `<p><strong>客户名称：</strong>${result.customerName || '未识别'}</p>`;
+        
+        if (result.products.length > 0) {
+            html += '<p><strong>产品列表：</strong></p>';
+            html += '<table style="width:100%; border-collapse: collapse; margin: 5px 0;">';
+            html += '<tr style="background-color: #f2f2f2;">';
+            html += '<th style="border:1px solid #ddd; padding:4px;">编号</th>';
+            html += '<th style="border:1px solid #ddd; padding:4px;">名称</th>';
+            html += '<th style="border:1px solid #ddd; padding:4px;">规格</th>';
+            html += '<th style="border:1px solid #ddd; padding:4px;">价格</th>';
+            html += '</tr>';
+            
+            result.products.forEach((product, index) => {
+                html += '<tr>';
+                html += `<td style="border:1px solid #ddd; padding:4px;">${product.code}</td>`;
+                html += `<td style="border:1px solid #ddd; padding:4px;">${product.name}</td>`;
+                html += `<td style="border:1px solid #ddd; padding:4px;">${product.spec}</td>`;
+                html += `<td style="border:1px solid #ddd; padding:4px;">${product.price}元</td>`;
+                html += '</tr>';
+            });
+            
+            html += '</table>';
+        } else {
+            html += '<p><strong>产品列表：</strong>未识别到产品信息</p>';
+        }
+        
+        if (result.receiverInfo.name || result.receiverInfo.address) {
+            html += '<p><strong>收货信息：</strong></p>';
+            html += `<p style="margin-left:20px;">收件人：${result.receiverInfo.name || '未识别'}</p>`;
+            html += `<p style="margin-left:20px;">电话：${result.receiverInfo.phone || '未识别'}</p>`;
+            html += `<p style="margin-left:20px;">地址：${result.receiverInfo.address || '未识别'}</p>`;
+        }
+        
+        if (result.remark) {
+            html += `<p><strong>备注：</strong>${result.remark}</p>`;
+        }
+        
+        if (result.gift) {
+            html += `<p><strong>小礼品：</strong>${result.gift}</p>`;
+        }
+        
+        html += '</div>';
+        return html;
+    }
+    
+    function gouguInit() {
+        var form = layui.form, table = layui.tablePlus, tool = layui.tool, laydatePlus = layui.laydatePlus, upload = layui.upload, layer = layui.layer;
+        
+        //日期范围
+        var diff_time = new laydatePlus({ 'target': 'diff_time' });
+        
+        //监听搜索提交
+        form.on('submit(webform)', function (data) {
+            layui.pageTable.reload({
+                where: data.field,
+                page: { curr: 1 }
+            });
+            return false;
+        });
+        
+        layui.pageTable = table.render({
+            elem: '#test',
+            title: '订单列表',
+            toolbar: '#toolbarDemo',
+            url: "/customer/order/index", //数据接口		
+            page: true, //开启分页
+            limit: 20,
+            is_excel: true,
+            height: 'full-82',
+            cols: [
+                [
+                    {
+                        field: 'id',
+                        title: 'ID号',
+                        align: 'center',
+                        width: 80
+                    }, {
+                        field: 'title',
+                        title: '订单主题',
+                        align: 'center',
+                    }, {
+                        field: 'code',
+                        title: '订单编号',
+                        align: 'center',
+                    }, {
+                        field: 'deal_time',
+                        title: '订单成交时间',
+                        align: 'center',
+                    }, {
+                        field: 'customer_name',
+                        title: '关联客户',
+                        align: 'center',
+                    }, {
+                        field: 'is_cash',
+                        title: '是否到账',
+                        align: 'center',
+                        width: 100,
+                        templet: function (d) {
+                            //0未到账 1部分到账 2全部到账
+                            var html = '-';
+                            if (d.amount > 0) {
+                                if (d.is_cash == 0) {
+                                    html = '<span class="red">未到账</span>';
+                                }
+                                else if (d.is_cash == 1) {
+                                    html = '<span class="blue">部分到账</span>';
+                                }
+                                else if (d.is_cash == 2) {
+                                    html = '<span class="green">全部到账</span>';
+                                }
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'enter_time',
+                        title: '到账时间',
+                        align: 'center',
+                    },
+                    // {
+                    // 	field: 'is_pay',
+                    // 	title: '是否打款',
+                    // 	align: 'center',
+                    // 	width: 120,
+                    // 	templet:function(d){
+                    // 		var html='-';
+                    // 		if(d.is_pay==1){
+                    // 			html='<span class="red">未打款</span>';
+                    // 		}
+                    // 		else if(d.is_pay==2){
+                    // 			html='<span class="blue">已打款</span>';
+                    // 		}
+                    // 		return html;
+                    // 	}
+                    // },
+                    {
+                        field: 'is_invoice',
+                        title: '是否开票',
+                        align: 'center',
+                        width: 120,
+                        templet: function (d) {
+                            var html = '-';
+                            if (d.amount > 0) {
+                                if (d.is_invoice == 1) {
+                                    html = '<span class="red">未开票</span>';
+                                } else if (d.is_invoice == 2) {
+                                    html = '<span class="blue">已申请，待开具</span>';
+                                } else if (d.is_invoice == 3) {
+                                    html = '<span class="green">已开票</span>';
+                                }
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'refund_amount',
+                        title: '退款金额(元)',
+                        align: 'right',
+                        width: 100,
+                    }, {
+                        field: 'arrears_amount',
+                        title: '欠款金额(元)',
+                        align: 'right',
+                        width: 100,
+                    }, {
+                        field: 'enter_amount',
+                        title: '到账金额(元)',
+                        align: 'right',
+                        width: 100,
+                    }, {
+                        field: 'amount',
+                        title: '订单实际金额(元)',
+                        align: 'right',
+                        width: 100,
+                    }, {
+                        field: 'deal_amount',
+                        title: '成交金额(元)',
+                        align: 'right',
+                        width: 100,
+                    }, /*{
+                        field: 'advance_deposit',
+                        title: '预存款金额(元)',
+                        align: 'right',
+                        width: 130,
+                    }, */{
+                        field: 'deduction',
+                        title: '抵扣券金额(元)',
+                        align: 'right',
+                        width: 130,
+                    },{
+                        field: 'delivery',
+                        title: '快递单号',
+                        align: 'center',
+                    }, {
+                        field: 'type',
+                        title: '订单状态',
+                        align: 'center',
+                        width: 120,
+                        templet: function (d) {
+                            var html = '-';
+                            if (d.type == 1) {
+                                html = '<span class="blue">等通知发货/代测</span>';
+                            } else if (d.type == 2) {
+                                html = '<span class="red">未发货</span>';
+                            } else if (d.type == 3) {
+                                html = '<span class="green">已发货</span>';
+                            } else if (d.type == 4) {
+                                html = '<span class="blue">未给代测</span>';
+                            } else if (d.type == 5) {
+                                html = '<span class="blue">已给代测</span>';
+                            } else if (d.type == 6) {
+                                html = '<span class="yellow">订单移交</span>';
+                            } else if (d.type == 7) {
+                                html = '<span class="blue">代测中</span>';
+                            } else if (d.type == 8) {
+                                html = '<span class="green">实验结题</span>';
+                            } else if (d.type == 9) {
+                                html = '<span class="yellow">待移交</span>';
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'order_subject_name',
+                        title: '关联主体',
+                        align: 'center',
+                    }, {
+                        field: 'order_type',
+                        title: '发货地点',
+                        align: 'center',
+                        width: 120,
+                        templet: function (d) {
+                            var html = '-';
+                            if (d.order_type == 1) {
+                                html = '<span class="green">花湖</span>';
+                            }
+                            else if (d.order_type == 2) {
+                                html = '<span class="blue">科技城</span>';
+                            }
+                            else if (d.order_type == 3) {
+                                html = '<span class="red">福建</span>';
+                            }
+                            else if (d.order_type == 4) {
+                                html = '<span class="yellow">外包</span>';
+                            }
+                            else if (d.order_type == 5) {
+                                html = '<span class="gray">南京</span>';
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'check_remark',
+                        title: '撤销的理由',
+                        align: 'center',
+                    }, {
+                        field: 'remark',
+                        title: '备注',
+                        align: 'center',
+                    }, {
+                        field: 'source',
+                        title: '来源',
+                        align: 'center',
+                    }, {
+                        field: 'is_first_order',
+                        title: '是否首单',
+                        align: 'center',
+                        width: 120,
+                        templet: function (d) {
+                            var html = '-';
+                            if (d.is_first_order == 1) {
+                                html = '<span class="blue">是</span>';
+                            }
+                            else if (d.is_first_order == 2) {
+                                html = '<span class="red">否</span>';
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'is_repurchase',
+                        title: '复购订单',
+                        align: 'center',
+                        width: 120,
+                        templet: function (d) {
+                            var html = '-';
+                            if (d.is_repurchase == 1) {
+                                html = '<span class="blue">是</span>';
+                            }
+                            else if (d.is_repurchase == 2) {
+                                html = '<span class="red">否</span>';
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'check_status',
+                        title: '记录状态',
+                        align: 'center',
+                        width: 120,
+                        templet: function (d) {
+                            var html = '<span class="black">待审核</span>';
+                            if (d.check_status == 1) {
+                                html = '<span class="blue">审核中</span>';
+                            }
+                            else if (d.check_status == 2) {
+                                html = '<span class="green">审核通过,待发货</span>';
+                            }
+                            else if (d.check_status == 3) {
+                                html = '<span class="red">审核不通过</span>';
+                            }
+                            else if (d.check_status == 4) {
+                                html = '<span class="red">已撤销</span>';
+                            }
+                            else if (d.check_status == 5) {
+                                html = '<span class="green">已发货</span>';
+                            }
+                            else if (d.check_status == 10) {
+                                html = '<span class="yellow">已作废</span>';
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'recipient_name',
+                        title: '收件姓名',
+                        align: 'center',
+                    }, {
+                        field: 'recipient_phone',
+                        title: '收件号码',
+                        align: 'center',
+                    }, {
+                        field: 'recipient_address',
+                        title: '收件地址',
+                        align: 'center',
+                    }, {
+                        field: 'sender_name',
+                        title: '寄件姓名',
+                        align: 'center',
+                    }, {
+                        field: 'sender_phone',
+                        title: '寄件号码',
+                        align: 'center',
+                    }, {
+                        field: 'sender_address',
+                        title: '寄件地址',
+                        align: 'center',
+                    }, {
+                        field: 'payment_company',
+                        title: '打款公司',
+                        align: 'center',
+                    }, {
+                        field: 'gift',
+                        title: '礼品栏',
+                        align: 'center',
+                    }, {
+                        field: 'gift_status',
+                        title: '礼品状态',
+                        align: 'center',
+                        templet: function (d) {
+                            var html = '-';
+                            if (d.gift_status == 1) {
+                                html = '<span class="blue">未采购</span>';
+                            } else if (d.gift_status == 2) {
+                                html = '<span class="green">已采购</span>';
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'gift_code',
+                        title: '礼品订单号',
+                        align: 'center',
+                    }, {
+                        field: 'gift_amount',
+                        title: '礼品订单金额',
+                        align: 'center',
+                    }, {
+                        field: 'customer_type',
+                        title: '客户类型',
+                        align: 'center',
+                        width: 120,
+                        templet: function (d) {
+                            var html = '-';
+                            if (d.customer_type == 1) {
+                                html = '<span class="blue">终端</span>';
+                            } else if (d.customer_type == 2) {
+                                html = '<span class="green">经销商</span>';
+                            }
+                            return html;
+                        }
+                    }, {
+                        field: 'name',
+                        title: '申请人',
+                        align: 'center',
+                    }, {
+                        field: 'department_name',
+                        title: '所属部门',
+                        align: 'center',
+                    }, {
+                        field: 'create_time',
+                        title: '申请时间',
+                        align: 'center',
+                    }, {
+                        field: 'check_user',
+                        title: '当前审核人',
+                    }, {
+                        field: 'director_name',
+                        title: '负责人',
+                    }, {
+                        field: 'assist_admin_names',
+                        title: '协助人员',
+                    }, {
+                        field: 'open_name',
+                        title: '发货人',
+                        align: 'center',
+                        width: 90
+                    }, {
+                        field: 'open_time',
+                        title: '发货时间',
+                        align: 'center',
+                        width: 100
+                    }, {
+                        field: 'right',
+                        fixed: 'right',
+                        title: '操作',
+                        width: 250,
+                        align: 'center',
+                        templet: function (d) {
+                            //0待审、1审批中、2通过、3失败、4撤销、5已发货、10已作废
+                            var html = '<div class="layui-btn-group">';
+                            var btn1 = '<span class="layui-btn layui-btn-normal layui-btn-xs" lay-event="view">详情</span>';
+                            var btn2 = '<span class="layui-btn layui-btn-xs" lay-event="edit">编辑</span>';
+                            var btn3 = '<span class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</span>';
+                            // var btn4='<span class="layui-btn layui-btn-normal layui-btn-xs" lay-event="pay_record">收款记录</span>';
+                            var btn5 = '<span class="layui-btn layui-btn-warm layui-btn-xs" lay-event="sales_agreement">销售协议</span>';
+                            var btn6 = '<span class="layui-btn layui-btn-xs" lay-event="repurchase">复购</span>';
+                            html += btn1;
+                            // html+=btn4;
+                            html += btn5;
+                            html += btn6;
+                            if (d.check_status == 4 && d.admin_id == login_admin) {
+                                html += btn2 + btn3;
+                            }
+                            html += '</div>';
+                            return html;
+                        }
+                    }
+                ]
+            ],
+            done: function (res, curr, count) {
+                $('#totalamount').text((res.totalRow.amount).toFixed(2) + '元');
+                $('#arrearsamount').text((res.totalRow.arrears_amount).toFixed(2) + '元');
+                $('#dealamount').text((res.totalRow.deal_amount).toFixed(2) + '元');
+                $('#enteramount').text((res.totalRow.enter_amount).toFixed(2) + '元');
+                $('#refundamount').text((res.totalRow.refund_amount).toFixed(2) + '元');
+                $('#advancedeposit').text((res.totalRow.advance_deposit).toFixed(2) + '元');
+                $('#deduction').text((res.totalRow.deduction).toFixed(2) + '元');
+            }
+        });
+        
+        //表头工具栏事件
+        table.on('toolbar(test)', function (obj) {
+            if (obj.event === 'add') {
+                tool.side("/customer/order/add");
+                return;
+            }
+            
+            if (obj.event === 'quickOrder') {
+                openQuickOrderDialog();
+                return;
+            }
+            
+            if (obj.event === 'LAYTABLE_EXCEL') {
+                var formSelect = form.val('barsearchform');
+                formSelect.limit = 99999;
+                $.ajax({
+                    url: '/customer/order/index',
+                    data: formSelect,
+                    success: function (res) {
+                        table.exportFile('test', res.data, 'xls');
+                    }
+                });
+                return;
+            }
+            
+            if (obj.event === 'import') {
+                uploadImport();
+                return;
+            }
+        });
+        
+        // 打开快捷下单对话框
+		function openQuickOrderDialog() {
+			layer.open({
+				type: 1,
+				title: '快捷下单 - 粘贴订单内容',
+				area: ['850px', '750px'],
+				content: $('#quickOrderTemplate').html(),
+				btn: ['确认下单', '取消'],
+				yes: function(index, layero) {
+					const content = $('#quickOrderContent').val().trim();
+					if (!content) {
+						layer.msg('请先粘贴订单内容');
+						return;
+					}
+					
+					// 解析内容
+					const parsedResult = parseOrderContent(content);
+					
+					// 显示加载中
+					const loadIndex = layer.load(1, {
+						shade: [0.1, '#fff']
+					});
+					let callback = function (e) {
+						layer.close(loadIndex);
+						if (e.code == 0) {
+							tool.side("/customer/order/add?quick_key=" + e.data.quick_key);
+						}
+					}
+					tool.post("/customer/order/add", {
+						content: content,
+						parsed_data: JSON.stringify(parsedResult)
+					}, callback);
+				},
+				success: function(layero, index) {
+					// 绑定解析按钮事件
+					$('#parseContent').on('click', function() {
+						const content = $('#quickOrderContent').val().trim();
+						if (!content) {
+							layer.msg('请先粘贴订单内容');
+							return;
+						}
+						
+						const parsedResult = parseOrderContent(content);
+						const formattedResult = formatParseResult(parsedResult);
+						$('#parseResult').html(formattedResult);
+						
+						// 高亮显示解析到的信息
+						setTimeout(() => {
+							$('#parseResult').find('strong').css('color', '#009688');
+						}, 100);
+					});
+					
+					// 绑定清空按钮事件
+					$('#clearContent').on('click', function() {
+						$('#quickOrderContent').val('');
+						$('#parseResult').html('解析结果将在此显示...');
+					});
+				}
+			});
+		}
+        
+        let uploadFiles;
+        function clearFile() {
+            for (let x in uploadFiles) {
+                delete uploadFiles[x];
+            }
+            $('#gougu-upload-choosed').html('');
+        }
+        
+        function uploadImport() {
+            layer.open({
+                'title': '批量导入订单',
+                'type': 1,
+                'area': ['640px', '360px'],
+                'content': '<div class="layui-form p-3">\
+                        <div id="uploadType1">\
+                            <div class="layui-form-item">\
+                                <label class="layui-form-label">文件：</label>\
+                                <div class="layui-input-block">\
+                                    <span class="gougu-upload-files">.xls,.xlsx</span><button type="button" class="layui-btn layui-btn-normal" id="uploadSelect">选择文件</button><a href="/static/home/file/优品OA订单导入模板.xlsx" download="优品OA订单导入模板.xlsx" class="layui-btn ml-4">Execl表格模板下载</a>\
+                                </div>\
+                            </div>\
+                            <div class="layui-form-item">\
+                                <label class="layui-form-label"></label>\
+                                <div class="layui-input-block">\
+                                    <span class="gougu-upload-tips">1、普通员工都可以进行批量导入操作；<br>2、只能上传 .xls、.xlsx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过2MB，导入数据不能超过3000条<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写，请保证关键数据在本系统中已经录入，不存在的话可能会导入失败。</span>\
+                                </div>\
+                            </div>\
+                            <div class="layui-form-item">\
+                                <label class="layui-form-label"></label>\
+                                <div class="layui-input-block green" id="gougu-upload-choosed"></div>\
+                            </div>\
+                            <div class="layui-form-item">\
+                                <label class="layui-form-label"></label>\
+                                <div class="layui-input-block red" id="gougu-upload-note"></div>\
+                            </div>\
+                            <div class="layui-form-item layui-form-item-sm">\
+                                <label class="layui-form-label"></label>\
+                                <div class="layui-input-block">\
+                                    <button type="button" class="layui-btn" id="uploadAjax">上传并导入</button>\
+                                </div>\
+                            </div>\
+                        </div> \
+                </div>',
+                success: function (layero, idx) {
+                    form.render();
+                    //选文件
+                    let uploadImport = upload.render({
+                        elem: '#uploadSelect'
+                        , url: '/api/import/import_order'
+                        , auto: false
+                        , accept: 'file' //普通文件
+                        , acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+                        , exts: 'xls|xlsx' //只允许上传文件格式
+                        , bindAction: '#uploadAjax'
+                        , choose: function (obj) {
+                            uploadFiles = obj.pushFile();
+                            // 清空,防止多次上传
+                            clearFile();
+                            obj.preview(function (index, file, result) {
+                                obj.pushFile();// 再添加
+                                $('#gougu-upload-choosed').html('已选择：' + file.name);
+                            });
+                        }
+                        , before: function (obj) {
+                        }
+                        , progress: function (n, elem, e) {
+                            $('#gougu-upload-note').html('文件上传中...');
+                            if (n == 100) {
+                                $('#gougu-upload-note').html('数据导入中...');
+                            }
+                        }
+                        , error: function (index, upload) {
+                            clearFile();
+                            $('#gougu-upload-note').html('数据导入失败，请关闭重试');
+                        }
+                        , done: function (res, index, upload) {
+                            clearFile();
+                            layer.msg(res.msg);
+                            $('#gougu-upload-note').html(res.msg);
+                            if (res.code == 0) {
+                                layer.close(idx);
+                                layui.pageTable.reload();
+                            }
+                        }
+                    });
+                }
+            });
+        }
+        
+        //监听行工具事件
+        table.on('tool(test)', function (obj) {
+            var data = obj.data;
+            if (obj.event === 'view') {
+                tool.side("/customer/order/view?id=" + data.id);
+                return;
+            }
+            if (obj.event === 'edit') {
+                tool.side("/customer/order/add?id=" + data.id);
+                return;
+            }
+            if (obj.event === 'del') {
+                layer.confirm('确定删除该订单记录吗？', {
+                    icon: 3,
+                    title: '提示'
+                }, function (index) {
+                    $.ajax({
+                        url: "/customer/order/delete",
+                        type: 'post',
+                        data: { id: data.id },
+                        success: function (res) {
+                            layer.msg(res.msg);
+                            if (res.code == 0) {
+                                obj.del();
+                            }
+                        }
+                    })
+                    layer.close(index);
+                });
+            }
+            if (obj.event === 'pay_record') {
+                // layer.msg('功能开发中')
+                // return false;
+                tool.side("/customer/order/payrecord?id=" + data.id);
+                return;
+            }
+            if (obj.event === 'sales_agreement') {
+                // layer.msg('功能开发中')
+                // return false;
+                window.open('/customer/order/salesagreement.html?id=' + data.id)
+                return;
+            }
+            if (obj.event === 'repurchase') {
+                tool.side("/customer/order/add?old_id=" + data.id);
+                return;
+            }
+        });
+    }
+</script>
+
+	<!-- /脚本 -->
+	<script src="/static/assets/layui/layui.js"></script>
+	<script src="/static/assets/gougu/gouguInit.js"></script>
+	<script type="text/javascript">
+		(function(){
+			document.addEventListener('DOMContentLoaded', function() {
+				const pcWidth = 1000; // PC端设计宽度
+				const scale = window.innerWidth / pcWidth;
+				document.querySelector('meta[name="viewport"]').content = 
+					`width=${pcWidth}, initial-scale=${scale}, minimum-scale=${scale}, maximum-scale=${scale}, user-scalable=no`;
+			});
+		})();
+		// 图片预览函数
+		function previewImage(url, title) {
+			if (!url) return;
+			
+			if (typeof layer.photos !== 'function') {
+				// 如果layer.photos不存在，使用普通的layer.open
+				layer.open({
+					type: 1,
+					title: title || '图片预览',
+					shadeClose: true,
+					shade: 0.8,
+					area: ['90%', '90%'],
+					content: '<div style="text-align:center;padding:20px;"><img src="' + url + '" style="max-width:100%;max-height:100%;"></div>'
+				});
+				return;
+			}
+			
+			// 使用LayerUI的相册预览（更专业的图片查看器）
+			layer.photos({
+				photos: {
+					title: title || '图片预览',
+					id: Math.random().toString(36).substr(2), // 随机ID
+					start: 0, // 初始显示索引
+					data: [{
+						alt: title || '预览图片',
+						pid: 1, // 图片id
+						src: url, // 原图地址
+						thumb: url // 缩略图地址
+					}]
+				},
+				anim: 5, // 0-6的选择，指定弹出图片动画类型，默认随机
+				shadeClose: true,
+				closeBtn: 1,
+				shift: 5 // 切换动画方式，默认0是左右切换，1是上下切换，2是淡入淡出，3是放大缩小，4是左到右渐变，5是上到下渐变，6是左上渐变
+			});
+		}
+	</script>
+	<!-- 统计代码 -->
+	
+	<!-- /统计代码 -->
+</body>
+</html>

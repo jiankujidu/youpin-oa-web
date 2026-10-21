@@ -3,7 +3,7 @@
  * PC 后台统一版式：筛选 Tab + 工具栏 + 数据表格 + 分页 + 详情弹层
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchCustomers } from '../core/api';
+import { fetchCustomerPage } from '../core/api';
 import type { Customer } from '../core/types';
 import { fmtTime, toast } from '../core/util';
 import { Modal } from './ui';
@@ -38,27 +38,40 @@ function statusTone(s?: string): 'ok' | 'no' | 'wait' | 'info' {
 export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 | 2 | 3 } = {}) {
   const [type, setType] = useState<1 | 2 | 3>(initialType);
   const [grade, setGrade] = useState('');
+  const [statusF, setStatusF] = useState('');
+  const [intentF, setIntentF] = useState('');
+  const [sourceF, setSourceF] = useState('');
+  const [industryF, setIndustryF] = useState('');
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
   const [list, setList] = useState<Customer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [cur, setCur] = useState<Customer | null>(null);
 
-  const load = useCallback((t: 1 | 2 | 3, kw: string) => {
-    setLoading(true);
-    fetchCustomers(t, kw)
-      .then((rows) => {
-        setList(rows);
+  /** 逐页载入（后端共 1000+ 家，一次拉完会超时） */
+  const load = useCallback((t: 1 | 2 | 3, kw: string, p: number, append: boolean) => {
+    if (!append) setLoading(true);
+    else setLoadingMore(true);
+    fetchCustomerPage(t, kw, p)
+      .then(({ rows, total }) => {
+        setList((prev) => (append ? [...prev, ...rows] : rows));
+        setTotal(total);
         setLoading(false);
+        setLoadingMore(false);
       })
       .catch((e: unknown) => {
         setLoading(false);
+        setLoadingMore(false);
         toast('客户列表加载失败：' + (e instanceof Error ? e.message : '网络异常'));
       });
   }, []);
 
   useEffect(() => {
-    load(type, query);
+    setPage(1);
+    load(type, query, 1, false);
   }, [type, query, load]);
 
   /** 左侧菜单切换（客户列表 / 公海 / 废弃）时同步类型 */
@@ -67,31 +80,102 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   }, [initialType]);
 
   const rows = useMemo(
-    () => (grade ? list.filter((c) => gradeText(c).includes(grade)) : list),
-    [list, grade],
+    () =>
+      list.filter(
+        (c) =>
+          (!grade || gradeText(c).includes(grade)) &&
+          (!statusF || c.status_name === statusF) &&
+          (!intentF || c.intent_status_name === intentF) &&
+          (!sourceF || c.source === sourceF) &&
+          (!industryF || c.industry === industryF),
+      ),
+    [list, grade, statusF, intentF, sourceF, industryF],
   );
 
+  /** 筛选项取自真实数据的去重值（与原站下拉内容一致） */
+  const opts = useMemo(
+    () => ({
+      grade: [...new Set(list.map(gradeText).filter((v) => v && v !== '—'))].sort(),
+      status: [...new Set(list.map((c) => c.status_name).filter(Boolean))].sort(),
+      intent: [...new Set(list.map((c) => c.intent_status_name).filter(Boolean))].sort(),
+      source: [...new Set(list.map((c) => c.source).filter(Boolean))].sort(),
+      industry: [...new Set(list.map((c) => c.industry).filter(Boolean))].sort(),
+    }),
+    [list],
+  );
+
+  /** 与原站一致的列（编号 / 客户名称 / 联系人 / 手机号 / 是否加微信 / 等级 / 沟通情况 / 部门 / 员工 / QQ / 微信 / 求购内容 / 最后下单 / 最近沟通 / 下次跟进 / 研究方向 / 城市 / 意向 / 状态 / 来源 / 行业 / 创建时间 / 操作） */
   const cols: Column<Customer>[] = [
+    { key: 'id', title: '编号', width: 76, render: (r) => r.id },
     {
       key: 'name',
       title: '客户名称',
+      width: 240,
       render: (r) => <span className="pc-td-strong">{r.name}</span>,
     },
+    { key: 'user', title: '联系人', width: 90, render: (r) => (r as any).user || (r as any).contact_first || '—' },
+    { key: 'mobile', title: '手机号码', width: 130, render: (r) => r.mobile || r.tel || '—' },
+    {
+      key: 'wechat',
+      title: '是否加微信',
+      width: 96,
+      render: (r) =>
+        (r as any).is_add_wechat ? <StatusTag tone="ok">已加</StatusTag> : <StatusTag tone="info">未加</StatusTag>,
+    },
     { key: 'grade', title: '客户等级', width: 140, render: (r) => <StatusTag tone="info">{gradeText(r)}</StatusTag> },
-    { key: 'status', title: '客户状态', width: 100, render: (r) => <StatusTag tone={statusTone(r.status_name)}>{r.status_name || '—'}</StatusTag> },
-    { key: 'intent', title: '意向', width: 90, render: (r) => r.intent_status_name || '—' },
-    { key: 'mobile', title: '联系电话', width: 130, render: (r) => r.mobile || r.tel || '—' },
-    { key: 'belong', title: '归属销售', width: 100, render: (r) => r.belong_name || r.admin_name || '—' },
-    { key: 'industry', title: '行业', width: 110, render: (r) => r.industry || '—' },
-    { key: 'source', title: '来源', width: 110, render: (r) => r.source || '—' },
-    { key: 'follow', title: '最近跟进', width: 140, render: (r) => (r.follow_time && r.follow_time !== '-' ? fmtTime(r.follow_time) : '—') },
+    {
+      key: 'remark',
+      title: '沟通情况',
+      width: 160,
+      render: (r) => String((r as any).remark || '').slice(0, 22) || '—',
+    },
+    { key: 'dept', title: '所属部门', width: 160, render: (r) => (r as any).belong_department || '—' },
+    { key: 'belong', title: '所属员工', width: 100, render: (r) => r.belong_name || r.admin_name || '—' },
+    { key: 'qq', title: 'QQ号', width: 110, render: (r) => (r as any).qq || '—' },
+    { key: 'wx', title: '微信号', width: 120, render: (r) => (r as any).wechat || '—' },
+    {
+      key: 'inquiry',
+      title: '求购内容',
+      width: 150,
+      render: (r) => String((r as any).purchase_inquiry || '').slice(0, 22) || '—',
+    },
+    {
+      key: 'order_time',
+      title: '最后下单',
+      width: 120,
+      render: (r) => {
+        const v = (r as any).order_time;
+        return v && v !== '-' ? fmtTime(v) : '—';
+      },
+    },
+    { key: 'follow', title: '最近沟通', width: 120, render: (r) => (r.follow_time && r.follow_time !== '-' ? fmtTime(r.follow_time) : '—') },
+    {
+      key: 'next',
+      title: '下次跟进',
+      width: 120,
+      render: (r) => {
+        const v = (r as any).next_time;
+        return v && v !== '-' ? fmtTime(v) : '—';
+      },
+    },
+    {
+      key: 'research',
+      title: '课题组/研究方向',
+      width: 160,
+      render: (r) => String((r as any).research_direction || '').slice(0, 20) || '—',
+    },
+    { key: 'city', title: '城市', width: 90, render: (r) => (r as any).city || '—' },
+    { key: 'intent', title: '客户意向', width: 100, render: (r) => <StatusTag tone={statusTone(r.intent_status_name)}>{r.intent_status_name || '—'}</StatusTag> },
+    { key: 'status', title: '状态', width: 100, render: (r) => <StatusTag tone={statusTone(r.status_name)}>{r.status_name || '—'}</StatusTag> },
+    { key: 'source', title: '来源渠道', width: 110, render: (r) => r.source || '—' },
+    { key: 'industry', title: '客户所属行业', width: 120, render: (r) => r.industry || '—' },
     { key: 'time', title: '创建时间', width: 140, render: (r) => fmtTime(r.create_time) },
     {
       key: 'op',
       title: '操作',
       width: 90,
       render: (r) => (
-        <span className="pc-link" onClick={() => setCur(r)}>
+        <span className="gg-xs blue" onClick={() => setCur(r)}>
           详情
         </span>
       ),
@@ -133,12 +217,25 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       <PageHead
         title="客户列表"
         crumb={CRUMB[type]}
-        desc={`共 ${rows.length} 家客户`}
+        desc={`共 ${total || rows.length} 家客户 · 已载入 ${list.length} 家`}
         actions={
           <>
-            <button className="pc-btn pc-btn-ghost" onClick={() => load(type, query)}>
+            <button className="pc-btn pc-btn-ghost" onClick={() => load(type, query, 1, false)}>
               刷新
             </button>
+            {list.length < total ? (
+              <button
+                className="pc-btn"
+                disabled={loadingMore}
+                onClick={() => {
+                  const p = page + 1;
+                  setPage(p);
+                  load(type, query, p, true);
+                }}
+              >
+                {loadingMore ? '载入中…' : `载入更多（${list.length}/${total}）`}
+              </button>
+            ) : null}
             <button
               className="pc-btn"
               onClick={() => {
@@ -166,14 +263,30 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
                 if (e.key === 'Enter') setQuery(keyword);
               }}
             />
-            <select className="pc-input" style={{ width: 190 }} value={grade} onChange={(e) => setGrade(e.target.value)}>
-              <option value="">全部等级</option>
-              {GRADES.filter(Boolean).map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
+            {(
+              [
+                ['全部等级', grade, setGrade, opts.grade.length ? opts.grade : GRADES.filter(Boolean), 190],
+                ['全部状态', statusF, setStatusF, opts.status, 130],
+                ['全部意向', intentF, setIntentF, opts.intent, 120],
+                ['全部来源', sourceF, setSourceF, opts.source, 130],
+                ['全部行业', industryF, setIndustryF, opts.industry, 130],
+              ] as [string, string, (v: string) => void, string[], number][]
+            ).map(([label, val, set, values, w]) => (
+              <select
+                key={label}
+                className="pc-input"
+                style={{ width: w }}
+                value={val}
+                onChange={(e) => set(e.target.value)}
+              >
+                <option value="">{label}</option>
+                {values.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            ))}
             <button className="pc-btn" onClick={() => setQuery(keyword)}>
               查询
             </button>
@@ -184,6 +297,10 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
                   setKeyword('');
                   setQuery('');
                   setGrade('');
+                  setStatusF('');
+                  setIntentF('');
+                  setSourceF('');
+                  setIndustryF('');
                 }}
               >
                 重置

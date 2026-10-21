@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="renderer" content="webkit"/>
+	<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="mobile-prefetch" href=""/>
+
+
+	<title>优品OA</title>		
+
+
+	<meta name="keywords" content="优品OA"/>
+	<meta name="description" content="优品办公是一款基于ThinkPHP6 + Layui + MySql打造的，简单实用的开源免费的企业办公系统框架。系统集成了系统设置、人事管理、消息管理、审批管理、日常办公、客户管理、合同管理、项目管理、财务管理、知识管理、产品管理、附件管理等模块。系统简约，易于功能扩展，方便二次开发，让开发者更专注于业务深度需求的开发，帮助开发者简单高效降低二次开发成本，通过二次开发之后可以用来做CRM，ERP，业务管理等系统。"/>
+
+
+	<link rel="stylesheet" href="/static/assets/gougu/css/gougu.css?v=4.0.24" media="all">
+
+
+<style>
+    body { display: flex; overflow: hidden; height: 100vh; }
+    ::-webkit-scrollbar { display: none; width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { border-radius: 10px; background-color: #e1e1e1; }
+	.layui-tab{margin:0;}
+	.container { display: flex; flex: 1; flex-direction: column; overflow: hidden; padding:12px;}
+    .file-container { display: flex; flex: 1; flex-direction: column; overflow: hidden; border-radius: 2px; background: #ffffff; box-shadow: rgba(0, 0, 0, 0.05) 0 1px 2px 0; }
+    .file-item {display: flex; flex: 1; justify-content: space-between; overflow: hidden; }
+    .file-header {padding-top: 4px; }
+
+    /** 分组 **/
+    .file-item .group { position: relative; display: flex; flex-direction: column; padding-top: 8px; width: 300px; border-right: 1px solid #f6f6f6; }
+	.file-item .group h3 { padding: 12px; }
+    .file-item .group ul::-webkit-scrollbar { display: block; }
+    .file-item .group ul { flex: 1; overflow: hidden; overflow-y: auto; }
+    .file-item .group ul li {display: flex; align-items: center; justify-content: space-between; cursor:pointer; padding: 0 12px; height: 38px; font-size: 13px; color: #666666; }
+    .file-item .group ul li i.iconfont{ margin-right:8px; font-size:24px; color:#E1AF1A; font-weight:800;}
+    .file-item .group ul li > span { display: flex; flex: 1; overflow: hidden; margin-right: 0.5rem; text-overflow: ellipsis; white-space: nowrap; }
+    .file-item .group ul li.active { background: #edefff; }
+    .file-item .group ul li:hover { background: #f5f7fa; }
+    .file-item .group ul li .dropdown:hover dl { display: block; }
+    .file-item .group ul li .dropdown dl { position: absolute; top: 36px; right: -15px; z-index: 10000; display: none; padding: 5px 0; width: 88px; border-radius: 2px; text-align: center; background-color: #ffffff; box-shadow: #cccccc 0 0 10px; }
+    .file-item .group ul li .dropdown dl dd { height: 32px; line-height: 32px; }
+    .file-item .group ul li .dropdown dl dd:hover { color: #4a5dff; background-color: #edefff; }
+    .file-item .group ul li .dropdown dl::before { position: absolute; top: -16px; left: 44px; z-index: 12; display: block; padding: 0; width: 0; height: 0; border-top: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid #ffffff; border-left: 8px solid transparent; content: ""; box-sizing: content-box; }
+    .file-item .group .footer { display: flex; align-items: center; justify-content: center; width: 100%; height: 50px; border-top: 1px solid #f2f2f2; border-right: 1px solid #f2f2f2; }
+
+    /** 菜单 **/
+    .file-item .attach #move:hover { position: relative; opacity: 1; }
+    .file-item .attach #move:hover .dropdown { display: block; background-color: #ffffff; }
+    .file-item .attach .dropdown { position: absolute; top: 38px; z-index: 100000; display: none; padding: 5px 0; width: 150px; border: 1px solid #dddddd; text-align: left; background-color: #ffffff; line-height: 1.6; }
+    .file-item .attach .dropdown em { font-size: 13px; font-weight: 400; color: #333333; font-style: normal; }
+    .file-item .attach .dropdown em { display: block; clear: both; padding: 6px 20px; white-space: nowrap; }
+    .file-item .attach .dropdown em:hover { background: #eeeeee; }
+    .file-item .attach .dropdown em:first-child { font-size: 12px; color: #999999; }
+    .file-item .attach .dropdown::before { position: absolute; top: -16px; left: 21px; z-index: 12; display: block; padding: 0; width: 0; height: 0; border-top: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid #ffffff; border-left: 8px solid transparent; content: ""; box-sizing: content-box; }
+    .file-item .attach .dropdown::after { position: absolute; top: -18px; left: 20px; z-index: 10; display: block; padding: 0; width: 0; height: 0; border-top: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 9px solid #cccccc; border-left: 9px solid transparent; content: ""; box-sizing: content-box; }
+
+    /** 文件 **/
+    .file-item .attach { position: relative; display: flex; flex: 1; flex-direction: column; }
+    .file-item .attach .header { display: flex; align-items: center; justify-content: space-between; padding:12px 15px; margin:0;}
+    .file-item .attach .header .search{ display: flex; }
+    .file-item .attach .header .search input { height: 30px; border-color: #eeeeee; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .file-item .attach .header .search button { border-color: #eeeeee; background: #f5f7fa; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .file-item .attach .header .search button:hover { background-color: #eeeeef; }
+    .file-item .attach .subject { 
+		flex: 1; overflow: hidden; overflow-y: auto; margin: 10px; box-sizing: border-box; 
+		overflow: auto; scrollbar-width: none; /* Firefox */ 
+		-ms-overflow-style: none; /* IE/Edge */
+	}
+	.file-item .attach .subject::-webkit-scrollbar {
+		display: none; /* Chrome/Safari/Opera */
+	}
+    .file-item .attach .subject:hover::-webkit-scrollbar { display: block; }
+    .file-item .attach .subject ul { display: flex; flex-wrap: wrap; }
+    .file-item .attach .subject ul li { position: relative; height: 120px; margin: 5px; padding: 9px; border: 1px solid rgba(0, 0, 0, 0.05); border-radius: 3px; transition: all 0.2s ease-in-out; }
+    .file-item .attach .subject ul li:hover {border: 1px solid #cccccc; }
+    .file-item .attach .subject ul li.on {border: 1px solid #ff5722; }
+    .file-item .attach .subject ul li img { width: 100px; height: 100px; border-radius: 2px; }
+    .file-item .attach .subject ul li video { width: 100px; height: 100px; border-radius: 3px; }
+    .file-item .attach .subject ul li p {overflow: hidden; margin: 5px 0 0; width: 98px; font-size: 13px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+    .file-item .attach .subject ul li .file-check{position: absolute; width:22px; height:22px; right: 0; bottom: 0; display: none; font-size: 14px; border-radius:4px 0 2px 0; text-align: center; line-height: 22px; color: #ffffff; background-color:#fff; border-left:1px solid #ccc; border-top:1px solid #ccc; cursor:pointer;}	
+	.file-item .attach .subject ul li:hover .file-check{display: block;}
+    .file-item .attach .subject ul li.on .file-check{ display: block; background: #ff5722; border-color:#ff5722}
+	.file-item .attach .subject ul li .layui-btn-group{position:absolute; top:3px; right:3px; display:none;}
+	.file-item .attach .subject ul li:hover .layui-btn-group{display:block}
+	
+    .file-item .attach .footer { display: flex; align-items: center; justify-content: end; padding: 5px 15px 0; height: 45px; border-top: 1px solid #f2f2f2; text-align: center; background: #ffffff; }
+
+	.file-item .attach .middle { padding: 5px 15px 0; height: 45px; border-top: 1px solid #f2f2f2; background: #ffffff;color:red }
+
+    /** 无数据 **/
+    .file-item .empty { display: flex; flex: 1; align-items: center; flex-direction: column; justify-content: center; overflow: hidden; text-align: center; color: #cccccc; }
+    .file-item .empty i { font-size: 180px; }
+    .file-item .empty p { width: 180px; text-align: center; }
+
+	/* 样式化 select 下拉框 */
+	.custom-select {
+		position: relative;
+		display: inline-block;
+		width: 100%;
+		margin-bottom: 10px;
+	}
+
+	.custom-select select {
+		width: 100%;
+		padding: 8px 15px;
+		font-size: 16px;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		appearance: none;
+		-webkit-appearance: none;
+		-moz-appearance: none;
+		background-color: #fff;
+	}
+
+	.custom-select select:focus {
+		outline: none;
+		border-color: #007bff;
+	}
+
+	/* 树形分类 */
+	.layui-tree-entry{font-size:15px; line-height:24px}
+	.layui-tree-set{padding:2px 0}
+	.layui-tree-iconClick .layui-icon{color:#1E9FFF}
+	.layui-icon layui-icon-file{font-size:16px;}
+	.layui-tree-icon {height: 15px;width: 15px; text-align: center;border: 1px solid #1E9FFF; color:#1E9FFF}
+	.layui-tree-line .layui-tree-set .layui-tree-set:after{top:18px;}
+	.tree-left{width:200px; float:left; height:calc(100% - 30px); overflow: scroll; border:1px solid #eeeeee; background-color:#FAFAFA; padding:12px 12px 12px 5px;}
+	.tree-left h3{font-size:16px; height:30px; padding-left:10px; font-weight:800}
+	
+	.gougu-upload-files{background-color: #ffffff; border:1px solid #e4e7ed;color: #c0c4cc;cursor: not-allowed; padding:0 12px; width:180px; box-sizing: border-box; display: inline-block; font-size: inherit; height: 38px; line-height: 35px; margin-right:8px; border-radius:2px;}
+	.gougu-upload-tips{color:#969696}
+	.layui-form-item{margin-bottom:8px;}
+	.layui-input-block{min-height:24px;}
+	.layui-tree-main span:hover {  /* 悬停在树节点上时的样式 */
+		text-decoration: none !important;  /* 去掉文本下划线 */
+	}
+	.layui-tree-selected {
+		/* background-color: #f3f3f3; */
+		color: #63b6f3;
+	}
+	.layui-dropdown-menu {
+		max-height: 500px; /* 设置一个合适的最大高度 */
+		overflow-y: auto;  /* 启用垂直滚动 */
+	}
+</style>
+
+<script>
+	const login_admin=84;
+</script>
+
+</head>
+<body class="main-body">
+	<!-- 主体 -->
+	
+<div class="container">
+	<div class="file-container">
+		<div class="file-header">
+			<div class="layui-tab layui-tab-brief" lay-filter="tab">
+				<ul class="layui-tab-title">
+					<li class="layui-this" data-tab="0">全部</li>
+					<li data-tab="1">图片</li>
+					<li data-tab="2">视频</li>
+					<li data-tab="3">文档</li>
+					<li data-tab="4">压缩包</li>
+				</ul>
+			</div>
+		</div>
+		<div class="file-item">
+			<!-- 分组 -->
+			<div class="group">
+				<h3>分组组织结构</h3>
+				<ul id="group" class="groups">					
+					<!-- <li data-id="" class="active"><i class="iconfont icon-sucaiziyuan"></i><span>全部</span></li>
+					<li data-id="0"><i class="iconfont icon-sucaiziyuan"></i><span>未分组</span></li>					 -->
+				</ul>
+				<div class="footer">
+					<span class="layui-btn layui-btn-primary layui-btn-sm add-new">添加分组</span>
+				</div>
+			</div>
+			<!-- 文件 -->
+			<div class="attach">
+				<!-- 工具 -->
+				<form class="layui-form" lay-filter="barsearchform" style="display:block; margin:0;padding:0;">
+					<div class="header">
+						<div class="layui-btn-group">
+							<span class="layui-btn layui-btn-sm layui-btn-normal" id="fileUpload">上传文件</span>
+							<span class="layui-btn layui-btn-sm layui-btn-sucess" id="fileUploads">批量上传</span>
+							<span class="layui-btn layui-btn-sm layui-btn-danger" id="fileDelete">批量删除</span>
+							<span class="layui-btn layui-btn-sm layui-btn-warm" id="fileMove">移动至 <i class="layui-icon layui-icon-triangle-d"></i></span>
+							<span style="margin-left:36px;"><input type="checkbox" name="select_all" lay-filter="all" title="全选"></span>
+						</div>
+						
+						<div class="search">
+							<input type="hidden" name="limit" value="50" />
+							<input type="hidden" name="page" value="1" />
+							<input type="hidden" name="tab" value="0" />
+							<input type="hidden" name="group_id" value="" />
+							<label><input type="text" name="keywords" placeholder="请输入名称" autocomplete="off" class="layui-input"></label>
+							<button type="button" class="layui-btn layui-btn-sm layui-btn-primary" lay-submit="" lay-filter="webform"><i class="layui-icon layui-icon-search"></i></button>
+						</div>
+					</div>
+				</form>
+				<div class="middle">
+					<p style="white-space: pre-wrap;">备注:</p>
+					<p>1.点击文件名可直接下载</p>
+					<p>2.默认上传至未分组，选择左侧分组后将上传至选择的分组下</p>
+				</div>
+				<!-- 主体 -->
+				<div class="subject">
+					<ul id="filesBox"></ul>
+				</div>
+				<!-- 页脚 -->
+				<div class="footer">
+					<div id="laypage"></div>
+				</div>
+			</div>
+		</div>
+        </div>
+</div>
+<script type="text/html" id="toolbarDemo">
+<h3 class="h3-title" style="height:28px;">审批列表</h3>
+</script>	
+<script type="text/html" id="batchFilesDemo">
+	<div class="layuimini-container">
+		<div class="layuimini-main">
+			<fieldset class="table-search-fieldset">
+				<legend>多文件上传</legend>
+				<div style="margin: 10px 10px 10px 10px">
+					<div class="layui-upload">
+						<button type="button" class="layui-btn" id="testList"><i class="layui-icon layui-icon-file"></i> 选择文件 </button> 
+						<button type="button" class="layui-btn layui-btn-normal" id="testListAction"><i class="layui-icon layui-icon-upload"></i> 开始上传 </button>
+						<button type="button" class="layui-btn layui-btn-danger" id="clearList"><i class="layui-icon layui-icon-fonts-clear"></i> 清空显示 </button>
+						<div class="layui-upload-list" style="max-width: 1280px;height: auto;min-height: 600px;">
+							<table class="layui-table">
+							<colgroup>
+								<col>
+								<col width="150">
+								<col width="260">
+								<col width="260">
+								<col width="260">
+								<col width="200">
+							</colgroup>
+							<thead>
+								<tr>
+									<th>文件名</th>
+									<th>大小</th>
+									<th>上传状态</th>
+									<th>结果说明</th>
+									<th>上传进度</th>
+									<th>操作</th>
+								</tr>
+							</thead>
+							<tbody id="demoList"></tbody>
+							</table>
+						</div>
+					</div>
+				</div> 
+			</fieldset>
+			
+		</div>
+	</div>
+</script>					
+
+	<!-- /主体 -->
+
+	<!-- 底部 -->
+	
+	<!-- /底部 -->
+	
+	<!-- 脚本 -->
+	
+<script>
+	const moduleInit = ['tool'];
+	function gouguInit() {
+		var table = layui.table, tool = layui.tool ,tree = layui.tree,form = layui.form,laypage = layui.laypage,upload = layui.upload, element=layui.element, dropdown=layui.dropdown;
+		let fileGroup = [{id:0,title:'未分组'}];
+		element.on('tab(tab)', function(data){
+			$('[name="tab"]').val(data.index);
+			$('[lay-filter="webform"]').click();
+			return false;
+		});	
+		
+		//监听多选框点击事件  通过 lay-filter="menu"来监听
+		form.on('checkbox(all)', function (data) {
+			let val = data.value;
+			if(data.elem.checked){
+				//判断当前多选框是选中还是取消选中
+				$('#filesBox li').addClass('on');
+			}
+			else{
+				$('#filesBox li').removeClass('on');
+			}
+		});
+		
+		var uploadInst = upload.render({
+			elem: '#fileUpload'
+			,url: "/api/index/upload"
+			, accept: 'file' //普通文件
+			,data: {
+				group_id: function(){
+					return $('[name="group_id"]').val();
+				}
+			}
+			, exts: 'jpeg|jpg|png|gif|doc|docx|ppt|pptx|xls|xlsx|pdf|zip|rar|7z|txt|mp4|psd|svg' //只允许上传文件
+			, before: function (obj) {
+				layer.msg('上传中...', { time: 3600000 });
+			}
+			,done: function (res) {
+				layer.msg(res.msg);
+				$('[lay-filter="webform"]').click();
+			}, error: function (index, upload) {
+				layer.msg('上传失败');
+			}
+		});
+		$('body').on('click','#fileUploads',function(){
+			layer.open({
+				type: 1
+				,title: '批量上传文件'
+				,area: ['auto', 'auto']
+				,content: $('#batchFilesDemo').html(),
+				success: function(layero, index) {
+					// layer.full(index); // 最大化
+					var isUploading = false;
+					//清空文件列表
+					$('#clearList').click(function(){
+						if(isUploading){
+							layer.msg('正在上传中，请稍后...', {icon: 16,shade: 0.01,time: 1000});
+							return;
+						}
+						// 倒序遍历所有行，避免正序删除导致的元素索引错乱
+						$('#demoList tr').get().reverse().forEach(function(row) {
+							$(row).find('.demo-delete').trigger('click'); // 触发该行的删除按钮点击事件
+						});
+						
+						// 清空 input file 的值（确保即便没有行时也能清空）
+						uploadListIns.config.elem.next()[0].value = '';
+					});
+					//模拟点击提交
+					$('#testListAction').click(function(){
+						if(isUploading){
+							layer.msg('正在上传中，请稍后...', {icon: 16,shade: 0.01,time: 1000});
+							return;
+						}
+						uploadFiles();
+					});
+					function uploadFiles(){
+						// 获取所有上传按钮
+						var uploadButtons = $('#demoList tr').find('.demo-upload').get();
+						// console.log(uploadButtons);
+						
+						if (uploadButtons.length === 0) {
+							if(isUploading){
+								isUploading = false;
+							}else{
+								layer.msg('请先选择文件', {icon: 2});
+							}
+							return;
+						}
+						
+						// 只获取第一个按钮并触发点击
+						isUploading = true;
+						var firstButton = uploadButtons[0];
+						$(firstButton).trigger('click');
+					}
+					//多文件上传
+					var uploadListIns = upload.render({
+						elem: '#testList'     // 选择文件按钮
+						,elemList: $('#demoList') //列表元素对象
+						,url: '/api/index/upload' //此处用的是第三方的 http 请求演示，实际使用时改成您自己的上传接口即可。
+						,accept: 'file'  //指定允许上传时校验的文件类型，可选值有：images（图片）、file（所有文件）、video（视频）、audio（音频）
+						,multiple: true  //是否允许多文件上传。设置 true即可开启。不支持ie8/9
+						,number: 0   //设置同时可上传的文件数量，一般配合 multiple 参数出现; 0 不限制
+						,auto: false  //是否选完文件后自动上传。如果设定 false，那么需要设置 bindAction 参数来指向一个其它按钮提交上传
+						// ,bindAction: '#testListAction'  //指向一个按钮触发上传，一般配合 auto: false 来使用
+						,data: {
+							group_id: function(){
+								return $('[name="group_id"]').val();
+							}
+						}
+						, exts: 'jpeg|jpg|png|gif|doc|docx|ppt|pptx|xls|xlsx|pdf|zip|rar|7z|txt|mp4|psd|svg' //只允许上传文件
+						,choose: function(obj){   //选择文件后的回调函数。返回一个object参数
+							var that = this;
+							var files = this.files = obj.pushFile(); //将每次选择的文件追加到文件队列
+							// console.log(files);
+							//读取本地文件
+							obj.preview(function(index, file, result){
+								// console.log(file);
+								var tr = $(['<tr id="upload-'+ index +'">'
+								,'<td>'+ file.name +'</td>'
+								,'<td>'+ (file.size/1014).toFixed(1) +'kb</td>'
+								,'<td>等待上传</td>'
+								,'<td></td>'
+								,'<td><div class="layui-progress" lay-filter="progress-demo-'+ index +'"><div class="layui-progress-bar" lay-percent=""></div></div></td>'
+								,'<td>'
+									,'<button type="button" class="layui-btn layui-btn-xs demo-upload demo-reload layui-hide">重传</button>'
+									,'<button type="button" class="layui-btn layui-btn-xs layui-btn-danger demo-delete">删除</button>'
+								,'</td>'
+								,'</tr>'].join(''));
+								//单个重传
+								tr.find('.demo-reload').on('click', function(){
+									obj.upload(index, file);
+								});
+								//删除
+								tr.find('.demo-delete').on('click', function(){
+									delete files[index]; //删除对应的文件
+									tr.remove();
+									uploadListIns.config.elem.next()[0].value = ''; //清空 input file 值，以免删除后出现同名文件不可选
+								});
+								that.elemList.append(tr);
+								element.render('progress'); //渲染新加的进度条组件
+							});
+						}
+						,done: function(res, index, upload){ //成功的回调
+							var that = this;
+							if(res.code == 0 || res.code == 2){ //上传成功
+								//直接删除这一行
+								var tr = that.elemList.find('tr#upload-'+ index)
+								,tds = tr.children();
+								var showMsg = '<span style="color:green;">上传成功</span>'
+								tds.eq(2).html(showMsg) //显示上传成功
+								if(res.msg){
+									if(res.code == 2){
+										showMsg = '<span style="color:green;">'+res.msg+'</span>';
+									}else{
+										showMsg = '<span style="color:green;">'+res.msg+'，1秒后删除本条显示记录。。。</span>';
+									}
+								}
+								tds.eq(3).html(showMsg) //显示上传成功
+								// tds.eq(5).html(''); //清空操作
+								tds.eq(5).find('.demo-upload').removeClass('demo-upload'); //清空可上传标识
+								delete this.files[index]; //删除文件队列已经上传成功的文件
+								if(res.code == 0){
+									//显示完成功信息后，延时1秒后删除这一行
+									setTimeout(function(){
+										tr.remove();
+										uploadListIns.config.elem.next()[0].value = ''; //清空 input file 值，以免删除后出现同名文件不可选
+									}, 1500);
+								}
+								return;
+							}
+							this.error(index, upload, res);
+						}
+						,allDone: function(obj){ //多文件上传完毕后的状态回调
+							// console.log(obj)
+							uploadFiles()
+						}
+						,error: function(index, upload, res){ //错误回调
+							var that = this;
+							var tr = that.elemList.find('tr#upload-'+ index)
+							,tds = tr.children();
+							tds.eq(2).html('<span>上传失败</span>') //显示上传失败
+							tds.eq(3).html('<span>原因:</span><span style="color:red;">'+res.msg+'</span>') //显示上传失败
+							// tds.eq(5).find('.demo-reload').removeClass('layui-hide'); //显示重传
+							tds.eq(5).find('.demo-upload').removeClass('demo-upload'); //清空可上传标识 可选择重传功能进行重传
+						}
+						,progress: function(n, elem, e, index){ //注意：index 参数为 layui 2.6.6 新增
+							element.progress('progress-demo-'+ index, n + '%'); //执行进度条。n 即为返回的进度百分比
+						}
+					});
+				}
+				,end: function() {
+					// 最终都会执行（无论哪种方式关闭）
+					$('[lay-filter="webform"]').click();
+				}
+			});
+			return;
+		});
+		// var uploadInsts = upload.render({
+		// 	elem: '#fileUploads'
+		// 	,url: "/api/index/upload"
+		// 	,multiple: true
+		// 	, accept: 'file' //普通文件
+		// 	,data: {
+		// 		group_id: function(){
+		// 			return $('[name="group_id"]').val();
+		// 		}
+		// 	}
+		// 	, exts: 'jpeg|jpg|png|gif|doc|docx|ppt|pptx|xls|xlsx|pdf|zip|rar|7z|txt|mp4|psd|svg' //只允许上传文件
+		// 	, before: function (obj) {
+		// 		layer.msg('上传中...', { time: 3600000 });
+		// 	}
+		// 	,done: function (res) {
+		// 		layer.msg(res.msg);
+		// 		$('[lay-filter="webform"]').click();
+		// 	}, error: function (index, upload) {
+		// 		layer.msg('上传失败');
+		// 	}
+		// });
+		
+		$('body').on('click','.add-new',function(){
+			add_group(0,'');	
+		});
+		//弃用
+		$('#group').on('click','li',function(){
+			let id=$(this).data('id');
+			$(this).siblings().removeClass('active');
+			$(this).addClass('active');
+			$('[name="group_id"]').val(id);
+			$('[lay-filter="webform"]').click();
+		});
+			
+		$('#fileDelete').on('click',function(){
+			let select_array = [];
+			$('#filesBox').find('li.on').each(function(index,item){
+				select_array.push($(item).data('id'));			
+			})
+			if(select_array.length<1){
+				layer.msg('请先选择文件');
+			}
+			else{
+				layer.confirm('确定要删除这些文件吗？请慎重', { icon: 3, title: '提示' }, function (index) {
+					let callback = function (e) {
+						layer.closeAll();
+						layer.msg(e.msg);
+						$('[lay-filter="webform"]').click();
+					}
+					tool.delete("/home/files/delete", {ids:select_array.join(',')}, callback);
+				});
+			}
+		});
+		
+		$('#fileMove').on('click',function(){
+			let that = this;
+			dropdown.render({
+				elem: that,
+				align: 'right',
+				show: true, // 外部事件触发即显示
+				data: fileGroup,
+				click: function(obj){
+					let select_array = [];
+					$('#filesBox').find('li.on').each(function(index,item){
+						select_array.push($(item).data('id'));		
+					})
+					if(select_array.length<1){
+						layer.msg('请先选择文件');
+					}
+					else{				
+						layer.confirm('确定要把选中的文件移动到『'+obj.title+'』分组吗？', { icon: 3, title: '提示' }, function (index) {
+							let callback = function (e) {
+								layer.closeAll();
+								layer.msg(e.msg);
+								$('[lay-filter="webform"]').click();
+							}
+							tool.delete("/home/files/move", {group_id:obj.id,ids:select_array.join(',')}, callback);
+						});
+					}
+				}
+			});
+		})
+					
+		function add_group(id,val){
+			var title = '新增分组';
+			if(id>0){
+				title = '编辑分组';
+			}
+			layer.prompt({
+				title: title,
+				value: val,
+				yes: function(index, layero) {
+					// 获取文本框输入的值
+					var value = layero.find(".layui-layer-input").val();
+					var pidval = $("#fileGroupId").val();
+					console.log(pidval,'pidval')
+					if (value!='') {
+						let callback = function (e) {
+							layer.msg(e.msg);
+							if(e.code==0){
+								location.reload();
+							}
+							/*
+							if(id==0){
+								let item='<li data-id="'+e.data+'"><i class="iconfont icon-sucaiziyuan"></i><span>'+value+'</span></li>';
+								$('#group').append(item);
+							}
+							else{
+								$('#group').find('[data-id="'+id+'"]').data('title',value).find('span').html(value);
+							}
+							*/
+						}
+						tool.post("/home/files/add_group", {id: id,pid: pidval,title: value}, callback);
+						layer.close(index);
+					} else {
+						layer.msg('请填写分组名称');
+					}
+				}
+			})
+			// 创建一个空字符串来存储 select 下拉框的选项
+			var pid=0,optionsHTML = '';
+			// 使用 forEach 遍历 fileGroup 数组
+			fileGroup.forEach(function(item) {
+				if (id>0 && item.id == id) {
+					pid = item.pid
+				}
+			});
+			// 循环 fileGroup 数组并构建 select 下拉框的选项
+			fileGroup.forEach(function(option) {
+				if(id>0 && pid==option.id){
+					optionsHTML += '<option selected value="' + option.id + '">' + option.title + '</option>';
+				}else{
+					optionsHTML += '<option value="' + option.id + '">' + option.title + '</option>';
+				}
+			});
+			// 创建包含选项的 select 下拉框的 HTML 代码
+			var selectHTML = '<div class="custom-select"><select class="layui-form-select" id="fileGroupId">' + optionsHTML + '</select></div>';
+			$(".layui-layer-content").prepend(selectHTML)
+		}
+			
+		var data = form.val('barsearchform');
+		get_files(data);
+		get_group();
+		
+		// 递归函数，在每个节点及其子节点后添加要显示的图标
+		function addIconsToNodes(nodes) {
+			for (var i = 0; i < nodes.length; i++) {
+				nodes[i].spread = false;//默认全部收起不展开
+				if(nodes[i].id>0){
+					nodes[i].title = '<i data-id="'+nodes[i].id+'" data-title="'+nodes[i].title+'" class="layui-icon layui-icon-more-vertical dropdown-on"></i>'+'ID:'+'-'+ nodes[i].id+nodes[i].title;
+					if (nodes[i].children) {
+						addIconsToNodes(nodes[i].children);
+					}
+				}
+			}
+		}
+		
+		function get_group(param){
+			$.ajax({
+				url:"/home/files/get_group",
+				success:function(res){
+					if(res.code==0){
+						var group=res.data.list,item='';
+						// if(group.length>0){
+							// 预处理数据，在每个节点数据后面添加要显示的图标
+							var treedata = res.data.trees
+							// 预处理数据，为每个节点及其子节点添加图标
+							addIconsToNodes(treedata);
+							//仅节点左侧图标控制收缩
+							tree.render({
+								elem: '#group',	
+								data: treedata,
+								onlyIconControl: true,  //是否仅允许节点左侧图标控制展开收缩
+								accordion: true,
+								// showLine: false,
+								click: function(obj){
+									// console.log('Clicked Node ID:', obj.data.id);
+									// 移除先前选中的节点样式
+									$('.layui-tree-txt').removeClass('layui-tree-selected');
+									// 添加选中节点样式
+									$(obj.elem).find('.layui-tree-txt').addClass('layui-tree-selected');
+									let id=obj.data.id;
+									$('[name="group_id"]').val(id);
+									$('[lay-filter="webform"]').click();
+								}
+							});	
+							// for(var a=0;a<group.length;a++){
+							// 	item+='<li data-id="'+group[a].id+'" data-title="'+group[a].origin_title+'"><i class="iconfont icon-sucaiziyuan"></i><span>'+group[a].title+'</span><i class="layui-icon layui-icon-more-vertical dropdown-on"></i></li>';
+							// }
+							// $('#group').append(item);
+							fileGroup = fileGroup.concat(group);
+							// 自定义事件
+							dropdown.render({
+								elem: '.dropdown-on',
+								trigger: 'hover',
+								align: 'left',
+								data: [{
+								  title: '重命名分组',
+								  id: 100
+								},{
+								  title: '删除该分组',
+								  id: 101
+								}],
+								click: function(data, othis){
+									let id = $(this.elem).data('id');
+									let title = $(this.elem).data('title');
+									if(data.id==100){
+										add_group(id,title);
+									}else{
+										del_group(id);
+									}							
+								}
+							});
+							$('#group').find('.layui-tree-txt').first().addClass('layui-tree-selected');
+						// }
+					}
+				}
+			});
+		}
+		
+		function del_group(id) {
+			layer.confirm('确定要删除该分组吗？请慎重', { icon: 3, title: '提示' }, function (index) {
+				let callback = function (e) {
+					layer.closeAll();
+					layer.msg(e.msg);
+					//$('#group').find('[data-id="'+id+'"]').remove();
+					if(e.code==0){
+						location.reload();
+					}
+				}
+				tool.delete("/home/files/del_group", {ids:id}, callback);
+			});
+		}
+		
+		
+		function get_files(param){
+			var loadIndex = layer.load(0);
+			$.ajax({
+				url:"/home/files/index",
+				data:param,
+				complete:function(){
+					setTimeout(function(){
+						layer.close(loadIndex)
+					}, 200);
+				},
+				success:function(res){
+					$('[name="select_all"]').prop('checked', false);
+					form.render('checkbox');
+					if(res.code==0){
+						laypage.render({
+							elem: 'laypage',
+							limit:param['limit'],
+							limits: [10, 20, 30, 50, 100, 200], // 完全自定义的选项
+							// theme: '#FF5722', // 自定义主题色
+							layout: ['prev', 'page', 'next', 'limit', 'count', 'skip'],
+							curr:param['page'],
+							count: res.count, // 数据总数
+							jump: function(obj, first){
+								// console.log(obj.curr); // 得到当前页，以便向服务端请求对应页的数据。
+								// console.log(obj.limit); // 得到每页显示的条数
+								// 首次不执行
+								if(!first){
+									var data = form.val('barsearchform');
+									data['page'] = obj.curr;
+									data['limit'] = obj.limit;
+									get_files(data);
+								}
+							}
+						});				
+					
+						var item=res.data,li='';
+						if(item.length>0){
+							for(var a=0;a<item.length;a++){
+								let isurl = 0
+								let downloadFileUrl = item[a].filepath
+								let yuloadFileUrl = item[a].filepath
+								if(item[a].ossfilepath){
+									downloadFileUrl = item[a].ossfilepath
+								}
+								if(item[a].ossyufilepath){
+									isurl = 1
+									yuloadFileUrl = item[a].ossyufilepath
+								}
+								let image = ['jpg','jpeg','png','gif'];
+								let doc = ['doc','docx','xls','xlsx','ppt','pptx','txt','pdf','zip','rar','7z'];
+								let down = '<a href="'+downloadFileUrl+'" target="_blank" class="layui-btn layui-btn-xs layui-btn-normal" download="'+item[a].name+'">下载</a>';
+								// 判断元素是否在数组中
+								let path='/static/home/images/icon/file.png';
+								if (image.includes(item[a].fileext)) {
+									path=item[a].filepath;
+									down = '<span data-href="'+item[a].filepath+'" class="layui-btn layui-btn-xs layui-btn-normal file-view-img">预览</span>';
+								} else if (doc.includes(item[a].fileext)){
+									path='/static/home/images/icon/'+item[a].fileext+'.png';
+								}
+								// if(item[a].fileext == 'txt'){
+								// 	down = '<span data-href="'+yuloadFileUrl+'" data-isurl="'+isurl+'" class="layui-btn layui-btn-xs layui-btn-normal file-view-pdf">预览</span>';
+								// }
+								if(item[a].fileext == 'pdf'){
+									down = '<span data-href="'+yuloadFileUrl+'" data-isurl="'+isurl+'" class="layui-btn layui-btn-xs layui-btn-normal file-view-pdf">预览</span>';
+								}
+								// if(item[a].fileext == 'doc' || item[a].fileext == 'docx'){
+								// 	down = '<span data-href="'+yuloadFileUrl+'" data-isurl="'+isurl+'" class="layui-btn layui-btn-xs layui-btn-normal file-view-pdf">预览</span>';
+								// }
+								// if(item[a].fileext == 'xls' || item[a].fileext == 'xlsx'){
+								// 	down = '<span data-href="'+yuloadFileUrl+'" data-isurl="'+isurl+'" class="layui-btn layui-btn-xs layui-btn-normal file-view-pdf">预览</span>';
+								// }
+								li+='<li data-id="'+item[a].id+'" data-title="'+item[a].name+'" data-ext="'+item[a].fileext+'"><img src="'+path+'" alt="'+item[a].filename+'" style="object-fit: contain;" class="file-item"><p title="'+item[a].name+'"><a href="'+downloadFileUrl+'" target="_blank" title="点击下载" download="'+item[a].name+'">'+item[a].name+'</a></p><div class="layui-btn-group"><span class="layui-btn layui-btn-xs file-edit">重命名</span>'+down+'<span class="layui-btn layui-btn-xs layui-btn-danger file-del">删除</span></div><div class="file-check">✔</div></li>';
+							}
+							$('#filesBox').html(li);
+							$('#laypage').show();
+						}
+						else{
+							$('#filesBox').html('<div class="empty"><i class="layui-icon layui-icon-upload"></i><p>无文件文件，赶紧去上传吧!</p></div>');
+							$('#laypage').hide();
+						}
+					}	
+				}				
+			});
+		}
+		
+		$('#filesBox').on('click','.file-check',function(){
+			$(this).parent().toggleClass("on");
+		})
+		
+		$('#filesBox').on('click','.file-del',function(){
+			let id = $(this).parent().parent().data('id');
+			layer.confirm('确定要删除该文件吗？请慎重', { icon: 3, title: '提示' }, function (index) {
+				let callback = function (e) {
+					layer.closeAll();
+					layer.msg(e.msg);
+					$('[lay-filter="webform"]').click();
+				}
+				tool.delete("/home/files/delete", {ids:id}, callback);
+			});
+		})
+		
+		$('#filesBox').on('click','.file-edit',function(){
+			let id = $(this).parent().parent().data('id');
+			let title = $(this).parent().parent().data('title');
+			let ext = $(this).parent().parent().data('ext');
+			layer.prompt({
+				title: '重命名',
+				value: title.replace(/\.[^.]+$/, ""),
+				yes: function(index, layero) {
+					// 获取文本框输入的值
+					var value = layero.find(".layui-layer-input").val();
+					if (value!='') {
+						let callback = function (e) {
+							layer.msg(e.msg);
+							$('[lay-filter="webform"]').click();
+						}
+						tool.post("/home/files/edit", {id: id,title: value+'.'+ext}, callback);
+						layer.close(index);
+					} else {
+						layer.msg('请填写分组名称');
+					}
+				}
+			})
+		})
+		
+		//监听搜索提交
+		form.on('submit(webform)', function(data) {
+			get_files(data.field);
+			return false;
+		});
+
+	}
+</script>
+
+	<!-- /脚本 -->
+	<script src="/static/assets/layui/layui.js"></script>
+	<script src="/static/assets/gougu/gouguInit.js"></script>
+	<script type="text/javascript">
+		(function(){
+			document.addEventListener('DOMContentLoaded', function() {
+				const pcWidth = 1000; // PC端设计宽度
+				const scale = window.innerWidth / pcWidth;
+				document.querySelector('meta[name="viewport"]').content = 
+					`width=${pcWidth}, initial-scale=${scale}, minimum-scale=${scale}, maximum-scale=${scale}, user-scalable=no`;
+			});
+		})();
+		// 图片预览函数
+		function previewImage(url, title) {
+			if (!url) return;
+			
+			if (typeof layer.photos !== 'function') {
+				// 如果layer.photos不存在，使用普通的layer.open
+				layer.open({
+					type: 1,
+					title: title || '图片预览',
+					shadeClose: true,
+					shade: 0.8,
+					area: ['90%', '90%'],
+					content: '<div style="text-align:center;padding:20px;"><img src="' + url + '" style="max-width:100%;max-height:100%;"></div>'
+				});
+				return;
+			}
+			
+			// 使用LayerUI的相册预览（更专业的图片查看器）
+			layer.photos({
+				photos: {
+					title: title || '图片预览',
+					id: Math.random().toString(36).substr(2), // 随机ID
+					start: 0, // 初始显示索引
+					data: [{
+						alt: title || '预览图片',
+						pid: 1, // 图片id
+						src: url, // 原图地址
+						thumb: url // 缩略图地址
+					}]
+				},
+				anim: 5, // 0-6的选择，指定弹出图片动画类型，默认随机
+				shadeClose: true,
+				closeBtn: 1,
+				shift: 5 // 切换动画方式，默认0是左右切换，1是上下切换，2是淡入淡出，3是放大缩小，4是左到右渐变，5是上到下渐变，6是左上渐变
+			});
+		}
+	</script>
+	<!-- 统计代码 -->
+	
+	<!-- /统计代码 -->
+</body>
+</html>

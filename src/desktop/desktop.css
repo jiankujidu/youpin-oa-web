@@ -1092,3 +1092,372 @@
 .ai-doc-body img {
   max-width: 100%;
 }
+
+/* ============================================================================
+   原站 UI 对齐覆写（oa.upingbio.com = 勾股OA + Layui，实测截图/layout.css 反推）
+   主色 #1A75FF；顶栏 50px 白底；侧栏 180px 白底；菜单项 42px；内容区 #f2f2f2；
+   正文 #323232；次要 #677C91；边框 #eee；消息徽标 #FF5722
+   ============================================================================ */
+
+.d-root {
+  --c-primary: #1A75FF;
+  --c-primary-dark: #186AF2;
+  --c-primary-50: #F0F6FE;
+  --c-bg: #f2f2f2;
+  --c-text: #323232;
+  --c-text-2: #646464;
+  --c-text-3: #677C91;
+  --c-border: #eeeeee;
+  --c-border-2: #f2f2f2;
+  --r-sm: 2px;
+  --r-md: 2px;
+  --r-lg: 3px;
+  --c-badge: #FF5722;
+}
+
+/* ---------- 侧栏：180px 白底，菜单项 42px ---------- */
+.d-sidebar {
+  width: 180px;
+  box-shadow: 1px 0 2px 0 rgba(0, 0, 0, 0.05);
+  border-right: 0;
+}
+.d-brand {
+  height: 50px;
+  padding: 0 12px;
+  gap: 8px;
+  border-bottom: 1px solid #f2f2f2;
+  cursor: pointer;
+}
+.d-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0;
+}
+.d-brand-logo img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.d-brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #16b777;
+  line-height: 1.1;
+}
+.d-brand-name em {
+  display: block;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 400;
+  color: #969696;
+  letter-spacing: 0.4px;
+}
+.d-brand-sub { display: none; }
+
+.d-nav {
+  padding: 6px 0 20px;
+}
+.d-nav-group {
+  font-size: 12px;
+  padding: 10px 16px 4px;
+  color: #999;
+}
+.d-nav-item {
+  position: relative;
+  min-height: 42px;
+  padding: 0 14px 0 46px;
+  border-radius: 0;
+  font-size: 14px;
+  color: #323232;
+  line-height: 42px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.d-nav-ico {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+  font-size: 16px;
+  color: #677C91;
+}
+.d-nav-item:hover {
+  background: #f5f7fa;
+  color: var(--c-primary);
+}
+.d-nav-item:hover .d-nav-ico {
+  color: var(--c-primary);
+}
+.d-nav-item.active {
+  background: var(--c-primary);
+  color: #fff;
+  font-weight: 400;
+}
+.d-nav-item.active .d-nav-ico {
+  color: #fff;
+}
+.d-nav-item.d-nav-parent {
+  padding-right: 12px;
+}
+.d-nav-arrow {
+  margin-left: auto;
+  font-size: 10px;
+  color: #C5C9D2;
+  line-height: 42px;
+}
+.d-nav-item.active .d-nav-arrow {
+  color: rgba(255, 255, 255, 0.8);
+}
+.d-nav-sub {
+  padding-left: 50px;
+  font-size: 13.5px;
+  height: 42px;
+  line-height: 42px;
+  min-height: 42px;
+  color: #646464;
+  border-right: 3px solid transparent;
+}
+.d-nav-sub::before { display: none; }
+.d-nav-sub.active {
+  background: #F0F6FE;
+  color: var(--c-primary) !important;
+  font-weight: 400;
+  border-right-color: var(--c-primary-dark);
+}
+.d-sidebar-foot { display: none; }
+
+/* ---------- 顶栏：50px 白底 ---------- */
+.d-topbar {
+  height: 50px;
+  padding: 0 12px;
+  gap: 4px;
+  border-bottom: 1px solid #eeeeee;
+}
+.d-icon-btn {
+  width: 38px;
+  height: 50px;
+  border-radius: 0;
+  color: #323232;
+  font-size: 17px;
+}
+.d-icon-btn:hover {
+  background: #f5f5f5;
+  color: #323232;
+}
+.d-topbar-right .d-icon-btn + .d-icon-btn {
+  border-left: 1px solid #eeeeee;
+}
+.d-user {
+  padding: 5px 10px;
+  border-left: 1px solid #eeeeee;
+  border-radius: 0;
+  height: 50px;
+}
+.d-user:hover { background: #f5f5f5; }
+.d-avatar {
+  width: 28px;
+  height: 28px;
+  background: #16b777;
+  border: 2px solid #7ee2b4;
+  font-size: 12px;
+}
+.d-user-menu {
+  top: 50px;
+  right: 8px;
+  border-radius: 2px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+.d-search {
+  max-width: none;
+  height: 36px;
+  border-radius: 2px;
+  border-color: #e6e6e6;
+  background: #fff;
+}
+
+/* ---------- 内容区：#f2f2f2 + 水印 + 页面标签条 ---------- */
+.d-content {
+  padding: 0;
+  position: relative;
+}
+.d-content::before {
+  content: '优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物    优品生物';
+  position: fixed;
+  top: 120px;
+  left: 200px;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  font-size: 15px;
+  line-height: 5.2;
+  color: rgba(0, 0, 0, 0.032);
+  transform: rotate(-18deg);
+  transform-origin: left top;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: hidden;
+}
+.d-wrap {
+  max-width: none;
+  padding: 18px 15px 28px;
+  position: relative;
+  z-index: 1;
+}
+.d-page-tabs {
+  position: relative;
+  z-index: 1;
+  height: 40px;
+  background: #fff;
+  border-bottom: 1px solid #eeeeee;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 8px;
+  gap: 2px;
+  overflow-x: auto;
+}
+.d-page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+  color: #646464;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  user-select: none;
+}
+.d-page-tab:hover { color: var(--c-primary); }
+.d-page-tab.on {
+  color: var(--c-primary);
+  border-bottom-color: var(--c-primary);
+}
+
+/* ---------- 原站彩色小操作按钮（layui-btn-xs 风格） ---------- */
+.pc-ops { display: inline-flex; gap: 5px; flex-wrap: wrap; }
+.gg-xs {
+  display: inline-block;
+  height: 22px;
+  line-height: 20px;
+  padding: 0 7px;
+  font-size: 12px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.gg-xs.blue   { background: #1A75FF; }
+.gg-xs.green  { background: #16b777; }
+.gg-xs.orange { background: #FFB800; }
+.gg-xs.red    { background: #FF5722; }
+.gg-xs.purple { background: #8c5ad6; }
+.gg-xs.cyan   { background: #2FB8D6; }
+.gg-xs.ghost  { background: #fff; border-color: #d9d9d9; color: #646464; }
+.gg-xs:hover { opacity: 0.85; }
+
+/* ---------- 首页（工作台）对齐原站 ---------- */
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 15px;
+  align-items: start;
+}
+.home-col { display: flex; flex-direction: column; gap: 15px; min-width: 0; }
+.home-quick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 6px 4px;
+}
+.home-quick-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #646464;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+.home-quick-item:hover { background: #F0F6FE; color: var(--c-primary); }
+.home-quick-item .hqi-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #F0F6FE;
+  color: #677C91;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.home-quick-item:hover .hqi-ico { color: var(--c-primary); }
+.home-todo {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 4px 0;
+}
+.home-todo-item {
+  background: #fafafa;
+  border: 1px solid #f2f2f2;
+  border-radius: 3px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.home-todo-item:hover { border-color: var(--c-primary); }
+.home-todo-item .td-num {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--c-primary);
+  line-height: 1.2;
+}
+.home-todo-item .td-num.zero { color: #a9aeb8; }
+.home-todo-item .td-label { margin-top: 4px; font-size: 13px; color: #646464; }
+.home-sysinfo { width: 100%; font-size: 13px; border-collapse: collapse; }
+.home-sysinfo td {
+  border: 1px solid #f2f2f2;
+  padding: 8px 12px;
+  color: #646464;
+}
+.home-sysinfo td:nth-child(odd) { width: 38%; color: #323232; }
+.gg-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 2px;
+  font-size: 11px;
+  color: #fff;
+  background: #16b777;
+}
+.gg-tag.blue { background: #1A75FF; }
+.gg-tag.orange { background: #FFB800; }
+
+/* ---------- 侧栏迷你模式（顶栏汉堡切换，对齐原站 52px 收起） ---------- */
+.d-root.mini .d-sidebar { width: 52px; }
+.d-root.mini .d-brand { padding: 0; justify-content: center; }
+.d-root.mini .d-brand-name { display: none; }
+.d-root.mini .d-nav-item {
+  padding-left: 0;
+  padding-right: 0;
+  justify-content: center;
+  overflow: hidden;
+}
+.d-root.mini .d-nav-item > span:not(.d-nav-ico):not(.d-nav-badge) { display: none; }
+.d-root.mini .d-nav-ico {
+  position: static;
+  transform: none;
+}
+.d-root.mini .d-nav-arrow { display: none; }
+.d-root.mini .d-nav-item.d-nav-sub.active {
+  background: var(--c-primary);
+  color: #fff;
+}

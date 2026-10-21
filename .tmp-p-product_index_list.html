@@ -1,0 +1,2337 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="renderer" content="webkit"/>
+	<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="mobile-prefetch" href=""/>
+
+
+	<title>优品OA</title>		
+
+
+	<meta name="keywords" content="优品OA"/>
+	<meta name="description" content="优品办公是一款基于ThinkPHP6 + Layui + MySql打造的，简单实用的开源免费的企业办公系统框架。系统集成了系统设置、人事管理、消息管理、审批管理、日常办公、客户管理、合同管理、项目管理、财务管理、知识管理、产品管理、附件管理等模块。系统简约，易于功能扩展，方便二次开发，让开发者更专注于业务深度需求的开发，帮助开发者简单高效降低二次开发成本，通过二次开发之后可以用来做CRM，ERP，业务管理等系统。"/>
+
+
+	<link rel="stylesheet" href="/static/assets/gougu/css/gougu.css?v=4.0.24" media="all">
+
+
+  <style>
+	.gougu-upload-files{background-color: #ffffff; border:1px solid #e4e7ed;color: #c0c4cc;cursor: not-allowed; padding:0 12px; width:180px; box-sizing: border-box; display: inline-block; font-size: inherit; height: 38px; line-height: 35px; margin-right:8px; border-radius:2px;}
+	.gougu-upload-tips{color:#969696}
+	.layui-form-item{margin-bottom:8px;}
+	.layui-input-block{min-height:24px;}
+	.layui-table-cell {
+		height: auto;
+	}
+  </style>
+
+<script>
+	const login_admin=84;
+</script>
+
+</head>
+<body class="main-body">
+	<!-- 主体 -->
+	
+<div class="p-3">
+	<form id="searchForm" class="layui-form gg-form-bar border-x border-t">
+		<!-- <div class="layui-input-inline" style="width:150px;">
+			<select name="type">
+				<option value="">请选择产品属性</option>
+				<option value="1">精华</option>
+				<option value="2">热门</option>
+				<option value="3">推荐</option>
+			</select>
+		</div> -->
+		<!-- <div class="layui-input-inline">
+			<select name="cate_id">
+				<option value="">请选择产品分类</option>
+								<option value="100">磁微粒化学发光（只代测）</option>
+								<option value="99">开票统称</option>
+								<option value="92">质谱实验</option>
+								<option value="93">├─氨基酸检测</option>
+								<option value="81">整体外包</option>
+								<option value="94">├─技术服务</option>
+								<option value="86">├─动物实验</option>
+								<option value="85">├─细胞实验</option>
+								<option value="59">测序</option>
+								<option value="77">├─蛋白组</option>
+								<option value="73">├─代谢组</option>
+								<option value="69">├─提取</option>
+								<option value="68">├─转录组</option>
+								<option value="67">├─基因组</option>
+								<option value="66">├─微生物组</option>
+								<option value="65">├─测序应用</option>
+								<option value="64">├─建库策略</option>
+								<option value="63">├─二代测序</option>
+								<option value="60">├─全基因组</option>
+								<option value="57">WB检测服务</option>
+								<option value="76">├─WB实验耗材</option>
+								<option value="58">├─WB检测</option>
+								<option value="52">QPCR</option>
+								<option value="54">├─单基因QPCR检测试剂盒</option>
+								<option value="53">├─QPCR检测服务</option>
+								<option value="38">病理技术服务</option>
+								<option value="96">├─BODIPY染色</option>
+								<option value="84">├─扫描电镜</option>
+								<option value="56">├─多重免疫荧光(不含扫描)</option>
+								<option value="51">├─抗体使用费</option>
+								<option value="50">├─多重免疫荧光（含扫描）</option>
+								<option value="47">├─临床病理读片分析/科研</option>
+								<option value="46">├─切片扫描/拍照</option>
+								<option value="45">├─分子病理/超微病理检测</option>
+								<option value="44">├─组织（芯片）多重荧光（含扫描）芯片客户自己提供</option>
+								<option value="43">├─多重荧光染色（含扫描）</option>
+								<option value="41">├─组织切片染色（常规/特殊染色）</option>
+								<option value="40">├─组织芯片阵列制作</option>
+								<option value="39">├─组织样本基础处理</option>
+								<option value="31">实验室试剂</option>
+								<option value="97">├─优品水试剂</option>
+								<option value="88">├─试剂耗材</option>
+								<option value="83">├─化学试剂（不单卖）</option>
+								<option value="33">├─CCK8</option>
+								<option value="32">├─缓冲剂</option>
+								<option value="23">其他</option>
+								<option value="98">├─会员费/优借卡费</option>
+								<option value="37">├─其他类别费用</option>
+								<option value="89">&sect;&sect;├─其他费用</option>
+								<option value="36">├─其他试剂盒</option>
+								<option value="35">├─礼品类型</option>
+								<option value="80">&sect;&sect;├─优品礼品</option>
+								<option value="79">&sect;&sect;├─仑昌硕礼品</option>
+								<option value="78">&sect;&sect;├─睿信礼品</option>
+								<option value="20">原料</option>
+								<option value="22">├─其它原料</option>
+								<option value="21">├─抗原</option>
+								<option value="14">生化</option>
+								<option value="61">├─新版生化</option>
+								<option value="95">&sect;&sect;├─微板法手动生化</option>
+								<option value="62">&sect;&sect;├─新版手动生化</option>
+								<option value="17">├─手动生化</option>
+								<option value="15">├─全自动生化</option>
+								<option value="2">抗体</option>
+								<option value="90">├─内参抗体</option>
+								<option value="87">├─一抗（兔单抗）</option>
+								<option value="70">├─新版一抗</option>
+								<option value="75">&sect;&sect;├─补发新版多克隆抗体</option>
+								<option value="74">&sect;&sect;├─补发新版单克隆抗体</option>
+								<option value="72">&sect;&sect;├─新版单克隆抗体</option>
+								<option value="71">&sect;&sect;├─新版多克隆抗体</option>
+								<option value="27">├─一抗（新单克隆抗体）</option>
+								<option value="16">├─抗体对</option>
+								<option value="10">├─二抗</option>
+								<option value="9">├─一抗（没验证图）</option>
+								<option value="8">├─53ul-臻香抗体（不主推）</option>
+								<option value="7">├─一抗</option>
+								<option value="1">ELISA</option>
+								<option value="49">├─化学发光-只代测</option>
+								<option value="34">├─磁微粒</option>
+								<option value="28">├─MAX ELISA</option>
+								<option value="26">├─微量高敏竞争法</option>
+								<option value="25">├─微量普通竞争法</option>
+								<option value="24">├─微量普通ELISA</option>
+								<option value="19">├─普通竞争法</option>
+								<option value="18">├─高敏竞争法</option>
+								<option value="13">├─动物疫病</option>
+								<option value="12">├─食品安全</option>
+								<option value="11">├─通用试剂盒</option>
+								<option value="6">├─特殊高敏</option>
+								<option value="5">├─高敏热门</option>
+								<option value="4">├─高敏生物素</option>
+								<option value="3">├─普通ELISA</option>
+							</select>
+		</div> -->
+		<div class="layui-input-inline" id="cateId" style="width:150px;"></div>
+		<input type="hidden" id="hiddenCateIdVal" name="cate_id">
+		<div class="layui-input-inline" style="width:150px;">
+			<input type="text" name="species" placeholder="种属" class="layui-input" autocomplete="off" />
+		</div>
+		<div class="layui-input-inline" style="width:150px;">
+			<input type="text" name="application" placeholder="应用" class="layui-input" autocomplete="off" />
+		</div>
+		<div class="layui-input-inline" style="width:150px;">
+			<select name="status">
+				<option value="">请选择状态</option>
+				<option value="1">有货</option>
+				<option value="0">下架</option>
+			</select>
+		</div>
+		<div class="layui-input-inline" style="width:300px;">
+			<input type="text" class="layui-input" id="diff_time" placeholder="选择时间区间" readonly name="diff_time">
+		</div>
+		<div class="layui-input-inline" style="width:300px;">
+			<input type="text" name="product_name" placeholder="产品标题" class="layui-input" autocomplete="off" />
+		</div>
+		<div class="layui-input-inline" style="width:300px;">
+			<input type="text" name="gene_name" placeholder="基因名称" class="layui-input" autocomplete="off" />
+		</div>
+		<div class="layui-input-inline" style="width:300px;">
+			<input type="text" name="other_name" placeholder="其他别称" class="layui-input" autocomplete="off" />
+		</div>
+		<div class="layui-input-inline" style="width:300px;">
+			<input type="text" name="keywords" placeholder="货号/其他别称/基因名称/产品标题/产品代码" class="layui-input" autocomplete="off" />
+		</div>
+		<div class="layui-input-inline">
+			<input type="radio" name="keyword_type" value="1" title="模糊" checked="checked" />
+			<input type="radio" name="keyword_type" value="2" title="分词" />
+		</div>
+		<div class="layui-input-inline" style="width:150px;">
+			<button class="layui-btn layui-btn-normal" lay-submit="" lay-filter="table-search"><i class="layui-icon layui-icon-search mr-1"></i>搜索</button>
+			<button type="reset" class="layui-btn layui-btn-reset" lay-filter="table-search-reset">清空</button>
+		</div>
+	</form>
+	<table class="layui-hide" id="test" lay-filter="test"></table>
+</div>
+<!-- <div style="display: none;" id="batchInstruction">
+	<div class="layui-form p-3">
+		<div id="uploadTypeInstruction1">
+			<div class="layui-form-item">
+				<label class="layui-form-label">文件：</label>
+				<div class="layui-input-block">
+					<span class="gougu-upload-files">.xls,.xlsx</span><button type="button" class="layui-btn layui-btn-normal" id="uploadSelectInstruction">选择文件</button><a href="/static/home/file/优品OA产品说明书导入模板.xlsx" download="优品OA产品说明书导入模板.xlsx" class="layui-btn ml-4">Execl表格模板下载</a>
+				</div>
+			</div>
+			<div class="layui-form-item">
+				<label class="layui-form-label"></label>
+				<div class="layui-input-block">
+					<span class="gougu-upload-tips">1、普通员工都可以进行批量导入操作；<br>2、只能上传 .xls、.xlsx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过1MB，导入数据不能超过1000条<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写。</span>
+				</div>
+			</div>
+			<div class="layui-form-item">
+				<label class="layui-form-label"></label>
+				<div class="layui-input-block green" id="gougu-upload-choosed-instruction"></div>
+			</div>
+			<div class="layui-form-item">
+				<label class="layui-form-label"></label>
+				<div class="layui-input-block red" id="gougu-upload-note-instruction"></div>
+			</div>
+			<div class="layui-form-item layui-form-item-sm">
+				<label class="layui-form-label"></label>
+				<div class="layui-input-block">
+					<button type="button" class="layui-btn" id="uploadAjaxInstruction">上传并导入</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div> -->
+<!-- 模板选择弹窗 -->
+<div id="templateSelectDialog" style="display: none;">
+    <div class="layui-form p-3">
+        <div class="layui-form-item">
+            <label class="layui-form-label">说明书模板：</label>
+            <div class="layui-input-block" style="width: 37%;">
+                <select name="template_id" id="templateSelectSingle" lay-search lay-verify="required">
+                    <option value="">请选择或搜索说明书模板</option>
+                </select>
+                <div class="layui-form-mid layui-word-aux">输入关键词可快速查找模板</div>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-block">
+                <button class="layui-btn layui-btn-normal" id="btnAnalyzeTemplate">分析模板</button>
+                <button type="button" class="layui-btn layui-btn-primary" id="btnCancelGenerate">取消</button>
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label"></label>
+            <div class="layui-input-block" id="analyzeResult"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 占位符数据确认弹窗 -->
+<div id="placeholderConfirmDialog" style="display: none;">
+    <div class="layui-fluid" style="padding: 15px;">
+        <div class="layui-row">
+            <div class="layui-col-md12">
+                <div class="layui-card">
+                    <div class="layui-card-header">
+                        <span>数据确认与编辑 - <span id="productTitle"></span> (<span id="productGoodsNo"></span>)</span>
+                        <div class="layui-btn-group" style="float: right;">
+                            <button class="layui-btn layui-btn-sm layui-btn-normal" onclick="savePlaceholders()">
+                                确认并生成WORD
+                            </button>
+                            <button class="layui-btn layui-btn-sm layui-btn-primary" onclick="closePlaceholderDialog()">
+                               返回
+                            </button>
+                        </div>
+                    </div>
+                    <div class="layui-card-body">
+                        <div class="layui-row mb-3">
+                            <div class="layui-col-md12">
+                                <div class="layui-card">
+                                    <div class="layui-card-header">
+                                        <i class="layui-icon layui-icon-template-1"></i> 模板信息
+                                        <span class="layui-badge layui-bg-blue ml-2" id="placeholderCount">0</span>
+                                        <span class="layui-badge ml-2" id="autoFillCount">0</span>
+                                        <span class="layui-badge layui-bg-orange ml-2" id="manualFillCount">0</span>
+                                    </div>
+                                    <div class="layui-card-body">
+                                        <p><strong>模板ID：</strong><span id="templateIdInfo"></span></p>
+                                        <p><strong>模板占位符：</strong><span id="placeholderList"></span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 自动匹配的数据 -->
+                        <div class="layui-row mb-3">
+                            <div class="layui-col-md12">
+                                <div class="layui-card">
+                                    <div class="layui-card-header">
+                                        <i class="layui-icon layui-icon-ok-circle" style="color: #5FB878;"></i> 已自动匹配数据
+                                    </div>
+                                    <div class="layui-card-body">
+                                        <div class="layui-row" id="autoMatchedData">
+                                            <!-- 自动匹配的数据项将通过JS填充 -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 需要确认/编辑的数据 -->
+                        <div class="layui-row">
+                            <div class="layui-col-md12">
+                                <div class="layui-card">
+                                    <div class="layui-card-header">
+                                        <i class="layui-icon layui-icon-edit" style="color: #FFB800;"></i> 请确认并编辑以下数据
+                                        <span class="layui-badge layui-bg-red ml-2" id="requiredCount">0</span>
+                                    </div>
+                                    <div class="layui-card-body">
+                                        <form class="layui-form" id="placeholderForm">
+                                            <!-- 所有占位符表单项目将通过JS填充 -->
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="layui-row mt-3">
+                            <div class="layui-col-md12">
+                                <div class="layui-form-item">
+                                    <div class="layui-input-block">
+                                        <button type="button" class="layui-btn layui-btn-normal layui-btn-lg" onclick="savePlaceholders()">
+                                            <i class="layui-icon layui-icon-ok"></i> 确认数据并生成WORD
+                                        </button>
+                                        <button type="button" class="layui-btn layui-btn-primary layui-btn-lg" onclick="defaultAllPlaceholders()">
+                                            <i class="layui-icon layui-icon-refresh"></i> 重置为默认值
+                                        </button>
+                                        <button type="button" class="layui-btn layui-btn-danger layui-btn-lg" onclick="closePlaceholderDialog()">
+                                            <i class="layui-icon layui-icon-close"></i> 取消
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 生成结果弹窗 -->
+<div id="generateResultDialog" style="display: none;">
+    <div class="layui-fluid" style="padding: 20px;">
+        <div class="layui-row">
+            <div class="layui-col-md12">
+                <div class="layui-card">
+                    <div class="layui-card-header">
+                        <span>说明书生成结果</span>
+                    </div>
+                    <div class="layui-card-body">
+                        <div class="text-center" id="generateResultContent">
+                            <!-- 生成结果内容将通过JS填充 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<button type="hidden" id="uploadBtn"></button>
+<script type="text/html" id="status">
+	<!-- <i class="layui-icon {{#  if(d.status == 1){ }}layui-icon-ok{{#  } else { }}layui-icon-close{{#  } }}"></i> -->
+	<i class="layui-icon {{#  if(d.status == 1){ }}green{{#  } else { }}red{{#  } }}">
+		{{#  if(d.status == 1){ }}有货{{#  } else { }}下架{{#  } }}
+	</i>
+</script>
+<script type="text/html" id="is_share">
+	<i class="layui-icon {{#  if(d.is_share == 0){ }}layui-icon-close{{#  } else { }}layui-icon-ok{{#  } }}"></i>
+</script>
+<script type="text/html" id="toolbarDemo">
+<div class="layui-btn-container">
+   <span class="layui-btn layui-btn-normal layui-btn-sm" title="添加产品" lay-event="add">+ 添加产品</span>
+   <button class="layui-btn layui-btn-sm" lay-event="import"><i class="layui-icon">&#58922;</i>批量导入(同步)<font color="pink"><i class="layui-icon alone-tips analyseTips"
+	lay-tips="同步导入：用于少量(1-2000)或者实时展示和使用的要求较高的数据的导入操作，由当下请求一次性完成导入，导入速度根据数据量而定，大量数据使用此入口极易操作失败！">&#xe60b;</i></font></button>
+   <button class="layui-btn layui-btn-sm" lay-event="importNotify"><i class="layui-icon">&#58922;</i>批量导入(异步)<font color="pink"><i class="layui-icon alone-tips analyseTips"
+	lay-tips="异步导入：用于大量(>2000)或者实时展示和使用的要求不高的数据的导入操作，由系统分多次多批导入，当下操作效果快，但真实导入数据速度慢！">&#xe60b;</i></font></button>
+	<button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="importUpdateNotify"><i class="layui-icon">&#58922;</i>批量更新(异步)<font color="pink"><i class="layui-icon alone-tips analyseTips"
+	 lay-tips="异步更新：用于大量(>2000)或者实时展示和使用的要求不高的数据的导入操作，由系统分多次多批导入，当下操作效果快，但真实导入数据速度慢！">&#xe60b;</i></font></button>
+   <button class="layui-btn layui-btn-sm" lay-event="importUnder"><i class="layui-icon">&#58922;</i>批量下架</button>
+   <button class="layui-btn layui-btn-sm" lay-event="importUp"><i class="layui-icon">&#58922;</i>批量上架</button>
+   <button class="layui-btn layui-btn-warm layui-btn-sm" lay-event="export"><i class="layui-icon">&#59005;</i>导出产品(csv)</button>
+   <button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="getCheckData"><i class="layui-icon">&#59025;</i>导出选中行数据(<span id="exportCheckData">0</span>)</button>
+   <button class="layui-btn layui-btn-danger layui-btn-sm" lay-event="clearCheckData">清空选中</button>
+   <button class="layui-btn layui-bg-purple layui-btn-sm" lay-event="batchInstruction">批量生成UP说明书</button>
+   <button class="layui-btn layui-btn-checked layui-btn-sm" lay-event="batchProductAndInstruction">导入(异步)&UP说明书</button>
+   <!-- <button class="layui-btn layui-btn-checked layui-btn-sm" lay-event="batchProductAndTempInstruction">导入(异步)&说明书</button> -->
+   <button class="layui-btn layui-btn-warm layui-btn-sm" lay-event="exportDownload"><i class="layui-icon">&#59005;</i>导出产品(说明书下载量排行榜)</button>
+</div>
+</script>
+<script type="text/html" id="barDemo">
+<div class="layui-btn-group">
+	<span class="layui-btn layui-btn-normal layui-btn-xs" lay-event="copy">复制</span>
+	<span class="layui-btn layui-btn-xs" lay-event="edit">编辑</span>
+	<span class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</span>
+</div>
+</script>
+
+	<!-- /主体 -->
+
+	<!-- 底部 -->
+	
+	<!-- /底部 -->
+	
+	<!-- 脚本 -->
+	
+<script src="/static/assets/layui/xm-select.js"></script>
+<script>
+	var checkboxArr = []
+	function downloadFile(url, filename) {
+		var link = document.createElement('a');
+		link.href = url;
+		link.target = '_blank'; // 在新标签页打开链接
+		link.download = filename; // 设置下载文件名称
+		link.click();
+	}
+	let encodedJsonString = '[{"id":100,"pid":0,"sort":0,"title":"\u78c1\u5fae\u7c92\u5316\u5b66\u53d1\u5149\uff08\u53ea\u4ee3\u6d4b\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1789523630,"update_time":1789524773,"checkArr":{"type":0,"isChecked":0},"spread":true,"parentId":0,"name":"\u78c1\u5fae\u7c92\u5316\u5b66\u53d1\u5149\uff08\u53ea\u4ee3\u6d4b\uff09","children":[]},{"id":99,"pid":0,"sort":0,"title":"\u5f00\u7968\u7edf\u79f0","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1788500608,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":true,"parentId":0,"name":"\u5f00\u7968\u7edf\u79f0","children":[]},{"id":92,"pid":0,"sort":0,"title":"\u8d28\u8c31\u5b9e\u9a8c","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1778726412,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u8d28\u8c31\u5b9e\u9a8c","children":[{"id":93,"pid":92,"sort":0,"title":"\u6c28\u57fa\u9178\u68c0\u6d4b","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1778726425,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":92,"name":"\u6c28\u57fa\u9178\u68c0\u6d4b","children":[]}]},{"id":81,"pid":0,"sort":0,"title":"\u6574\u4f53\u5916\u5305","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1762498305,"update_time":1767159971,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u6574\u4f53\u5916\u5305","children":[{"id":94,"pid":81,"sort":0,"title":"\u6280\u672f\u670d\u52a1","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1779874563,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":81,"name":"\u6280\u672f\u670d\u52a1","children":[]},{"id":86,"pid":81,"sort":0,"title":"\u52a8\u7269\u5b9e\u9a8c","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1767160591,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":81,"name":"\u52a8\u7269\u5b9e\u9a8c","children":[]},{"id":85,"pid":81,"sort":0,"title":"\u7ec6\u80de\u5b9e\u9a8c","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1767159984,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":81,"name":"\u7ec6\u80de\u5b9e\u9a8c","children":[]}]},{"id":59,"pid":0,"sort":0,"title":"\u6d4b\u5e8f","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1754883615,"update_time":1756353015,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u6d4b\u5e8f","children":[{"id":77,"pid":59,"sort":0,"title":"\u86cb\u767d\u7ec4","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1760327116,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u86cb\u767d\u7ec4","children":[]},{"id":73,"pid":59,"sort":0,"title":"\u4ee3\u8c22\u7ec4","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1757405575,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u4ee3\u8c22\u7ec4","children":[]},{"id":69,"pid":59,"sort":0,"title":"\u63d0\u53d6","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756351214,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u63d0\u53d6","children":[]},{"id":68,"pid":59,"sort":0,"title":"\u8f6c\u5f55\u7ec4","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756351184,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u8f6c\u5f55\u7ec4","children":[]},{"id":67,"pid":59,"sort":0,"title":"\u57fa\u56e0\u7ec4","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756351172,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u57fa\u56e0\u7ec4","children":[]},{"id":66,"pid":59,"sort":0,"title":"\u5fae\u751f\u7269\u7ec4","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756351159,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u5fae\u751f\u7269\u7ec4","children":[]},{"id":65,"pid":59,"sort":0,"title":"\u6d4b\u5e8f\u5e94\u7528","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756351147,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u6d4b\u5e8f\u5e94\u7528","children":[]},{"id":64,"pid":59,"sort":0,"title":"\u5efa\u5e93\u7b56\u7565","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756351102,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u5efa\u5e93\u7b56\u7565","children":[]},{"id":63,"pid":59,"sort":0,"title":"\u4e8c\u4ee3\u6d4b\u5e8f","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1755829562,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u4e8c\u4ee3\u6d4b\u5e8f","children":[]},{"id":60,"pid":59,"sort":0,"title":"\u5168\u57fa\u56e0\u7ec4","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1754883638,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":59,"name":"\u5168\u57fa\u56e0\u7ec4","children":[]}]},{"id":57,"pid":0,"sort":0,"title":"WB\u68c0\u6d4b\u670d\u52a1","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1754531543,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"WB\u68c0\u6d4b\u670d\u52a1","children":[{"id":76,"pid":57,"sort":0,"title":"WB\u5b9e\u9a8c\u8017\u6750","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1758510351,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":57,"name":"WB\u5b9e\u9a8c\u8017\u6750","children":[]},{"id":58,"pid":57,"sort":0,"title":"WB\u68c0\u6d4b","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1754533611,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":57,"name":"WB\u68c0\u6d4b","children":[]}]},{"id":52,"pid":0,"sort":0,"title":"QPCR","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1751248868,"update_time":1751419483,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"QPCR","children":[{"id":54,"pid":52,"sort":0,"title":"\u5355\u57fa\u56e0QPCR\u68c0\u6d4b\u8bd5\u5242\u76d2","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1751419362,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":52,"name":"\u5355\u57fa\u56e0QPCR\u68c0\u6d4b\u8bd5\u5242\u76d2","children":[]},{"id":53,"pid":52,"sort":0,"title":"QPCR\u68c0\u6d4b\u670d\u52a1","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1751248881,"update_time":1778726064,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":52,"name":"QPCR\u68c0\u6d4b\u670d\u52a1","children":[]}]},{"id":38,"pid":0,"sort":0,"title":"\u75c5\u7406\u6280\u672f\u670d\u52a1","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747970994,"update_time":1747983334,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u75c5\u7406\u6280\u672f\u670d\u52a1","children":[{"id":96,"pid":38,"sort":0,"title":"BODIPY\u67d3\u8272","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1780562438,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"BODIPY\u67d3\u8272","children":[]},{"id":84,"pid":38,"sort":0,"title":"\u626b\u63cf\u7535\u955c","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1766468636,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u626b\u63cf\u7535\u955c","children":[]},{"id":56,"pid":38,"sort":0,"title":"\u591a\u91cd\u514d\u75ab\u8367\u5149(\u4e0d\u542b\u626b\u63cf)","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1753346941,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u591a\u91cd\u514d\u75ab\u8367\u5149(\u4e0d\u542b\u626b\u63cf)","children":[]},{"id":51,"pid":38,"sort":0,"title":"\u6297\u4f53\u4f7f\u7528\u8d39","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1751016033,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u6297\u4f53\u4f7f\u7528\u8d39","children":[]},{"id":50,"pid":38,"sort":0,"title":"\u591a\u91cd\u514d\u75ab\u8367\u5149\uff08\u542b\u626b\u63cf\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1750727592,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u591a\u91cd\u514d\u75ab\u8367\u5149\uff08\u542b\u626b\u63cf\uff09","children":[]},{"id":47,"pid":38,"sort":0,"title":"\u4e34\u5e8a\u75c5\u7406\u8bfb\u7247\u5206\u6790\/\u79d1\u7814","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747985302,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u4e34\u5e8a\u75c5\u7406\u8bfb\u7247\u5206\u6790\/\u79d1\u7814","children":[]},{"id":46,"pid":38,"sort":0,"title":"\u5207\u7247\u626b\u63cf\/\u62cd\u7167","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747985290,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u5207\u7247\u626b\u63cf\/\u62cd\u7167","children":[]},{"id":45,"pid":38,"sort":0,"title":"\u5206\u5b50\u75c5\u7406\/\u8d85\u5fae\u75c5\u7406\u68c0\u6d4b","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747985269,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u5206\u5b50\u75c5\u7406\/\u8d85\u5fae\u75c5\u7406\u68c0\u6d4b","children":[]},{"id":44,"pid":38,"sort":0,"title":"\u7ec4\u7ec7\uff08\u82af\u7247\uff09\u591a\u91cd\u8367\u5149\uff08\u542b\u626b\u63cf\uff09\u82af\u7247\u5ba2\u6237\u81ea\u5df1\u63d0\u4f9b","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747985253,"update_time":1747986333,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u7ec4\u7ec7\uff08\u82af\u7247\uff09\u591a\u91cd\u8367\u5149\uff08\u542b\u626b\u63cf\uff09\u82af\u7247\u5ba2\u6237\u81ea\u5df1\u63d0\u4f9b","children":[]},{"id":43,"pid":38,"sort":0,"title":"\u591a\u91cd\u8367\u5149\u67d3\u8272\uff08\u542b\u626b\u63cf\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747985231,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u591a\u91cd\u8367\u5149\u67d3\u8272\uff08\u542b\u626b\u63cf\uff09","children":[]},{"id":41,"pid":38,"sort":0,"title":"\u7ec4\u7ec7\u5207\u7247\u67d3\u8272\uff08\u5e38\u89c4\/\u7279\u6b8a\u67d3\u8272\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747985193,"update_time":1747986178,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u7ec4\u7ec7\u5207\u7247\u67d3\u8272\uff08\u5e38\u89c4\/\u7279\u6b8a\u67d3\u8272\uff09","children":[]},{"id":40,"pid":38,"sort":0,"title":"\u7ec4\u7ec7\u82af\u7247\u9635\u5217\u5236\u4f5c","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747985181,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u7ec4\u7ec7\u82af\u7247\u9635\u5217\u5236\u4f5c","children":[]},{"id":39,"pid":38,"sort":0,"title":"\u7ec4\u7ec7\u6837\u672c\u57fa\u7840\u5904\u7406","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1747971007,"update_time":1747985160,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":38,"name":"\u7ec4\u7ec7\u6837\u672c\u57fa\u7840\u5904\u7406","children":[]}]},{"id":31,"pid":0,"sort":0,"title":"\u5b9e\u9a8c\u5ba4\u8bd5\u5242","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1740729177,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u5b9e\u9a8c\u5ba4\u8bd5\u5242","children":[{"id":97,"pid":31,"sort":0,"title":"\u4f18\u54c1\u6c34\u8bd5\u5242","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1782876935,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":31,"name":"\u4f18\u54c1\u6c34\u8bd5\u5242","children":[]},{"id":88,"pid":31,"sort":0,"title":"\u8bd5\u5242\u8017\u6750","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1769063267,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":31,"name":"\u8bd5\u5242\u8017\u6750","children":[]},{"id":83,"pid":31,"sort":0,"title":"\u5316\u5b66\u8bd5\u5242\uff08\u4e0d\u5355\u5356\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1766026675,"update_time":1766027390,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":31,"name":"\u5316\u5b66\u8bd5\u5242\uff08\u4e0d\u5355\u5356\uff09","children":[]},{"id":33,"pid":31,"sort":0,"title":"CCK8","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1742197651,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":31,"name":"CCK8","children":[]},{"id":32,"pid":31,"sort":0,"title":"\u7f13\u51b2\u5242","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1740729207,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":31,"name":"\u7f13\u51b2\u5242","children":[]}]},{"id":23,"pid":0,"sort":2,"title":"\u5176\u4ed6","desc":"\u7528\u4e8e\u4e0b\u5355\u65f6\u5176\u4ed6\u7c7b\u522b\u4ea7\u54c1\u7684\u9009\u9879","is_share":1,"share_dids":"","share_uids":"","create_time":1724894772,"update_time":1762397860,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u5176\u4ed6","children":[{"id":98,"pid":23,"sort":0,"title":"\u4f1a\u5458\u8d39\/\u4f18\u501f\u5361\u8d39","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1787281211,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":23,"name":"\u4f1a\u5458\u8d39\/\u4f18\u501f\u5361\u8d39","children":[]},{"id":37,"pid":23,"sort":0,"title":"\u5176\u4ed6\u7c7b\u522b\u8d39\u7528","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1746777912,"update_time":1747208809,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":23,"name":"\u5176\u4ed6\u7c7b\u522b\u8d39\u7528","children":[{"id":89,"pid":37,"sort":0,"title":"\u5176\u4ed6\u8d39\u7528","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1773026599,"update_time":1776995438,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":37,"name":"\u5176\u4ed6\u8d39\u7528","children":[]}]},{"id":36,"pid":23,"sort":0,"title":"\u5176\u4ed6\u8bd5\u5242\u76d2","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1746772531,"update_time":1773026589,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":23,"name":"\u5176\u4ed6\u8bd5\u5242\u76d2","children":[]},{"id":35,"pid":23,"sort":0,"title":"\u793c\u54c1\u7c7b\u578b","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1746511876,"update_time":1747208793,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":23,"name":"\u793c\u54c1\u7c7b\u578b","children":[{"id":80,"pid":35,"sort":0,"title":"\u4f18\u54c1\u793c\u54c1","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1762395831,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":35,"name":"\u4f18\u54c1\u793c\u54c1","children":[]},{"id":79,"pid":35,"sort":0,"title":"\u4ed1\u660c\u7855\u793c\u54c1","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1762395820,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":35,"name":"\u4ed1\u660c\u7855\u793c\u54c1","children":[]},{"id":78,"pid":35,"sort":0,"title":"\u777f\u4fe1\u793c\u54c1","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1762395801,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":35,"name":"\u777f\u4fe1\u793c\u54c1","children":[]}]}]},{"id":20,"pid":0,"sort":0,"title":"\u539f\u6599","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1710406191,"update_time":1710769292,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u539f\u6599","children":[{"id":22,"pid":20,"sort":0,"title":"\u5176\u5b83\u539f\u6599","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1710406210,"update_time":1710406350,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":20,"name":"\u5176\u5b83\u539f\u6599","children":[]},{"id":21,"pid":20,"sort":0,"title":"\u6297\u539f","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1710406199,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":20,"name":"\u6297\u539f","children":[]}]},{"id":14,"pid":0,"sort":0,"title":"\u751f\u5316","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1708502913,"update_time":1708503993,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u751f\u5316","children":[{"id":61,"pid":14,"sort":0,"title":"\u65b0\u7248\u751f\u5316","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1755762427,"update_time":1784172683,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":14,"name":"\u65b0\u7248\u751f\u5316","children":[{"id":95,"pid":61,"sort":0,"title":"\u5fae\u677f\u6cd5\u624b\u52a8\u751f\u5316","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1780369757,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":61,"name":"\u5fae\u677f\u6cd5\u624b\u52a8\u751f\u5316","children":[]},{"id":62,"pid":61,"sort":0,"title":"\u65b0\u7248\u624b\u52a8\u751f\u5316","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1755762438,"update_time":1789695102,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":61,"name":"\u65b0\u7248\u624b\u52a8\u751f\u5316","children":[]}]},{"id":17,"pid":14,"sort":0,"title":"\u624b\u52a8\u751f\u5316","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1708504095,"update_time":1741575597,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":14,"name":"\u624b\u52a8\u751f\u5316","children":[]},{"id":15,"pid":14,"sort":0,"title":"\u5168\u81ea\u52a8\u751f\u5316","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1708502949,"update_time":1715608424,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":14,"name":"\u5168\u81ea\u52a8\u751f\u5316","children":[]}]},{"id":2,"pid":0,"sort":0,"title":"\u6297\u4f53","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1637984739,"update_time":1707119049,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"\u6297\u4f53","children":[{"id":90,"pid":2,"sort":0,"title":"\u5185\u53c2\u6297\u4f53","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1778215935,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u5185\u53c2\u6297\u4f53","children":[]},{"id":87,"pid":2,"sort":1,"title":"\u4e00\u6297\uff08\u5154\u5355\u6297\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1768871674,"update_time":1768871702,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u4e00\u6297\uff08\u5154\u5355\u6297\uff09","children":[]},{"id":70,"pid":2,"sort":99,"title":"\u65b0\u7248\u4e00\u6297","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756458287,"update_time":1768871740,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u65b0\u7248\u4e00\u6297","children":[{"id":75,"pid":70,"sort":0,"title":"\u8865\u53d1\u65b0\u7248\u591a\u514b\u9686\u6297\u4f53","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1757582597,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":70,"name":"\u8865\u53d1\u65b0\u7248\u591a\u514b\u9686\u6297\u4f53","children":[]},{"id":74,"pid":70,"sort":0,"title":"\u8865\u53d1\u65b0\u7248\u5355\u514b\u9686\u6297\u4f53","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1757582584,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":70,"name":"\u8865\u53d1\u65b0\u7248\u5355\u514b\u9686\u6297\u4f53","children":[]},{"id":72,"pid":70,"sort":0,"title":"\u65b0\u7248\u5355\u514b\u9686\u6297\u4f53","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756458317,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":70,"name":"\u65b0\u7248\u5355\u514b\u9686\u6297\u4f53","children":[]},{"id":71,"pid":70,"sort":0,"title":"\u65b0\u7248\u591a\u514b\u9686\u6297\u4f53","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1756458303,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":70,"name":"\u65b0\u7248\u591a\u514b\u9686\u6297\u4f53","children":[]}]},{"id":27,"pid":2,"sort":7,"title":"\u4e00\u6297\uff08\u65b0\u5355\u514b\u9686\u6297\u4f53\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1733215238,"update_time":1768872035,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u4e00\u6297\uff08\u65b0\u5355\u514b\u9686\u6297\u4f53\uff09","children":[]},{"id":16,"pid":2,"sort":6,"title":"\u6297\u4f53\u5bf9","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1708503984,"update_time":1768872020,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u6297\u4f53\u5bf9","children":[]},{"id":10,"pid":2,"sort":5,"title":"\u4e8c\u6297","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707120830,"update_time":1768872013,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u4e8c\u6297","children":[]},{"id":9,"pid":2,"sort":4,"title":"\u4e00\u6297\uff08\u6ca1\u9a8c\u8bc1\u56fe\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707120819,"update_time":1768872004,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u4e00\u6297\uff08\u6ca1\u9a8c\u8bc1\u56fe\uff09","children":[]},{"id":8,"pid":2,"sort":3,"title":"53ul-\u81fb\u9999\u6297\u4f53\uff08\u4e0d\u4e3b\u63a8\uff09","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707120774,"update_time":1768871725,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"53ul-\u81fb\u9999\u6297\u4f53\uff08\u4e0d\u4e3b\u63a8\uff09","children":[]},{"id":7,"pid":2,"sort":2,"title":"\u4e00\u6297","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707120732,"update_time":1768871993,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":2,"name":"\u4e00\u6297","children":[]}]},{"id":1,"pid":0,"sort":0,"title":"ELISA","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1637984651,"update_time":1708501004,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":0,"name":"ELISA","children":[{"id":49,"pid":1,"sort":0,"title":"\u5316\u5b66\u53d1\u5149-\u53ea\u4ee3\u6d4b","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1749718717,"update_time":1749718949,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u5316\u5b66\u53d1\u5149-\u53ea\u4ee3\u6d4b","children":[]},{"id":34,"pid":1,"sort":0,"title":"\u78c1\u5fae\u7c92","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1744358437,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u78c1\u5fae\u7c92","children":[]},{"id":28,"pid":1,"sort":0,"title":"MAX ELISA","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1739760511,"update_time":1768974432,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"MAX ELISA","children":[]},{"id":26,"pid":1,"sort":0,"title":"\u5fae\u91cf\u9ad8\u654f\u7ade\u4e89\u6cd5","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1729835206,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u5fae\u91cf\u9ad8\u654f\u7ade\u4e89\u6cd5","children":[]},{"id":25,"pid":1,"sort":0,"title":"\u5fae\u91cf\u666e\u901a\u7ade\u4e89\u6cd5","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1729828766,"update_time":1768974449,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u5fae\u91cf\u666e\u901a\u7ade\u4e89\u6cd5","children":[]},{"id":24,"pid":1,"sort":0,"title":"\u5fae\u91cf\u666e\u901aELISA","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1729828752,"update_time":1768974455,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u5fae\u91cf\u666e\u901aELISA","children":[]},{"id":19,"pid":1,"sort":0,"title":"\u666e\u901a\u7ade\u4e89\u6cd5","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1710320599,"update_time":1768974466,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u666e\u901a\u7ade\u4e89\u6cd5","children":[]},{"id":18,"pid":1,"sort":0,"title":"\u9ad8\u654f\u7ade\u4e89\u6cd5","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1709028535,"update_time":1753760718,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u9ad8\u654f\u7ade\u4e89\u6cd5","children":[]},{"id":13,"pid":1,"sort":0,"title":"\u52a8\u7269\u75ab\u75c5","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1708502439,"update_time":1709620044,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u52a8\u7269\u75ab\u75c5","children":[]},{"id":12,"pid":1,"sort":0,"title":"\u98df\u54c1\u5b89\u5168","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1708502426,"update_time":1709620027,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u98df\u54c1\u5b89\u5168","children":[]},{"id":11,"pid":1,"sort":0,"title":"\u901a\u7528\u8bd5\u5242\u76d2","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1708502414,"update_time":0,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u901a\u7528\u8bd5\u5242\u76d2","children":[]},{"id":6,"pid":1,"sort":0,"title":"\u7279\u6b8a\u9ad8\u654f","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707119104,"update_time":1710335373,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u7279\u6b8a\u9ad8\u654f","children":[]},{"id":5,"pid":1,"sort":0,"title":"\u9ad8\u654f\u70ed\u95e8","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707119090,"update_time":1710335365,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u9ad8\u654f\u70ed\u95e8","children":[]},{"id":4,"pid":1,"sort":0,"title":"\u9ad8\u654f\u751f\u7269\u7d20","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707119080,"update_time":1708501210,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u9ad8\u654f\u751f\u7269\u7d20","children":[]},{"id":3,"pid":1,"sort":0,"title":"\u666e\u901aELISA","desc":"","is_share":1,"share_dids":"","share_uids":"","create_time":1707119064,"update_time":1762914101,"checkArr":{"type":0,"isChecked":0},"spread":false,"parentId":1,"name":"\u666e\u901aELISA","children":[]}]}]';
+	// 解码 HTML 实体编码
+	let decodedJsonString = encodedJsonString.replace(/&quot;/g, '"');
+	// 解析 JSON 字符串为 JavaScript 对象
+	let cateJsonData = JSON.parse(decodedJsonString);
+	const moduleInit = ['tool','laydatePlus','oaTool','tablePlus'];
+	function gouguInit() {
+		var table = layui.tablePlus, tool = layui.tool ,oaTool = layui.oaTool,form = layui.form, laydatePlus = layui.laydatePlus, upload = layui.upload;
+		//日期范围
+		var diff_time = new laydatePlus({ 'target': 'diff_time' });
+		
+		// 创建一个下拉选择框，并设置相关属性
+		var cateId = xmSelect.render({
+			el: '#cateId', // 将下拉选择框挂载到id为category的元素上
+			toolbar: {
+				show: true, // 显示工具栏
+				list: ['ALL', 'CLEAR'] // 工具栏上的选项列表
+			},
+			tips: '产品分类',
+			// theme: {
+			// 	color: '#51495f', // 设置主题颜色
+			// },
+			filterable: true, // 允许筛选
+			// paging: true, // 启用分页
+			// radio: true,//单选
+			// pageSize: 5,
+			tree: {
+				show: true, // 启用树状结构
+				strict: false, // 非严格父子模式
+				expandedKeys: false, // 默认展开所有节点
+			},
+			height: 'auto', // 自适应高度
+			prop: {
+				name: 'title', // 指定显示的文本字段
+				value: 'id', // 指定值字段
+				children: 'children' // 指定子节点字段
+			},
+			on: function (data) {
+				//arr:  当前多选已选中的数据
+				var arr = data.arr;
+				// 从选中数据中提取value值
+				var value = '';
+				for (i = 0; i < arr.length; i++) {
+					value = value + arr[i].id + ',';
+				}
+				// 存储所选数据的值,这里是在前端隐藏了书籍类别输入框，将提出出来的值写入到表单中便于提交到数据库中
+				document.getElementById('hiddenCateIdVal').value = value;//这里是将我自己需要的值返回到前端界面，再提交表单的时候不需要将数据转化，当然你也可以自己摸索一下
+			},
+			data: cateJsonData // 初始化数据为空数组
+		})
+		layui.pageTable = table.render({
+			elem: '#test',
+			title: '产品列表',
+			toolbar: '#toolbarDemo',
+			//is_excel:true,
+			//excel_limit:1000000,
+			limit: 20,
+			defaultToolbar:false,
+			//lineStyle: 'height: 100px;', // 定义表格的多行样式
+			url: "/product/index/list", //数据接口
+			page: true,
+			//height: 'full-35', // 最大高度减去其他容器已占有的高度差
+			height: '795px',      // 固定高度模式，表头固定
+			before: function(options){
+				//console.log(options); // 当前实例属性配置项
+				$('#exportCheckData').html(checkboxArr.length)
+			},
+			cols: [
+				[ //表头
+					//{
+					//	field: 'id',
+					//	fixed: 'left',
+					//	title: '编号',
+					//	align: 'center',
+					//	width: 80
+					//}, 
+					{type: 'checkbox', fixed: 'left'},
+					{
+						field: 'goods_no',
+						fixed: 'left',
+						title: '产品货号/说明书',
+						<!-- title: '产品货号/说明书 <button type="button" class="layui-btn layui-btn-xs" lay-event="upload-btn"><i class="layui-icon"></i></button>', -->
+						align: 'center',
+						width: 300,
+						templet: function(d){
+							let goodsNoList = d.goods_no_list
+							let html = '';
+							let goods_no_url = ''
+							$.each(goodsNoList, function(index, item) {
+								let isurl = 0
+								let createdWord = "'"+d.id+"','"+item.goods_no+"'"
+								//有说明书
+								if(item.goods_no_url){
+									goods_no_url = item.goods_no_url
+									if(item.pc_yu_goods_no_url){
+										goods_no_url = item.pc_yu_goods_no_url
+										isurl = 1
+									}
+									html += '<span class="blue">'+item.goods_no+'</span>&nbsp;<button data-isurl="'+isurl+'" data-href="'+goods_no_url+'" class="file-view-pdf layui-btn layui-btn-danger layui-btn-xs" title="在线查看">预览</button><a onclick="downloadFile(\''+item.pc_goods_no_url+'\', \''+item.goods_no_desc+'\')" class="layui-btn layui-btn-xs">下载</a><br/>';
+								}else{
+									html += '<span class="red">'+item.goods_no+'</span>&nbsp;<button onclick="layer.msg(\'' + '暂无说明书' + '\');" class="layui-btn layui-btn-danger layui-btn-xs" title="暂无说明书">预览</button><button onclick="layer.msg(\'' + '暂无说明书' + '\');" class="layui-btn layui-btn-xs">下载</button><br/>';
+								}
+								//if(item.goods_no_url){
+								//	goods_no_url = item.goods_no_url
+								//	if(item.pc_yu_goods_no_url){
+								//		goods_no_url = item.pc_yu_goods_no_url
+								//		isurl = 1
+								//	}
+								//	html += '<span class="blue">'+item.goods_no+'</span>&nbsp;<button data-isurl="'+isurl+'" data-href="'+goods_no_url+'" class="file-view-pdf layui-btn layui-btn-danger layui-btn-xs" title="在线查看">预览</button><a onclick="downloadFile(\''+item.pc_goods_no_url+'\', \''+item.goods_no_desc+'\')" class="layui-btn layui-btn-xs">下载</a><button onclick="createdWord('+createdWord+');" class="layui-btn layui-btn-normal layui-btn-xs">生成说明书</button><br/>';
+								//}else{
+								//	html += '<span class="red">'+item.goods_no+'</span>&nbsp;<button onclick="layer.msg(\'' + '暂无说明书' + '\');" class="layui-btn layui-btn-danger layui-btn-xs" title="暂无说明书">预览</button><button onclick="layer.msg(\'' + '暂无说明书' + '\');" class="layui-btn layui-btn-xs">下载</button><button onclick="createdWord('+createdWord+');" class="layui-btn layui-btn-normal layui-btn-xs">生成说明书</button><br/>';
+								//}
+							});
+							return html;
+						}
+					},  {
+						field: 'status',
+						title: '状态',
+						toolbar: '#status',
+						align: 'center',
+						width: 66
+					},{
+						field: 'cate_title',
+						title: '分类',
+						align: 'center',
+						width: 150
+					}, {
+						field: 'price_desc',
+						title: '价格明细',
+						templet: '<span class="green">{{d.price_desc}}</span>',
+						width: 200
+					}, {
+						field: 'title',
+						title: '产品标题',
+						templet: function(d){
+							return '<div><a data-href="/product/index/view/id/'+d.id+'.html" class="side-a">'+d.title+'</a></div>';
+						},
+						width: 250
+					}, {
+						field: 'species',
+						title: '种属',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'application',
+						title: '应用',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'gene_name',
+						title: '基因名称',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'other_name',
+						title: '其他别称',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'da',
+						title: '分子量',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'source',
+						title: '来源',
+						align: 'center',
+						width: 100
+					}, 
+					//{
+					//	field: 'instructions_desc',
+					//	title: '说明书下载',
+					//	align: 'center',
+					//	width: 100,
+					//	templet: function(d){
+					//		let instructions_desc = d.instructions_desc
+					//		let instructions_url = d.instructions_url
+					//		let html='<span class="blue">'+instructions_desc+'</span>';
+					//		if(d.instructions_flag==1){
+					//			html = '<a href="javascript:;" class="file-view-pdf blue" data-href="'+instructions_url+'" title="在线查看"><i class="iconfont icon-yuejuan"></i></a>&nbsp;&nbsp;<a class="blue" href="'+instructions_url+'" download="'+instructions_desc+'" target="_blank" title="下载查看"><i class="iconfont icon-tuiguangshezhi"></i></a>';
+					//		}
+					//		return html;
+					//	}
+					//},
+					 {
+						field: 'scope',
+						title: '定量/定性',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'species_eng_name',
+						title: '种属英文名称',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'methodology',
+						title: '方法学',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'concentration',
+						title: '浓度点',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'eng_name',
+						title: '英文名称',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'tag',
+						title: 'Tag',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'expression_system',
+						title: '表达系统',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'product_code',
+						title: '产品代码',
+						align: 'center',
+						width: 100
+					}, {
+						field: 'type',
+						title: '属性',
+						align: 'center',
+						width: 80,
+						templet: function(d){
+							let html='<span class="green">暂无</span>';
+							if(d.type==1){
+								html='<span class="blue">精华</span>';
+							}
+							else if(d.type==2){
+								html='<span class="yellow">热门</span>';
+							}
+							else if(d.type==3){
+								html='<span class="red">推荐</span>';
+							}
+							return html;
+						}
+					}, {
+						field: 'down_load_num',
+						title: '下载量',
+						align: 'center',
+						width: 80
+					}, {
+						field: 'is_share',
+						title: '阅读权限范围',
+						align: 'center',
+						width: 100,
+						templet: function(d){
+							let html='<span class="green">私有</span>';
+							if(d.is_share==1){
+								html='<span class="blue">所有人</span>';
+							}
+							else if(d.is_share==2){
+								html='<span class="yellow">部门</span>';
+							}
+							else if(d.is_share==3){
+								html='<span class="red">部分人员</span>';
+							}
+							return html;
+						}
+					}, {
+						field: 'right',
+						fixed: 'right',
+						title: '操作',
+						toolbar: '#barDemo',
+						width: 150,
+						align: 'center'
+					}
+				]
+			],done: function(res, curr, count){
+				$(".layui-table-main tr").each(function (index, val) {
+					$($(".layui-table-fixed-l .layui-table-body tbody tr")[index]).height($(val).height());
+					$($(".layui-table-fixed-r .layui-table-body tbody tr")[index]).height($(val).height());
+				})
+			},
+		});
+		$(document).on('mouseenter', '.analyseTips', function () {
+			var tp = $(this).attr("lay-tips");
+			this.index = layer.tips('<div style="padding: 5px; font-size: 12px; color: #eee;">' + tp + '</div>', this, {
+				time: -1
+				, maxWidth: 260
+				, tips: [3, '#3A3D49']
+			});
+		}).on('mouseout', '.analyseTips', function () {
+			layer.close(this.index);
+		});
+		// 触发表格复选框选择
+		table.on('checkbox(test)', function(obj){
+			//console.log(obj)
+			//全选
+			if(obj.type=="all"){
+				var id = obj.config.id;
+				if(obj.checked){
+					//选中
+    				var checkStatus = table.checkStatus(id);
+					var checkData = checkStatus.data.map(item => item.id);
+					// 使用 Set 来存储目标数组中的值
+					const set = new Set(checkboxArr);
+					// 过滤掉已存在于目标数组的值，然后将剩余值添加到目标数组中
+					const uniqueValues = checkData.filter(item => !set.has(item));
+					checkboxArr = checkboxArr.concat(uniqueValues);
+				}else{
+					//取消选中
+					var getData = table.getData(id).map(item => item.id);
+					// 使用 filter 方法来剔除另一个数组中包含的值
+					checkboxArr = checkboxArr.filter(item => !getData.includes(item));
+				}
+				
+			}else if(obj.type=="one"){
+				//单选
+				if(obj.checked){
+					//选中
+					checkboxArr.push(obj.data.id)
+				}else{
+					//取消选中
+					checkboxArr = checkboxArr.filter(item => item !== obj.data.id);
+				}
+			}
+			checkboxArr = Array.from(new Set(checkboxArr));
+			$('#exportCheckData').html(checkboxArr.length)
+		});
+		table.on('colTool(test)', function(obj){
+			var event = obj.event;
+			if(event === 'upload-btn'){
+				//#test1模拟点击
+				$('#uploadBtn').click();
+			}
+		});
+		//相关附件上传
+		oaTool.addFile();	
+		//表头工具栏事件
+		table.on('toolbar(test)', function(obj){
+			if (obj.event === 'getCheckData') {
+				//console.log(checkboxArr)
+				if(checkboxArr.length<=0){
+					layer.msg('请至少选择一个产品');
+					return
+				}
+				layer.confirm('确定要导出已选中的产品数据吗?', {
+					icon: 3,
+					title: '提示'
+				}, function(index) {
+					// 将数组转换为逗号分隔的字符串
+					const commaSeparatedString = checkboxArr.join(',');
+					// 创建 URLSearchParams 对象，将逗号分隔的字符串作为一个 key 的值添加到参数中
+					const params = new URLSearchParams();
+					params.append('ids', commaSeparatedString);
+					const queryString = params.toString();
+					window.open('/product/index/list?export=1&limit=10000000&'+queryString, '_blank');
+					layer.close(index);
+				});
+				return;
+			}
+			if (obj.event === 'clearCheckData') {
+				//console.log(checkboxArr)
+				if(checkboxArr.length<=0){
+					layer.msg('请至少选择一个产品');
+					return
+				}
+				layer.confirm('确定要清空已选中的产品数据吗?', {
+					icon: 3,
+					title: '提示'
+				}, function(index) {
+					var id = obj.config.id;
+					table.reload(id);
+					checkboxArr = []
+					$('#exportCheckData').html(checkboxArr.length)
+					layer.close(index);
+				});
+				return;
+			}
+			if (obj.event === 'add') {
+				tool.side("/product/index/add");
+				return;
+			}
+			if (obj.event === 'import') {
+				uploadImport(1);	
+				return;				
+			}
+			if (obj.event === 'importNotify') {
+				uploadImport(2);	
+				return;				
+			}
+			if (obj.event === 'importUpdateNotify') {
+				uploadImportUpdate();	
+				return;				
+			}
+			if (obj.event === 'importUnder') {
+				uploadImportUnder();	
+				return;				
+			}
+			if (obj.event === 'importUp') {
+				uploadImportUp();	
+				return;				
+			}
+			if (obj.event === 'batchInstruction') {
+				batchInstruction();	
+				return;				
+			}
+			if (obj.event === 'batchProductAndInstruction') {
+				batchProductAndInstruction();	
+				return;				
+			}
+			if (obj.event === 'batchProductAndTempInstruction') {
+				batchProductAndTempInstruction();	
+				return;				
+			}
+			if (obj.event === 'export') {
+				layer.confirm('确定要导出当前条件下的产品数据吗?', {
+					icon: 3,
+					title: '提示'
+				}, function(index) {
+					var formData = $('#searchForm').serialize(); // 将表单序列化为字符串形式的键值对
+					//console.log(formData); // 打印结果
+					window.open('/product/index/list?export=1&limit=10000000&'+formData, '_blank');
+					layer.close(index);
+				});
+					
+				return;				
+			}
+			if (obj.event === 'exportDownload') {
+				layer.confirm('确定要导出截至目前的说明书下载量排行的产品数据吗?', {
+					icon: 3,
+					title: '提示'
+				}, function(index) {
+					window.open('/product/api/exportDownload?export_file_type=2', '_blank');
+					layer.close(index);
+				});
+					
+				return;				
+			}
+		});
+		//监听行工具事件
+		table.on('tool(test)', function(obj) {
+			var data = obj.data;
+			if(obj.event === 'edit'){
+				tool.side('/product/index/add?id='+data.id);
+				return;
+			}
+			if (obj.event === 'del') {
+				layer.confirm('确定要删除吗?', {
+					icon: 3,
+					title: '提示'
+				}, function(index) {
+					let callback = function (res) {
+						layer.msg(res.msg);
+						if (res.code == 0) {
+							obj.del();
+						}
+					}
+					tool.delete("/product/index/delete", {id: data.id}, callback);
+					layer.close(index);
+				});
+			}
+			if (obj.event === 'copy') {
+				tool.side("/product/index/add?old_id=" + data.id);
+				return;
+			}
+		});
+		let uploadFiles;
+		function clearFile() {
+			for (let x in uploadFiles) {
+				delete uploadFiles[x];
+			}
+			$('#gougu-upload-choosed').html('');
+		}
+		function uploadImport(importtype){
+			layer.open({
+				'title':'批量导入产品',
+				'type':1,
+				'area': ['640px', '360px'],
+				'content':'<div class="layui-form p-3">\
+						<div id="uploadType1">\
+							<div class="layui-form-item">\
+								<label class="layui-form-label">文件：</label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-files">.xls,.xlsx</span><button type="button" class="layui-btn layui-btn-normal" id="uploadSelect">选择文件</button><a href="/static/home/file/优品OA产品导入模板.xlsx" download="优品OA产品导入模板.xlsx" class="layui-btn ml-4">Execl表格模板下载</a>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-tips">1、普通员工都可以进行批量导入操作；<br>2、只能上传 .xls、.xlsx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过2MB，导入数据不能超过20000条<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写，一二级分类需要系统中存在，不存在的话可能会导入失败。</span>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block green" id="gougu-upload-choosed"></div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block red" id="gougu-upload-note"></div>\
+							</div>\
+							<div class="layui-form-item layui-form-item-sm">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<button type="button" class="layui-btn" id="uploadAjax">上传并导入</button>\
+								</div>\
+							</div>\
+						</div> \
+				</div>',
+				success: function(layero, idx){
+					form.render();
+					//选文件
+					let uploadImport = upload.render({
+						elem: '#uploadSelect'
+						,url: '/api/import/import_product?type='+importtype
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+						,exts: 'xls|xlsx' //只允许上传文件格式
+						,bindAction: '#uploadAjax'
+						,choose: function(obj){
+							uploadFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								$('#gougu-upload-choosed').html('已选择：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+							$('#gougu-upload-note').html('文件上传中...');
+							if(n==100){
+								$('#gougu-upload-note').html('数据导入中...');
+							}
+						}
+						,error: function(index, upload){
+							clearFile();
+							$('#gougu-upload-note').html('数据导入失败，请关闭重试');
+						}
+						,done: function(res, index, upload){
+							clearFile();
+							layer.msg(res.msg);
+							$('#gougu-upload-note').html(res.msg);
+							if(res.code==0){
+								layer.close(idx);
+								layui.pageTable.reload();
+							}						
+						}
+					});
+				}
+			});	
+		}
+		let uploadUpFiles;
+		function clearUpFile() {
+			for (let x in uploadUpFiles) {
+				delete uploadUpFiles[x];
+			}
+			$('#gougu-upload-choosed-up').html('');
+		}
+		function uploadImportUp(){
+			layer.open({
+				'title':'批量上架产品',
+				'type':1,
+				'area': ['640px', '360px'],
+				'content':'<div class="layui-form p-3">\
+						<div id="uploadTypeUp1">\
+							<div class="layui-form-item">\
+								<label class="layui-form-label">文件：</label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-files">.xls,.xlsx</span><button type="button" class="layui-btn layui-btn-normal" id="uploadSelectUp">选择文件</button><a href="/static/home/file/优品OA产品上下架导入模板.xlsx" download="优品OA产品上下架导入模板.xlsx" class="layui-btn ml-4">Execl表格模板下载</a>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-tips">1、普通员工都可以进行批量导入操作；<br>2、只能上传 .xls、.xlsx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过2MB，导入数据不能超过20000条<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写，货号需要系统中存在，不存在处理失败。</span>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block green" id="gougu-upload-choosed-up"></div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block red" id="gougu-upload-note-up"></div>\
+							</div>\
+							<div class="layui-form-item layui-form-item-sm">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<button type="button" class="layui-btn" id="uploadAjaxUp">上传并导入</button>\
+								</div>\
+							</div>\
+						</div> \
+				</div>',
+				success: function(layero, idx){
+					form.render();
+					//选文件
+					let uploadImportUp = upload.render({
+						elem: '#uploadSelectUp'
+						,url: '/api/import/import_product_up'
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+						,exts: 'xls|xlsx' //只允许上传文件格式
+						,bindAction: '#uploadAjaxUp'
+						,choose: function(obj){
+							uploadUpFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearUpFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								$('#gougu-upload-choosed-up').html('已选择：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+							$('#gougu-upload-note-up').html('文件上传中...');
+							if(n==100){
+								$('#gougu-upload-note-up').html('数据导入中...');
+							}
+						}
+						,error: function(index, upload){
+							clearUpFile();
+							$('#gougu-upload-note-up').html('数据导入失败，请关闭重试');
+						}
+						,done: function(res, index, upload){
+							clearUpFile();
+							layer.msg(res.msg);
+							$('#gougu-upload-note-up').html(res.msg);
+							if(res.code==0){
+								layer.close(idx);
+								layui.pageTable.reload();
+							}						
+						}
+					});
+				}
+			});	
+		}
+		let uploadUnderFiles;
+		function clearUnderFile() {
+			for (let x in uploadUnderFiles) {
+				delete uploadUnderFiles[x];
+			}
+			$('#gougu-upload-choosed-under').html('');
+		}
+		function uploadImportUnder(){
+			layer.open({
+				'title':'批量下架产品',
+				'type':1,
+				'area': ['640px', '360px'],
+				'content':'<div class="layui-form p-3">\
+						<div id="uploadTypeUnder1">\
+							<div class="layui-form-item">\
+								<label class="layui-form-label">文件：</label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-files">.xls,.xlsx</span><button type="button" class="layui-btn layui-btn-normal" id="uploadSelectUnder">选择文件</button><a href="/static/home/file/优品OA产品上下架导入模板.xlsx" download="优品OA产品上下架导入模板.xlsx" class="layui-btn ml-4">Execl表格模板下载</a>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-tips">1、普通员工都可以进行批量导入操作；<br>2、只能上传 .xls、.xlsx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过2MB，导入数据不能超过20000条<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写，货号需要系统中存在，不存在处理失败。</span>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block green" id="gougu-upload-choosed-under"></div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block red" id="gougu-upload-note-under"></div>\
+							</div>\
+							<div class="layui-form-item layui-form-item-sm">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<button type="button" class="layui-btn" id="uploadAjaxUnder">上传并导入</button>\
+								</div>\
+							</div>\
+						</div> \
+				</div>',
+				success: function(layero, idx){
+					form.render();
+					//选文件
+					let uploadImportUnder = upload.render({
+						elem: '#uploadSelectUnder'
+						,url: '/api/import/import_product_under'
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+						,exts: 'xls|xlsx' //只允许上传文件格式
+						,bindAction: '#uploadAjaxUnder'
+						,choose: function(obj){
+							uploadUnderFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearUnderFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								$('#gougu-upload-choosed-under').html('已选择：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+							$('#gougu-upload-note-under').html('文件上传中...');
+							if(n==100){
+								$('#gougu-upload-note-under').html('数据导入中...');
+							}
+						}
+						,error: function(index, upload){
+							clearUnderFile();
+							$('#gougu-upload-note-under').html('数据导入失败，请关闭重试');
+						}
+						,done: function(res, index, upload){
+							clearUnderFile();
+							layer.msg(res.msg);
+							$('#gougu-upload-note-under').html(res.msg);
+							if(res.code==0){
+								layer.close(idx);
+								layui.pageTable.reload();
+							}						
+						}
+					});
+				}
+			});	
+		}
+		let uploadInstructionDataFiles;
+		function clearInstructionDataFile() {
+			for (let x in uploadInstructionDataFiles) {
+				delete uploadInstructionDataFiles[x];
+			}
+			$('#gougu-upload-choosed-instruction-data').html('');
+		}
+		let uploadInstructionTplFiles;
+		function clearInstructionTplFile() {
+			for (let x in uploadInstructionTplFiles) {
+				delete uploadInstructionTplFiles[x];
+			}
+			$('#gougu-upload-choosed-instruction-tpl').html('');
+		}
+		let uploadInstructionFiles=[];
+		function batchInstruction(){
+			layer.open({
+				'title':'批量生成UP说明书',
+				'type':1,
+				'area': ['660px', '490px'],
+				'content':'<div class="layui-form p-3">\
+					<div id="uploadTypeInstruction1">\
+						<div class="layui-form-item">\
+							<label class="layui-form-label">文件</label>\
+							<div class="layui-input-block">\
+								<span class="gougu-upload-files" style="width:250px;">数据：.xls,.xlsx，模板：.docx</span>\
+								<button type="button" class="layui-btn layui-btn-normal" id="uploadSelectInstructionData">选择数据文件</button>\
+								<button type="button" class="layui-btn layui-btn-warm" id="uploadSelectInstructionTpl">选择模板文件</button>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label">文件名列</label>\
+							<div class="layui-input-block">\
+								<input type="text" name="arrange" maxlength="3" style="width:250px;" placeholder="文件命名存在的列序号：A-最后列名" class="layui-input" autocomplete="off" />\
+							</div>\
+						</div>\
+						<div class="layui-form-item" style="text-align: center;">\
+							<div class="layui-input-block" style="margin-left: 0;">\
+								<a href="/static/home/file/优品OA产品说明书导入模板.xlsx" download="优品OA产品说明书导入模板.xlsx" class="layui-btn ml-4">说明书数据demo.xlsx下载</a>\
+								<a href="/static/home/file/instructions/upingbio.docx" download="优品OA产品说明书导入模板.docx" class="layui-btn ml-4">说明书模板demo.docx下载</a>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block">\
+								<span class="gougu-upload-tips">1、普通员工都可以进行批量导入操作；<br>2、数据文件只能上传 .xls、.xlsx文件，模板文件只能上传docx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过1MB，导入数据不能超过1000条；<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写；<br>6、<font color="red">文件名列</font>需填写数据表中需要用来命名成文件命名所在的列序号：A-最后列名，不填默认取C列数据作为文件名。</span>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block green" id="gougu-upload-choosed-instruction-data"></div>\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block blue" id="gougu-upload-choosed-instruction-tpl"></div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block" id="gougu-upload-note-instruction-intelligence"></div>\
+						</div>\
+						<div class="layui-form-item layui-form-item-sm">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block">\
+								<button type="button" class="layui-btn" id="uploadAjaxInstructionIntelligence">上传并导入</button>\
+							</div>\
+						</div>\
+					</div>\
+				</div>',
+				success: function(layero, idx){
+					form.render();
+					//选文件
+					let uploadImportInstructionData = upload.render({
+						elem: '#uploadSelectInstructionData'
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+						,exts: 'xls|xlsx' //只允许上传文件格式
+						,choose: function(obj){
+							uploadInstructionDataFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearInstructionDataFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								uploadInstructionFiles['data'] = file;
+								$('#gougu-upload-choosed-instruction-data').html('已选择数据文件：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+						}
+						,error: function(index, upload){
+						}
+						,done: function(res, index, upload){
+						}
+					});
+					let uploadImportInstructionTpl = upload.render({
+						elem: '#uploadSelectInstructionTpl'
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // 此处设置上传的文件格式
+						,exts: 'docx' //只允许上传文件格式
+						,choose: function(obj){
+							uploadInstructionTplFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearInstructionTplFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								uploadInstructionFiles['tpl'] = file;
+								$('#gougu-upload-choosed-instruction-tpl').html('已选择模板文件：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+						}
+						,error: function(index, upload){
+						}
+						,done: function(res, index, upload){
+						}
+					});
+				}
+			});	
+		}
+		$('body').on('click','#uploadAjaxInstructionIntelligence',function(){
+			// 检查是否选择了需要的文件
+			if (!uploadInstructionFiles || !uploadInstructionFiles.data || !uploadInstructionFiles.tpl) {
+				$('#gougu-upload-note-instruction-intelligence').html('<span class="red">请确保已经选择了数据文件和模板文件！</span>');
+				return; // 如果没有选择文件，则终止后续操作
+			}
+			var arrange = $('input[name="arrange"]').val() || '';
+			// 创建一个FormData对象（用于将文件上传到后端）
+			var formData = new FormData();
+			formData.append('dataFile', uploadInstructionFiles.data); // 数据文件
+			formData.append('tplFile', uploadInstructionFiles.tpl); // 模板文件
+			formData.append('arrange', arrange); // 文件命名存在的列序号
+		
+			// 显示上传进度
+			$('#gougu-upload-note-instruction-intelligence').html('<span class="green">正在上传...</span>');
+		
+			// 执行Ajax上传请求
+			$.ajax({
+				url: '/api/tool/deal_up_instructions', // 替换成后端的实际接口地址
+				type: 'POST',
+				data: formData,
+				processData: false, // 不要对FormData数据进行处理
+				contentType: false, // 不需要设置contentType
+				success: function(res) {
+					clearInstructionDataFile();
+					clearInstructionTplFile();
+					layer.msg(res.msg);
+					// 上传成功
+					if (res.code==0) {
+						let response = res.data;
+						// 创建一个隐藏的 <a> 元素指向文件
+						const link = document.createElement("a");
+						link.href = response.file_url; // 后端返回的文件 URL
+						link.download = response.file_name || "output.zip"; // 文件名
+						document.body.appendChild(link);
+						link.click(); // 触发点击事件
+						document.body.removeChild(link); // 下载完成后移除
+						$('#gougu-upload-note-instruction-intelligence').html('<span class="green">' + res.msg + '</span>');
+					} else {
+						// 处理错误信息
+						$('#gougu-upload-note-instruction-intelligence').html('<span class="red">上传失败：' + res.msg + '</span>');
+					}
+				},
+				error: function() {
+					// 上传失败
+					$('#gougu-upload-note-instruction-intelligence').html('<span class="red">上传失败，请稍后重试！</span>');
+				}
+			});
+		});
+		let uploadProductAndInstructionDataFiles;
+		function clearProductAndInstructionDataFile() {
+			for (let x in uploadProductAndInstructionDataFiles) {
+				delete uploadProductAndInstructionDataFiles[x];
+			}
+			$('#gougu-upload-choosed-product-instruction-data').html('');
+		}
+		let uploadProductAndInstructionFiles=[];
+		function batchProductAndInstruction(){
+			layer.open({
+				'title':'批量导入产品(异步)&生成UP说明书',
+				'type':1,
+				'area': ['660px', '490px'],
+				'content':'<div class="layui-form p-3">\
+					<div id="uploadTypeProductAndInstruction1">\
+						<div class="layui-form-item">\
+							<label class="layui-form-label">文件</label>\
+							<div class="layui-input-block">\
+								<span class="gougu-upload-files" style="width:250px;">数据：.xls,.xlsx</span>\
+								<button type="button" class="layui-btn layui-btn-normal" id="uploadSelectProductAndInstructionData">选择数据文件</button>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label">文件名列</label>\
+							<div class="layui-input-block" style="display:flex;align-items:center;">\
+								<input type="text" name="arrange" maxlength="3" style="width:250px;" placeholder="文件命名存在的列序号：A-最后列名" class="layui-input" autocomplete="off" />\
+								<a href="/static/home/file/优品OA产品及生成说明书模板.xlsx" download="优品OA产品及生成说明书模板.xlsx" class="layui-btn ml-4">产品&说明书数据demo.xlsx下载</a>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block">\
+								<span class="gougu-upload-tips">1、普通员工都可以进行批量导入操作；<br>2、数据文件只能上传 .xls、.xlsx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过1MB，导入数据不能超过1000条；<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写；<br>6、<font color="red">文件名列</font>需填写数据表中需要用来命名成文件命名所在的列序号：A-最后列名，不填默认取E列数据作为文件名。</span>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block green" id="gougu-upload-choosed-product-instruction-data"></div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block" id="gougu-upload-note-product-instruction-intelligence"></div>\
+						</div>\
+						<div class="layui-form-item layui-form-item-sm">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block">\
+								<button type="button" class="layui-btn" id="uploadAjaxProductAndInstructionIntelligence">上传并导入</button>\
+							</div>\
+						</div>\
+					</div>\
+				</div>',
+				success: function(layero, idx){
+					form.render();
+					//选文件
+					let uploadImportProductAndInstructionData = upload.render({
+						elem: '#uploadSelectProductAndInstructionData'
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+						,exts: 'xls|xlsx' //只允许上传文件格式
+						,choose: function(obj){
+							uploadProductAndInstructionDataFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearProductAndInstructionDataFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								uploadProductAndInstructionFiles['data'] = file;
+								$('#gougu-upload-choosed-product-instruction-data').html('已选择数据文件：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+						}
+						,error: function(index, upload){
+						}
+						,done: function(res, index, upload){
+						}
+					});
+				}
+			});	
+		}
+		let uploadProductAndTempInstructionDataFiles;
+		function clearProductAndTempInstructionDataFile() {
+			for (let x in uploadProductAndTempInstructionDataFiles) {
+				delete uploadProductAndTempInstructionDataFiles[x];
+			}
+			$('#gougu-upload-choosed-product-temp-instruction-data').html('');
+		}
+		let uploadProductAndTempInstructionFiles=[];
+		function batchProductAndTempInstruction(){
+			layer.open({
+				'title':'批量导入产品(异步)&生成说明书',
+				'type':1,
+				'area': ['700px', '650px'], // 稍微调大高度
+				'content':'<div class="layui-form p-3">\
+					<div id="uploadTypeProductAndTempInstruction1">\
+						<div class="layui-form-item">\
+							<label class="layui-form-label">数据文件</label>\
+							<div class="layui-input-block">\
+								<span class="gougu-upload-files" style="width:250px;">数据：.xls,.xlsx</span>\
+								<button type="button" class="layui-btn layui-btn-normal" id="uploadSelectProductAndTempInstructionData">选择数据文件</button>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label">模板选择</label>\
+							<div class="layui-input-block" style="width: 37%;">\
+								<select name="template_id" id="templateSelect" lay-search lay-verify="required">\
+									<option value="">请选择或搜索说明书模板</option>\
+								</select>\
+								<div class="layui-form-mid layui-word-aux">输入关键词可快速查找模板</div>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label">文件名列</label>\
+							<div class="layui-input-block" style="display:flex;align-items:center;">\
+								<input type="text" name="arrange" maxlength="3" style="width:250px;" placeholder="文件命名存在的列序号：A-最后列名" class="layui-input" autocomplete="off" />\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block">\
+								<span class="gougu-upload-tips">\
+									1、普通员工都可以进行批量导入操作；<br>\
+									2、数据文件只能上传 .xls、.xlsx文件；<br>\
+									3、数据请勿放在合并的单元格中；<br>\
+									4、文件大小请勿超过30MB，导入数据不能超过1000条，带图片的文件不能超过20条；<br>\
+									5、如果导入失败，请注意检查表格数据，格式按照样本填写；<br>\
+									6、<font color="red">文件名列</font>需填写数据表中需要用来命名成文件命名所在的列序号：A-最后列名，不填默认取E列数据作为文件名。<br>\
+									7、<font color="red">模板选择</font>请根据产品类型选择合适的说明书模板。<br>\
+									8、<font color="red">模板图片替换</font>请在导入的数据中有图片列的，请将其填充单元格中，图片大小需小于1M，图片格式为jpg、png等常规图片格式。\
+								</span>\
+							</div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block green" id="gougu-upload-choosed-product-temp-instruction-data"></div>\
+						</div>\
+						<div class="layui-form-item">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block" id="gougu-upload-note-product-temp-instruction-intelligence"></div>\
+						</div>\
+						<div class="layui-form-item layui-form-item-sm">\
+							<label class="layui-form-label"></label>\
+							<div class="layui-input-block">\
+								<button type="button" class="layui-btn" id="uploadAjaxProductAndTempInstructionIntelligence">上传并导入</button>\
+							</div>\
+						</div>\
+					</div>\
+				</div>',
+				success: function(layero, idx){
+					form.render();
+					
+					// 加载模板数据
+					loadTempInstructionTemplates();
+					
+					//选文件
+					let uploadImportProductAndTempInstructionData = upload.render({
+						elem: '#uploadSelectProductAndTempInstructionData'
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+						,exts: 'xls|xlsx' //只允许上传文件格式
+						,choose: function(obj){
+							uploadProductAndTempInstructionDataFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearProductAndTempInstructionDataFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								uploadProductAndTempInstructionFiles['data'] = file;
+								$('#gougu-upload-choosed-product-temp-instruction-data').html('已选择数据文件：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+						}
+						,error: function(index, upload){
+						}
+						,done: function(res, index, upload){
+						}
+					});
+				}
+			});	
+		}
+
+		function loadTempInstructionTemplates() {
+			$('#templateSelect').html('<option value="">加载模板中...</option>');
+			
+			// 模拟模板数据（带分类）
+			let encodedinstructionsJsonString = '[{"id":"LCSED 5044\u7ade\u4e89\u6cd5.docx","name":"LCSED 5044\u7ade\u4e89\u6cd5.docx"},{"id":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5.docx","name":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5.docx"},{"id":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5\uff08\u5fae\u91cf\uff09.docx","name":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5\uff08\u5fae\u91cf\uff09.docx"},{"id":"LCSED \u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"LCSED \u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"LCSED \u6297\u4f53\u5b9a\u6027.docx","name":"LCSED \u6297\u4f53\u5b9a\u6027.docx"},{"id":"LCSED \u6297\u4f53\u5b9a\u91cf.docx","name":"LCSED \u6297\u4f53\u5b9a\u91cf.docx"},{"id":"LCSED \u6297\u539f\u5b9a\u6027.docx","name":"LCSED \u6297\u539f\u5b9a\u6027.docx"},{"id":"LCSED \u690d\u7269\u7ade\u4e89\u6cd5.docx","name":"LCSED \u690d\u7269\u7ade\u4e89\u6cd5.docx"},{"id":"\u777f\u4fe15024\u7ade\u4e89\u6cd5.docx","name":"\u777f\u4fe15024\u7ade\u4e89\u6cd5.docx"},{"id":"\u777f\u4fe15044\u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"\u777f\u4fe15044\u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"\u777f\u4fe15044\u7ade\u4e89\u6cd5\u5fae\u91cf.docx","name":"\u777f\u4fe15044\u7ade\u4e89\u6cd5\u5fae\u91cf.docx"},{"id":"\u777f\u4fe1RX\u6297\u4f53.docx","name":"\u777f\u4fe1RX\u6297\u4f53.docx"},{"id":"\u777f\u4fe1\u53cc\u6297\u4f53\u5939\u5fc3.docx","name":"\u777f\u4fe1\u53cc\u6297\u4f53\u5939\u5fc3.docx"},{"id":"\u777f\u4fe1\u5fae\u91cf\u5939\u5fc3\u6cd5.docx","name":"\u777f\u4fe1\u5fae\u91cf\u5939\u5fc3\u6cd5.docx"},{"id":"\u777f\u4fe1\u5fae\u91cf\u6297\u4f53.docx","name":"\u777f\u4fe1\u5fae\u91cf\u6297\u4f53.docx"},{"id":"\u777f\u4fe1\u6297\u4f53\u5b9a\u6027.docx","name":"\u777f\u4fe1\u6297\u4f53\u5b9a\u6027.docx"},{"id":"\u777f\u4fe1\u6297\u4f53\u5b9a\u91cf.docx","name":"\u777f\u4fe1\u6297\u4f53\u5b9a\u91cf.docx"},{"id":"\u777f\u4fe1\u6297\u539f\u5b9a\u6027.docx","name":"\u777f\u4fe1\u6297\u539f\u5b9a\u6027.docx"},{"id":"\u777f\u4fe1\u690d\u7269\u7ade\u4e89\u6cd5.docx","name":"\u777f\u4fe1\u690d\u7269\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c15044\u5e38\u89c4\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c15044\u5e38\u89c4\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX\u6297\u4f53.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX\u6297\u4f53.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff087\u7ba1\u6807\u51c6\u54c1\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff087\u7ba1\u6807\u51c6\u54c1\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08HRP\u6807\u8bb0\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08HRP\u6807\u8bb0\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08\u51bb\u5e72\u7c89\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08\u51bb\u5e72\u7c89\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u6027\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u6027\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u91cf\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u91cf\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u78145044\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u78145044\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027\u6297\u4f53.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027\u6297\u4f53.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u65b0\uff08\u6297\u4f53\u5b9a\u91cf\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u65b0\uff08\u6297\u4f53\u5b9a\u91cf\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u690d\u7269\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u690d\u7269\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\uff08\u5939\u5fc3\u6cd5\uff09\u65b0.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\uff08\u5939\u5fc3\u6cd5\uff09\u65b0.docx"}]';
+			// 解码 HTML 实体编码
+			let decodedinstructionsJsonString = encodedinstructionsJsonString.replace(/&quot;/g, '"');
+			// 解析 JSON 字符串为 JavaScript 对象
+			const templatesWithCategories = JSON.parse(decodedinstructionsJsonString);
+			
+			let options = '<option value="">请选择或搜索说明书模板</option>';
+			templatesWithCategories.forEach(template => {
+				options += `<option value="${template.id}">${template.name}</option>`;
+			});
+			
+			$('#templateSelect').html(options);
+			form.render('select');
+		}
+
+		$('body').on('click','#uploadAjaxProductAndTempInstructionIntelligence',function(){
+			// 检查是否选择了需要的文件
+			if (!uploadProductAndTempInstructionFiles || !uploadProductAndTempInstructionFiles.data) {
+				$('#gougu-upload-note-product-temp-instruction-intelligence').html('<span class="red">请确保已经选择了数据文件！</span>');
+				return;
+			}
+			
+			// 检查是否选择了模板
+			var templateId = $('#templateSelect').val();
+			if (!templateId) {
+				$('#gougu-upload-note-product-temp-instruction-intelligence').html('<span class="red">请选择说明书模板！</span>');
+				return;
+			}
+			
+			var arrange = $('input[name="arrange"]').val() || '';
+			
+			// 创建一个FormData对象
+			var formData = new FormData();
+			formData.append('dataFile', uploadProductAndTempInstructionFiles.data); // 数据文件
+			formData.append('template_id', templateId); // 模板ID
+			formData.append('arrange', arrange); // 文件命名存在的列序号
+			formData.append('uid', "84");
+			formData.append('did', "56");
+			
+			// 显示上传进度
+			$('#gougu-upload-note-product-temp-instruction-intelligence').html('<span class="green">正在上传并生成说明书...</span>');
+
+			// 执行Ajax上传请求
+			$.ajax({
+				url: '/api/tool/deal_product_temp_instructions',
+				type: 'POST',
+				data: formData,
+				processData: false,
+				contentType: false,
+				success: function(res) {
+					clearProductAndTempInstructionDataFile();
+					layer.msg(res.msg);
+					
+					if (res.code == 0) {
+						let response = res.data;
+						// 创建下载链接
+						const link = document.createElement("a");
+						link.href = response.file_url;
+						link.download = response.file_name || "说明书批量生成.zip";
+						document.body.appendChild(link);
+						link.click();
+						document.body.removeChild(link);
+						
+						$('#gougu-upload-note-product-temp-instruction-intelligence').html('<span class="green">' + res.msg + '</span>');
+						
+						// 显示生成的说明书记录
+						if (response.generated_files && response.generated_files.length > 0) {
+							let fileList = '<div class="mt-3"><strong>生成的文件列表：</strong><ul class="layui-timeline">';
+							response.generated_files.forEach((file, index) => {
+								fileList += `<li class="layui-timeline-item">
+									<div class="layui-timeline-content layui-text">
+										${index + 1}. ${file.name}
+										<small class="layui-word-aux">(${file.size})</small>
+									</div>
+								</li>`;
+							});
+							fileList += '</ul></div>';
+							$('#gougu-upload-note-product-temp-instruction-intelligence').append(fileList);
+						}
+					} else {
+						$('#gougu-upload-note-product-temp-instruction-intelligence').html('<span class="red">处理失败：' + res.msg + '</span>');
+					}
+				},
+				error: function(xhr, status, error) {
+					$('#gougu-upload-note-product-temp-instruction-intelligence').html('<span class="red">上传失败，请稍后重试！错误信息：' + error + '</span>');
+				}
+			});
+		});
+		$('body').on('click','#uploadAjaxProductAndInstructionIntelligence',function(){
+			// 检查是否选择了需要的文件
+			if (!uploadProductAndInstructionFiles || !uploadProductAndInstructionFiles.data) {
+				$('#gougu-upload-note-product-instruction-intelligence').html('<span class="red">请确保已经选择了数据文件！</span>');
+				return; // 如果没有选择文件，则终止后续操作
+			}
+			var arrange = $('input[name="arrange"]').val() || '';
+			// 创建一个FormData对象（用于将文件上传到后端）
+			var formData = new FormData();
+			formData.append('dataFile', uploadProductAndInstructionFiles.data); // 数据文件
+			formData.append('arrange', arrange); // 文件命名存在的列序号
+			formData.append('uid', "84");
+			formData.append('did', "56");
+			// 显示上传进度
+			$('#gougu-upload-note-product-instruction-intelligence').html('<span class="green">正在上传...</span>');
+		
+			// 执行Ajax上传请求
+			$.ajax({
+				url: '/api/tool/deal_product_instructions', // 替换成后端的实际接口地址
+				type: 'POST',
+				data: formData,
+				processData: false, // 不要对FormData数据进行处理
+				contentType: false, // 不需要设置contentType
+				success: function(res) {
+					clearProductAndInstructionDataFile();
+					layer.msg(res.msg);
+					// 上传成功
+					if (res.code==0) {
+						let response = res.data;
+						// 创建一个隐藏的 <a> 元素指向文件
+						const link = document.createElement("a");
+						link.href = response.file_url; // 后端返回的文件 URL
+						link.download = response.file_name || "outtpl.zip"; // 文件名
+						document.body.appendChild(link);
+						link.click(); // 触发点击事件
+						document.body.removeChild(link); // 下载完成后移除
+						$('#gougu-upload-note-product-instruction-intelligence').html('<span class="green">' + res.msg + '</span>');
+					} else {
+						// 处理错误信息
+						$('#gougu-upload-note-product-instruction-intelligence').html('<span class="red">上传失败：' + res.msg + '</span>');
+					}
+				},
+				error: function() {
+					// 上传失败
+					$('#gougu-upload-note-product-instruction-intelligence').html('<span class="red">上传失败，请稍后重试！</span>');
+				}
+			});
+		});
+		let uploadUpdateFiles;
+		function clearUpdateFile() {
+			for (let x in uploadUpdateFiles) {
+				delete uploadUpdateFiles[x];
+			}
+			$('#gougu-upload-choosed-update').html('');
+		}
+		function uploadImportUpdate(){
+			layer.open({
+				'title':'批量更新产品',
+				'type':1,
+				'area': ['640px', '440px'],
+				'content':'<div class="layui-form p-3">\
+						<div id="uploadTypeUpdate1">\
+							<div class="layui-form-item">\
+								<label class="layui-form-label">文件：</label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-files">.xls,.xlsx</span><button type="button" class="layui-btn layui-btn-normal" id="uploadSelectUpdate">选择文件</button><a href="/static/home/file/优品OA产品更新模板.xlsx" download="优品OA产品更新模板.xlsx" class="layui-btn ml-4">Execl表格模板下载</a>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<span class="gougu-upload-tips">1、普通员工都可以进行批量更新导入操作；<br>2、只能上传 .xls、.xlsx文件；<br>3、数据请勿放在合并的单元格中；<br>4、文件大小请勿超过2MB，导入数据不能超过20000条<br>5、如果导入失败，请注意检查表格数据，格式按照样本填写，每列是要更新覆盖的值，每列数据可以为空，为空代表不处理，有值则覆盖；<br>5、此为更新产品方式入口，表格最后一列的<font color="red"><系统货号></font>列的数据，需为该行数据在系统存在的货号数据（一般为xx;yy;zz;）一一对应才能正确修改，填写的数据未在系统存在将跳过本条更新操作。</span>\
+								</div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block green" id="gougu-upload-choosed-update"></div>\
+							</div>\
+							<div class="layui-form-item">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block red" id="gougu-upload-note-update"></div>\
+							</div>\
+							<div class="layui-form-item layui-form-item-sm">\
+								<label class="layui-form-label"></label>\
+								<div class="layui-input-block">\
+									<button type="button" class="layui-btn" id="uploadAjaxUpdate">上传并导入</button>\
+								</div>\
+							</div>\
+						</div> \
+				</div>',
+				success: function(layero, idx){
+					form.render();
+					//选文件
+					let uploadImportUpdate = upload.render({
+						elem: '#uploadSelectUpdate'
+						,url: '/api/import/import_product_update'
+						,auto: false
+						,accept: 'file' //普通文件
+						,acceptMime: 'application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // 此处设置上传的文件格式
+						,exts: 'xls|xlsx' //只允许上传文件格式
+						,bindAction: '#uploadAjaxUpdate'
+						,choose: function(obj){
+							uploadUpdateFiles = obj.pushFile();
+							// 清空,防止多次上传
+							clearUpdateFile();
+							obj.preview(function(index, file, result){
+								obj.pushFile();// 再添加
+								$('#gougu-upload-choosed-update').html('已选择：'+file.name);
+							});
+						}
+						,before: function(obj){
+						}
+						,progress: function(n, elem, e){
+							$('#gougu-upload-note-update').html('文件上传中...');
+							if(n==100){
+								$('#gougu-upload-note-update').html('数据导入中...');
+							}
+						}
+						,error: function(index, upload){
+							clearUpdateFile();
+							$('#gougu-upload-note-update').html('数据导入失败，请关闭重试');
+						}
+						,done: function(res, index, upload){
+							clearUpdateFile();
+							layer.msg(res.msg);
+							$('#gougu-upload-note-update').html(res.msg);
+							if(res.code==0){
+								layer.close(idx);
+								layui.pageTable.reload();
+							}						
+						}
+					});
+				}
+			});	
+		}
+	}
+	// 全局变量
+	let currentProcess = {
+		product_id: null,
+		goods_no: null,
+		template_id: null,
+		placeholder_data: [],
+		product_info: {},
+		placeholder_explanations: {}
+	};
+
+	// 加载单个说明书模板
+	function loadSingleTempInstructionTemplates() {
+		$('#templateSelectSingle').html('<option value="">加载模板中...</option>');
+		
+		let encodedinstructionsJsonString = '[{"id":"LCSED 5044\u7ade\u4e89\u6cd5.docx","name":"LCSED 5044\u7ade\u4e89\u6cd5.docx"},{"id":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5.docx","name":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5.docx"},{"id":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5\uff08\u5fae\u91cf\uff09.docx","name":"LCSED \u53cc\u6297\u4f53\u5939\u5fc3\u6cd5\uff08\u5fae\u91cf\uff09.docx"},{"id":"LCSED \u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"LCSED \u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"LCSED \u6297\u4f53\u5b9a\u6027.docx","name":"LCSED \u6297\u4f53\u5b9a\u6027.docx"},{"id":"LCSED \u6297\u4f53\u5b9a\u91cf.docx","name":"LCSED \u6297\u4f53\u5b9a\u91cf.docx"},{"id":"LCSED \u6297\u539f\u5b9a\u6027.docx","name":"LCSED \u6297\u539f\u5b9a\u6027.docx"},{"id":"LCSED \u690d\u7269\u7ade\u4e89\u6cd5.docx","name":"LCSED \u690d\u7269\u7ade\u4e89\u6cd5.docx"},{"id":"\u777f\u4fe15024\u7ade\u4e89\u6cd5.docx","name":"\u777f\u4fe15024\u7ade\u4e89\u6cd5.docx"},{"id":"\u777f\u4fe15044\u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"\u777f\u4fe15044\u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"\u777f\u4fe15044\u7ade\u4e89\u6cd5\u5fae\u91cf.docx","name":"\u777f\u4fe15044\u7ade\u4e89\u6cd5\u5fae\u91cf.docx"},{"id":"\u777f\u4fe1RX\u6297\u4f53.docx","name":"\u777f\u4fe1RX\u6297\u4f53.docx"},{"id":"\u777f\u4fe1\u53cc\u6297\u4f53\u5939\u5fc3.docx","name":"\u777f\u4fe1\u53cc\u6297\u4f53\u5939\u5fc3.docx"},{"id":"\u777f\u4fe1\u5fae\u91cf\u5939\u5fc3\u6cd5.docx","name":"\u777f\u4fe1\u5fae\u91cf\u5939\u5fc3\u6cd5.docx"},{"id":"\u777f\u4fe1\u5fae\u91cf\u6297\u4f53.docx","name":"\u777f\u4fe1\u5fae\u91cf\u6297\u4f53.docx"},{"id":"\u777f\u4fe1\u6297\u4f53\u5b9a\u6027.docx","name":"\u777f\u4fe1\u6297\u4f53\u5b9a\u6027.docx"},{"id":"\u777f\u4fe1\u6297\u4f53\u5b9a\u91cf.docx","name":"\u777f\u4fe1\u6297\u4f53\u5b9a\u91cf.docx"},{"id":"\u777f\u4fe1\u6297\u539f\u5b9a\u6027.docx","name":"\u777f\u4fe1\u6297\u539f\u5b9a\u6027.docx"},{"id":"\u777f\u4fe1\u690d\u7269\u7ade\u4e89\u6cd5.docx","name":"\u777f\u4fe1\u690d\u7269\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c15044\u5e38\u89c4\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c15044\u5e38\u89c4\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX\u6297\u4f53.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1MAX\u6297\u4f53.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff087\u7ba1\u6807\u51c6\u54c1\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff087\u7ba1\u6807\u51c6\u54c1\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08HRP\u6807\u8bb0\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08HRP\u6807\u8bb0\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08\u51bb\u5e72\u7c89\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5939\u5fc3\u6cd5\uff08\u51bb\u5e72\u7c89\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u6027\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u6027\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u91cf\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u4f18\u54c1\u6297\u4f53\u5b9a\u91cf\uff08\u95f4\u63a5\u4e24\u6b65\u6cd5\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u78145044\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u78145044\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027\u6297\u4f53.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5b9a\u6027\u6297\u4f53.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5fae\u91cf\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u5fae\u91cf\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u65b0\uff08\u6297\u4f53\u5b9a\u91cf\uff09.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u65b0\uff08\u6297\u4f53\u5b9a\u91cf\uff09.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u690d\u7269\u7ade\u4e89\u6cd5.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\u690d\u7269\u7ade\u4e89\u6cd5.docx"},{"id":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\uff08\u5939\u5fc3\u6cd5\uff09\u65b0.docx","name":"\u8bf4\u660e\u4e66\u6a21\u677f\u535a\u7814\uff08\u5939\u5fc3\u6cd5\uff09\u65b0.docx"}]';
+		let decodedinstructionsJsonString = encodedinstructionsJsonString.replace(/&quot;/g, '"');
+		const templatesWithCategories = JSON.parse(decodedinstructionsJsonString);
+		
+		let options = '<option value="">请选择或搜索说明书模板</option>';
+		templatesWithCategories.forEach(template => {
+			options += `<option value="${template.id}">${template.name}</option>`;
+		});
+		
+		$('#templateSelectSingle').html(options);
+		layui.form.render('select');
+	}
+
+	// 弹窗显示模板选择
+	function showTemplateSelectDialog(product_id, goods_no) {
+		// 存储当前操作的产品信息
+		currentProcess.product_id = product_id;
+		currentProcess.goods_no = goods_no;
+		currentProcess.template_id = null;
+		currentProcess.placeholder_data = [];
+		
+		// 清空结果区域
+		$('#analyzeResult').html('');
+		
+		// 加载模板
+		loadSingleTempInstructionTemplates();
+		
+		// 显示弹窗
+		layer.open({
+			type: 1,
+			title: '生成说明书 - ' + goods_no,
+			area: ['600px', '420px'],
+			content: $('#templateSelectDialog'),
+			success: function(layero, index) {
+				layui.form.render();
+				
+				// 分析按钮点击事件
+				$('#btnAnalyzeTemplate').off('click').on('click', function() {
+					analyzeTemplate();
+				});
+				
+				// 取消按钮点击事件
+				$('#btnCancelGenerate').off('click').on('click', function() {
+					layer.close(index);
+				});
+			}
+		});
+	}
+
+	// 分析模板占位符
+	function analyzeTemplate() {
+		let templateId = $('#templateSelectSingle').val();
+		
+		if (!templateId) {
+			$('#analyzeResult').html('<span class="red">请选择说明书模板！</span>');
+			return;
+		}
+		
+		// 存储模板ID
+		currentProcess.template_id = templateId;
+		
+		// 显示加载中
+		let loadingIndex = layer.load(2, {time: 30000});
+		$('#analyzeResult').html('');
+		
+		// 发送请求分析模板
+		$.ajax({
+			url: '/api/index/preview_template_placeholders',
+			type: 'POST',
+			data: {
+				product_id: currentProcess.product_id,
+				goods_no: currentProcess.goods_no,
+				template_id: templateId,
+				uid: "84",
+				did: "56"
+			},
+			dataType: 'json',
+			success: function(res) {
+				layer.close(loadingIndex);
+				
+				if (res.code == 0) {
+					// 存储返回的数据
+					currentProcess.placeholder_data = res.data.placeholder_data;
+					currentProcess.product_info = res.data.product_info;
+					currentProcess.placeholder_explanations = res.data.placeholder_explanations || {};
+					
+					// 关闭模板选择弹窗
+					layer.closeAll('page');
+					
+					// 显示数据确认弹窗
+					showPlaceholderConfirmDialog();
+					
+				} else {
+					$('#analyzeResult').html('<span class="red">分析失败：' + res.msg + '</span>');
+				}
+			},
+			error: function(xhr, status, error) {
+				layer.close(loadingIndex);
+				$('#analyzeResult').html('<span class="red">请求失败，请稍后重试！</span>');
+			}
+		});
+	}
+
+	// 显示数据确认弹窗
+	function showPlaceholderConfirmDialog() {
+		// 设置产品信息
+		$('#productTitle').text(currentProcess.product_info.title || '');
+		$('#productGoodsNo').text(currentProcess.product_info.goods_no || '');
+		$('#templateIdInfo').text(currentProcess.template_id);
+		
+		// 统计信息
+		let totalCount = currentProcess.placeholder_data.length;
+		let autoCount = 0;
+		let manualCount = 0;
+		let requiredCount = 0;
+		
+		let placeholderNames = [];
+		
+		// 分析数据
+		currentProcess.placeholder_data.forEach(item => {
+			placeholderNames.push(item.placeholder);
+			if (item.source === 'auto' && item.value) {
+				autoCount++;
+			} else {
+				manualCount++;
+			}
+			if (item.required) {
+				requiredCount++;
+			}
+		});
+		
+		// 更新统计
+		$('#placeholderCount').text(totalCount);
+		$('#autoFillCount').text(autoCount);
+		$('#manualFillCount').text(manualCount);
+		$('#requiredCount').text(requiredCount);
+		$('#placeholderList').text(placeholderNames.join(', '));
+		
+		// 生成自动匹配数据区域
+		generateAutoMatchedData();
+		
+		// 生成表单区域
+		generatePlaceholderForm();
+		
+		// 显示弹窗
+		layer.open({
+			type: 1,
+			title: '数据确认 - ' + currentProcess.goods_no,
+			area: ['95%', '95%'],
+			content: $('#placeholderConfirmDialog'),
+			success: function() {
+				layui.form.render();
+				// 初始化富文本编辑器（如果有的话）
+				initTextareaEditors();
+			}
+		});
+	}
+
+	// 生成自动匹配数据区域
+	function generateAutoMatchedData() {
+		let html = '';
+		let hasAutoMatched = false;
+		
+		currentProcess.placeholder_data.forEach((item, index) => {
+			if (item.source === 'auto' && item.value) {
+				hasAutoMatched = true;
+				let explanation = currentProcess.placeholder_explanations[item.placeholder] || item.explanation;
+				
+				html += '<div class="layui-col-md4">';
+				html += '<div class="layui-card layui-card-sm" style="margin-bottom: 10px;">';
+				html += '<div class="layui-card-header" style="padding: 8px 15px; background-color: #f8f8f8;">';
+				html += '<strong>${' + item.placeholder + '}</strong>';
+				html += '<span class="layui-badge layui-bg-green layui-badge-sm" style="float: right;">自动</span>';
+				html += '</div>';
+				html += '<div class="layui-card-body" style="padding: 10px 15px; min-height: 60px;">';
+				html += '<div><small class="layui-word-aux">' + explanation + '</small></div>';
+				html += '<div>' + (item.value || '<span class="red">(空)</span>') + '</div>';
+				html += '</div>';
+				html += '</div>';
+				html += '</div>';
+			}
+		});
+		
+		if (!hasAutoMatched) {
+			html = '<div class="layui-col-md12"><div class="layui-empty">没有找到自动匹配的数据</div></div>';
+		}
+		
+		$('#autoMatchedData').html(html);
+	}
+
+	// 生成占位符表单
+	function generatePlaceholderForm() {
+		let formHtml = '<div class="layui-row">';
+		
+		currentProcess.placeholder_data.forEach((item, index) => {
+			// 自动匹配且有值的字段不需要在表单中显示
+			if (item.source === 'auto' && item.value) {
+				return;
+			}
+			
+			let placeholder = item.placeholder;
+			let value = item.value || '';
+			let explanation = currentProcess.placeholder_explanations[placeholder] || item.explanation;
+			let type = item.type || 'text';
+			let required = item.required ? 'lay-verify="required"' : '';
+			let requiredStar = item.required ? '<span style="color: red;">*</span>' : '';
+			
+			formHtml += '<div class="layui-col-md6">';
+			formHtml += '<div class="layui-form-item">';
+			formHtml += '<label class="layui-form-label">';
+			formHtml += requiredStar + '${' + placeholder + '}';
+			formHtml += '<div class="layui-form-mid layui-word-aux">' + explanation + '</div>';
+			formHtml += '</label>';
+			formHtml += '<div class="layui-input-block">';
+			
+			if (type === 'textarea') {
+				formHtml += '<textarea name="' + placeholder + '" placeholder="请输入' + explanation + '" ';
+				formHtml += 'class="layui-textarea placeholder-textarea" ';
+				formHtml += 'data-index="' + index + '" ';
+				formHtml += required + ' rows="3">' + value + '</textarea>';
+			} else if (type === 'select') {
+				formHtml += '<select name="' + placeholder + '" class="layui-select" ';
+				formHtml += 'data-index="' + index + '" ' + required + '>';
+				formHtml += '<option value="">请选择</option>';
+				
+				// 根据占位符提供不同的选项
+				let options = getSelectOptionsByPlaceholder(placeholder);
+				options.forEach(opt => {
+					let selected = opt.value == value ? 'selected' : '';
+					formHtml += '<option value="' + opt.value + '" ' + selected + '>' + opt.label + '</option>';
+				});
+				
+				formHtml += '</select>';
+			} else {
+				formHtml += '<input type="text" name="' + placeholder + '" ';
+				formHtml += 'value="' + value + '" ';
+				formHtml += 'placeholder="请输入' + explanation + '" ';
+				formHtml += 'class="layui-input placeholder-input" ';
+				formHtml += 'data-index="' + index + '" ';
+				formHtml += required + '>';
+			}
+			
+			formHtml += '</div>';
+			formHtml += '</div>';
+			formHtml += '</div>';
+		});
+		
+		formHtml += '</div>';
+		
+		$('#placeholderForm').html(formHtml);
+	}
+
+	// 根据占位符获取选择框选项
+	function getSelectOptionsByPlaceholder(placeholder) {
+		// 定义常见选项
+		const placeholderOptions = {
+			'E': [ // 种属
+				{value: '人类', label: '人类'},
+				{value: '小鼠', label: '小鼠'},
+				{value: '大鼠', label: '大鼠'},
+				{value: '斑马鱼', label: '斑马鱼'},
+				{value: '其他', label: '其他'}
+			],
+			'F': [ // 应用
+				{value: '科研', label: '科研'},
+				{value: '诊断', label: '诊断'},
+				{value: '治疗', label: '治疗'},
+				{value: '检测', label: '检测'}
+			],
+			'G': [ // 来源
+				{value: '进口', label: '进口'},
+				{value: '国产', label: '国产'},
+				{value: '自研', label: '自研'}
+			],
+			'T': [ // 定量/定性
+				{value: '定量', label: '定量'},
+				{value: '定性', label: '定性'},
+				{value: '定量/定性', label: '定量/定性'}
+			],
+			'AA': [ // 产品分类
+				{value: '试剂', label: '试剂'},
+				{value: '抗体', label: '抗体'},
+				{value: '细胞', label: '细胞'},
+				{value: '仪器', label: '仪器'},
+				{value: '耗材', label: '耗材'}
+			]
+		};
+		
+		// 检查标准化占位符
+		let placeholderUpper = placeholder.toUpperCase();
+		if (placeholderOptions[placeholderUpper]) {
+			return placeholderOptions[placeholderUpper];
+		}
+		
+		// 检查是否有解释
+		let explanation = currentProcess.placeholder_explanations[placeholderUpper];
+		if (explanation && explanation.includes('分类')) {
+			return placeholderOptions['AA'] || [];
+		}
+		
+		// 默认选项
+		return [
+			{value: '是', label: '是'},
+			{value: '否', label: '否'},
+			{value: '待定', label: '待定'}
+		];
+	}
+
+	// 初始化文本编辑器（如果需要的话）
+	function initTextareaEditors() {
+		// 简单的初始化，如果需要更复杂的富文本编辑器可以在这里添加
+		$('.placeholder-textarea').each(function() {
+			let $textarea = $(this);
+			let index = $textarea.data('index');
+			
+			// 可以在这里初始化富文本编辑器
+			// 例如：tinymce.init({ selector: '#' + $textarea.attr('id') });
+		});
+	}
+
+	// 重置为默认值
+	function defaultAllPlaceholders() {
+		layer.confirm('确定要重置所有数据为默认值吗？已填写的数据将被清除。', {
+			icon: 3,
+			title: '确认重置'
+		}, function(index) {
+			// 重置所有表单字段
+			$('input[type="text"], textarea', '#placeholderForm').each(function() {
+				let $field = $(this);
+				let fieldName = $field.attr('name');
+				let isRequired = $field.attr('lay-verify') === 'required';
+				
+				if (isRequired) {
+					// 必填字段设置默认值
+					if (fieldName === 'A') {
+						$field.val(currentProcess.goods_no);
+					} else if (fieldName === 'B') {
+						$field.val(currentProcess.product_info.title || '');
+					} else if (fieldName === 'C') {
+						$field.val(currentProcess.product_info.gene_name || '');
+					} else {
+						$field.val('');
+					}
+				} else {
+					$field.val('');
+				}
+			});
+			
+			// 重置下拉框
+			$('select', '#placeholderForm').each(function() {
+				let $select = $(this);
+				let isRequired = $select.attr('lay-verify') === 'required';
+				
+				if (isRequired) {
+					$select.val($select.find('option:first').val());
+				} else {
+					$select.val('');
+				}
+			});
+			
+			layui.form.render();
+			layer.close(index);
+			layer.msg('已重置为默认值');
+		});
+	}
+
+	// 收集表单数据并更新到当前流程
+	function collectFormData() {
+		let isValid = true;
+		let fieldErrors = [];
+		
+		// 验证必填字段
+		$('[lay-verify="required"]', '#placeholderForm').each(function() {
+			let $field = $(this);
+			let value = $field.val();
+			let placeholder = $field.attr('name');
+			let explanation = currentProcess.placeholder_explanations[placeholder] || placeholder;
+			
+			if (!value || value.trim() === '') {
+				isValid = false;
+				fieldErrors.push('${' + placeholder + '} - ' + explanation);
+				$field.addClass('layui-form-danger');
+			} else {
+				$field.removeClass('layui-form-danger');
+			}
+		});
+		
+		if (!isValid) {
+			layer.msg('请填写以下必填字段：<br>' + fieldErrors.join('<br>'), {
+				time: 5000,
+				icon: 2
+			});
+			return false;
+		}
+		
+		// 收集所有字段数据
+		let formData = {};
+		$('input, textarea, select', '#placeholderForm').each(function() {
+			let $field = $(this);
+			let fieldName = $field.attr('name');
+			let value = $field.val();
+			
+			formData[fieldName] = value;
+		});
+		
+		// 更新当前流程中的占位符数据
+		currentProcess.placeholder_data.forEach((item, index) => {
+			let placeholder = item.placeholder;
+			if (formData.hasOwnProperty(placeholder)) {
+				currentProcess.placeholder_data[index].value = formData[placeholder];
+				currentProcess.placeholder_data[index].source = 'manual';
+			}
+		});
+		
+		// 验证是否有空值
+		let emptyFields = [];
+		currentProcess.placeholder_data.forEach(item => {
+			if (!item.value || item.value.trim() === '') {
+				emptyFields.push('${' + item.placeholder + '}');
+			}
+		});
+		
+		if (emptyFields.length > 0) {
+			layer.confirm('以下占位符仍为空：<br>' + emptyFields.join(', ') + '<br>是否继续生成？', {
+				icon: 3,
+				title: '确认空值',
+				btn: ['继续生成', '返回修改']
+			}, function(index) {
+				savePlaceholders(true)
+				return true;
+			}, function(index) {
+				layer.close(index);
+				return false;
+			});
+		}else{ 
+			return true;
+		}
+		
+	}
+
+	// 保存占位符数据并生成Word
+	function savePlaceholders(flag) {
+		// 收集并验证表单数据
+		if (!flag && !collectFormData()) {
+			return false;
+		}
+		// 确认提交
+		layer.confirm('确认数据无误并生成Word说明书吗？', {
+			icon: 3,
+			title: '确认生成'
+		}, function(index) {
+			layer.close(index);
+			
+			// 显示生成中
+			let loadingIndex = layer.load(2, {time: 60000});
+			
+			// 提交数据生成Word
+			$.ajax({
+				url: '/api/index/confirm_and_generate_word',
+				type: 'POST',
+				data: {
+					product_id: currentProcess.product_id,
+					goods_no: currentProcess.goods_no,
+					template_id: currentProcess.template_id,
+					placeholder_data: currentProcess.placeholder_data,
+					uid: "84",
+					did: "56"
+				},
+				dataType: 'json',
+				success: function(res) {
+					layer.close(loadingIndex);
+					
+					if (res.code == 0) {
+						// 关闭数据确认弹窗
+						layer.closeAll('page');
+						
+						// 显示生成结果
+						showGenerateResult(res.data);
+						
+					} else {
+						layer.msg('生成失败：' + res.msg, {icon: 2});
+					}
+				},
+				error: function(xhr, status, error) {
+					layer.close(loadingIndex);
+					layer.msg('请求失败，请稍后重试！', {icon: 2});
+				}
+			});
+		});
+	}
+
+	// 显示生成结果
+	function showGenerateResult(resultData) {
+		let html = '';
+		
+		if (resultData) {
+			html += '<div class="text-center">';
+			html += '<i class="layui-icon layui-icon-ok-circle" style="font-size: 64px; color: #5FB878;"></i>';
+			html += '<h2 class="mt-3 green">说明书Word生成成功！</h2>';
+			html += '<div class="mt-4">';
+			//html += '<a href="' + resultData.preview_url + '" target="_blank" class="layui-btn layui-btn-normal layui-btn-lg mr-3">';
+			//html += '<i class="layui-icon">&#xe615;</i> 在线预览';
+			//html += '</a>';
+			html += '<a href="' + resultData.download_url + '" download="' + (resultData.file_name || '说明书.docx') + '" class="layui-btn layui-btn-warm layui-btn-lg">';
+			html += '<i class="layui-icon">&#xe601;</i> 下载Word';
+			html += '</a>';
+			html += '</div>';
+			html += '</div>';
+		} else {
+			html = '<div class="text-center"><span class="red">生成结果异常</span></div>';
+		}
+		
+		$('#generateResultContent').html(html);
+		
+		layer.open({
+			type: 1,
+			title: '生成完成',
+			area: ['500px', '350px'],
+			content: $('#generateResultDialog'),
+			btn: ['确定'],
+			yes: function(index) {
+				layer.close(index);
+				refreshProductList();
+			}
+		});
+	}
+
+	// 刷新产品列表
+	function refreshProductList() {
+		if (layui.pageTable) {
+			layui.pageTable.reload();
+			layer.msg('产品列表已刷新');
+		}
+	}
+
+	// 关闭数据确认弹窗
+	function closePlaceholderDialog() {
+		layer.closeAll('page');
+	}
+
+	function createdWord(product_id, goods_no) { 
+		// 显示模板选择弹窗
+		showTemplateSelectDialog(product_id, goods_no);
+	}
+</script>
+
+	<!-- /脚本 -->
+	<script src="/static/assets/layui/layui.js"></script>
+	<script src="/static/assets/gougu/gouguInit.js"></script>
+	<script type="text/javascript">
+		(function(){
+			document.addEventListener('DOMContentLoaded', function() {
+				const pcWidth = 1000; // PC端设计宽度
+				const scale = window.innerWidth / pcWidth;
+				document.querySelector('meta[name="viewport"]').content = 
+					`width=${pcWidth}, initial-scale=${scale}, minimum-scale=${scale}, maximum-scale=${scale}, user-scalable=no`;
+			});
+		})();
+		// 图片预览函数
+		function previewImage(url, title) {
+			if (!url) return;
+			
+			if (typeof layer.photos !== 'function') {
+				// 如果layer.photos不存在，使用普通的layer.open
+				layer.open({
+					type: 1,
+					title: title || '图片预览',
+					shadeClose: true,
+					shade: 0.8,
+					area: ['90%', '90%'],
+					content: '<div style="text-align:center;padding:20px;"><img src="' + url + '" style="max-width:100%;max-height:100%;"></div>'
+				});
+				return;
+			}
+			
+			// 使用LayerUI的相册预览（更专业的图片查看器）
+			layer.photos({
+				photos: {
+					title: title || '图片预览',
+					id: Math.random().toString(36).substr(2), // 随机ID
+					start: 0, // 初始显示索引
+					data: [{
+						alt: title || '预览图片',
+						pid: 1, // 图片id
+						src: url, // 原图地址
+						thumb: url // 缩略图地址
+					}]
+				},
+				anim: 5, // 0-6的选择，指定弹出图片动画类型，默认随机
+				shadeClose: true,
+				closeBtn: 1,
+				shift: 5 // 切换动画方式，默认0是左右切换，1是上下切换，2是淡入淡出，3是放大缩小，4是左到右渐变，5是上到下渐变，6是左上渐变
+			});
+		}
+	</script>
+	<!-- 统计代码 -->
+	
+	<!-- /统计代码 -->
+</body>
+</html>

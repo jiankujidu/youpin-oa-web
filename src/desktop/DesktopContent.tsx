@@ -153,13 +153,18 @@ export function DesktopArticle() {
   }, [list, kw, cate]);
 
   const cols: Column<Article>[] = [
+    { key: 'id', title: '编号', width: 80, render: (r) => String(r.id ?? '—') },
     {
       key: 'title',
-      title: '问题 / 标题',
+      title: '问题',
+      width: 320,
       render: (r) => <span className="pc-td-strong">{plain(r.title).replace(/\n+/g, ' ').slice(0, 80)}</span>,
     },
     { key: 'cate', title: '分类', width: 130, render: (r) => <StatusTag tone="ok">{r.cate_title || '—'}</StatusTag> },
-    { key: 'desc', title: '结论摘要', width: 280, render: (r) => plain(r.desc || '').slice(0, 40) || '—' },
+    { key: 'desc', title: '回答', width: 320, render: (r) => plain(r.desc || '').slice(0, 60) || '—' },
+    { key: 'read', title: '阅读量', width: 90, align: 'center', render: (r) => String((r as any).read ?? '—') },
+    { key: 'user', title: '发布人', width: 110, render: (r) => (r as any).user || '—' },
+    { key: 'dept', title: '部门', width: 150, render: (r) => (r as any).department || '—' },
     { key: 'time', title: '创建时间', width: 150, render: (r) => fmtTime(r.create_time) },
     {
       key: 'op',
@@ -180,9 +185,41 @@ export function DesktopArticle() {
         crumb={['知识管理', '问答知识']}
         desc={`共 ${rows.length} 条`}
         actions={
-          <button className="pc-btn pc-btn-ghost" onClick={load}>
-            刷新
-          </button>
+          <>
+            <button className="pc-btn pc-btn-ghost" onClick={load}>
+              刷新
+            </button>
+            <button
+              className="pc-btn"
+              onClick={() => {
+                const head = ['编号', '问题', '分类', '回答', '阅读量', '发布人', '部门', '创建时间'];
+                const lines = rows.map((r) => [
+                  r.id,
+                  plain(r.title).replace(/\n+/g, ' '),
+                  r.cate_title || '',
+                  plain(r.desc || '').replace(/\n+/g, ' '),
+                  (r as any).read ?? '',
+                  (r as any).user ?? '',
+                  (r as any).department ?? '',
+                  r.create_time,
+                ]);
+                const csv =
+                  '\uFEFF' +
+                  [head, ...lines]
+                    .map((r) => r.map((c) => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(','))
+                    .join('\r\n');
+                const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+                const el = document.createElement('a');
+                el.href = url;
+                el.download = '问答知识.csv';
+                el.click();
+                URL.revokeObjectURL(url);
+                toast('已导出 ' + rows.length + ' 条');
+              }}
+            >
+              导出(CSV)
+            </button>
+          </>
         }
       />
       <Panel bodyPad={false}>

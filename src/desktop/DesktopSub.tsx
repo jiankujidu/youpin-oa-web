@@ -1,73 +1,114 @@
 /**
  * 桌面端子页面（财务管理 / 客户子类 / 订单 等）+ 表单页（基本资料 / 修改密码）
- * PC 后台版式：工具栏（搜索 / 筛选）+ 数据表格 + 分页 + 详情弹层
+ *
+ * 与原站一致：工具栏（关键词搜索 + 刷新）→ 数据表（按真实接口字段自动生成列）→ 服务端分页 → 详情弹层
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  changePassword, fetchSubRows, getProfile, saveProfile, subPageTitle,
+  changePassword, fetchSubPage, getProfile, saveProfile, subPageTitle,
 } from '../core/api';
-import type { BizRow } from '../core/biz';
+import { cellText, dynamicColumns, FIELD_LABEL } from '../core/biz';
 import { fmtTime, toast } from '../core/util';
 import { Modal } from './ui';
 import { PageHead, Panel, StatusTag, DataTable, type Column } from './pc';
 
-function tagTone(tone?: string): 'ok' | 'no' | 'wait' | '' {
-  if (tone === 'ok') return 'ok';
-  if (tone === 'no') return 'no';
-  if (tone === 'wait') return 'wait';
-  return '';
+type Row = Record<string, any>;
+
+const PAGE_SIZE = 20;
+
+function statusTone(v: string): 'ok' | 'no' | 'wait' | 'info' {
+  if (/驳回|取消|作废|关闭|失败|拒绝|撤销|退回/.test(v)) return 'no';
+  if (/待|处理中|审核|运输中|进行中|投标|计划中|未/.test(v)) return 'wait';
+  if (/已|完成|生效|成交|解决|通过/.test(v)) return 'ok';
+  return 'info';
 }
 
 export function DesktopSub({ pageKey }: { pageKey: string }) {
-  const [rows, setRows] = useState<BizRow[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [detail, setDetail] = useState<BizRow | null>(null);
+  const [detail, setDetail] = useState<Row | null>(null);
   const [q, setQ] = useState('');
+  const [kw, setKw] = useState('');
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetchSubRows(pageKey).then((r) => {
-      setRows(r);
-      setLoading(false);
-    });
-  }, [pageKey]);
+  const load = useCallback(
+    (p: number, k: string) => {
+      setLoading(true);
+      fetchSubPage(pageKey, p, PAGE_SIZE, k)
+        .then((r) => {
+          setRows(r.raw.length ? r.raw : r.rows.map((b) => ({ ...b })));
+          setTotal(r.total);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    },
+    [pageKey],
+  );
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(page, kw);
+  }, [page, kw, load]);
 
-  const list = useMemo(() => {
-    const k = q.trim().toLowerCase();
-    return k ? rows.filter((r) => (r.title + r.sub + (r.status || '')).toLowerCase().includes(k)) : rows;
-  }, [rows, q]);
-
-  const cols: Column<BizRow>[] = [
-    { key: 'title', title: '名称', render: (r) => <span className="pc-td-strong">{r.title}</span> },
-    { key: 'sub', title: '说明', render: (r) => r.sub || '—' },
-    { key: 'amount', title: '金额 / 数量', width: 130, align: 'right', render: (r) => r.amount || '—' },
-    {
-      key: 'status',
-      title: '状态',
-      width: 120,
-      render: (r) => (r.status ? <StatusTag tone={tagTone(r.tone)}>{r.status}</StatusTag> : '—'),
-    },
-    { key: 'time', title: '时间', width: 160, render: (r) => (r.time ? fmtTime(r.time) : '—') },
-    {
+  const cols = useMemo<Column<Row>[]>(() => {
+    const dyn = dynamicColumns(rows);
+    const base = dyn.length
+      ? dyn
+      : [
+          { key: 'title', title: '名称' },
+          { key: 'sub', title: '说明' },
+          { key: 'status', title: '状态' },
+          { key: 'time', title: '时间' },
+        ];
+    const list: Column<Row>[] = base.map((c) => ({
+      key: c.key,
+      title: c.title,
+      width: /remark|content|desc|direction|inquiry/.test(c.key) ? 200 : undefined,
+      render: (r) => {
+        const v = cellText(r[c.key]);
+        if (/status$/.test(c.key) || c.key === 'check_status') {
+          return v === '—' ? '—' : <StatusTag tone={statusTone(v)}>{v}</StatusTag>;
+        }
+        if (c.key === 'title' || c.key === 'name' || c.key === 'code') {
+          return <span className="pc-td-strong">{v}</span>;
+        }
+        if (/time$/.test(c.key) && /^\d{4}-\d{2}-\d{2}/.test(v)) return fmtTime(v);
+        return v;
+      },
+    }));
+    list.push({
       key: 'op',
       title: '操作',
-      width: 90,
-      render: () => <span className="pc-link">详情</span>,
-    },
-  ];
+      width: 80,
+      render: () => (
+        <span className="pc-ops">
+          <span className="gg-xs blue">详情</span>
+        </span>
+      ),
+    });
+    return list;
+  }, [rows]);
+
+  const detailPairs = useMemo<[string, string][]>(() => {
+    if (!detail) return [];
+    return Object.entries(detail)
+      .filter(([, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object')
+      .map(([k, v]) => [FIELD_LABEL[k] || k, String(v).replace(/<[^>]+>/g, ' ').trim()] as [string, string]);
+  }, [detail]);
+
+  const search = () => {
+    setPage(1);
+    setKw(q.trim());
+  };
 
   return (
     <div>
       <PageHead
         title={subPageTitle(pageKey)}
         crumb={['业务', subPageTitle(pageKey)]}
-        desc={`共 ${rows.length} 条记录`}
+        desc={`共 ${total} 条记录 · 数据实时取自 oa.upingbio.com`}
         actions={
-          <button className="pc-btn pc-btn-ghost" onClick={load}>
+          <button className="pc-btn pc-btn-ghost" onClick={() => load(page, kw)}>
             刷新
           </button>
         }
@@ -78,13 +119,26 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
           <div className="pc-toolbar">
             <input
               className="pc-input"
-              style={{ width: 240 }}
-              placeholder="搜索名称 / 说明 / 状态"
+              style={{ width: 260 }}
+              placeholder="关键词"
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') search();
+              }}
             />
-            {q ? (
-              <button className="pc-btn pc-btn-ghost" onClick={() => setQ('')}>
+            <button className="pc-btn" onClick={search}>
+              搜索
+            </button>
+            {kw || q ? (
+              <button
+                className="pc-btn pc-btn-ghost"
+                onClick={() => {
+                  setQ('');
+                  setKw('');
+                  setPage(1);
+                }}
+              >
                 清空
               </button>
             ) : null}
@@ -93,18 +147,22 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
         <div style={{ padding: '0 16px 12px' }}>
           <DataTable
             columns={cols}
-            rows={list}
-            rowKey={(r) => r.id}
+            rows={rows}
+            rowKey={(r, i) => String(r.id ?? i)}
             onRowClick={setDetail}
-            pageSize={20}
+            pageSize={PAGE_SIZE}
+            page={page}
+            total={total}
+            onPageChange={setPage}
             loading={loading}
+            empty="该模块当前没有数据"
           />
         </div>
       </Panel>
 
       {detail ? (
         <Modal
-          title={detail.title}
+          title="记录详情"
           onClose={() => setDetail(null)}
           footer={
             <button className="pc-btn" onClick={() => setDetail(null)}>
@@ -113,12 +171,19 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
           }
         >
           <dl className="pc-kv">
-            {(detail.detail || []).map(([k, v], i) => (
-              <div key={i} style={{ display: 'contents' }}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
+            {detailPairs.length ? (
+              detailPairs.map(([k, v], i) => (
+                <div key={i} style={{ display: 'contents' }}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))
+            ) : (
+              <div style={{ display: 'contents' }}>
+                <dt>提示</dt>
+                <dd>该记录没有可读字段</dd>
               </div>
-            ))}
+            )}
           </dl>
         </Modal>
       ) : null}

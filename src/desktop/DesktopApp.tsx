@@ -174,6 +174,8 @@ export default function DesktopApp({
   const [name, setName] = useState<string>(() => getDisplayName() || AUTO_SESSION.displayName);
   /** 侧边栏分组折叠（默认全部展开，与原站一致；长分组可手动收起） */
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  /** 侧栏迷你模式（原站顶栏汉堡按钮） */
+  const [mini, setMini] = useState(false);
 
   useEffect(() => {
     setSession({ ...AUTO_SESSION, loginAt: Date.now() });
@@ -205,29 +207,35 @@ export default function DesktopApp({
   const renderNode = (node: MenuNode, depth = 0) => {
     if (node.children) {
       const open = !collapsed[node.label];
-      const active = node.children.some((c) => c.key === page);
+      const active = node.children.some((c) => c.key === page) || node.children.some((c) => c.children?.some((x) => x.key === page));
       return (
         <div key={'g-' + node.label}>
           <div
             className={`d-nav-item d-nav-parent${active ? ' on' : ''}`}
             onClick={() => setCollapsed((c) => ({ ...c, [node.label]: !c[node.label] }))}
+            title={mini ? node.label : undefined}
           >
             <span className="d-nav-ico">
-              <Icon name={node.icon || 'grid'} size={18} />
+              <Icon name={node.icon || 'grid'} size={17} />
             </span>
             <span>{node.label}</span>
             <span className="d-nav-arrow">{open ? '▾' : '▸'}</span>
           </div>
           {open
-            ? node.children.map((c) => (
-                <div
-                  key={c.key}
-                  className={`d-nav-item d-nav-sub${page === c.key ? ' active' : ''}`}
-                  onClick={() => setPage(c.key as string)}
-                >
-                  <span>{c.label}</span>
-                </div>
-              ))
+            ? node.children.map((c) =>
+                c.children ? (
+                  renderNode(c, depth + 1)
+                ) : (
+                  <div
+                    key={c.key}
+                    className={`d-nav-item d-nav-sub${page === c.key ? ' active' : ''}`}
+                    onClick={() => setPage(c.key as string)}
+                    title={mini ? c.label : undefined}
+                  >
+                    <span>{c.label}</span>
+                  </div>
+                ),
+              )
             : null}
         </div>
       );
@@ -237,9 +245,10 @@ export default function DesktopApp({
         key={node.key}
         className={`d-nav-item${page === node.key ? ' active' : ''}`}
         onClick={() => setPage(node.key as string)}
+        title={mini ? node.label : undefined}
       >
         <span className="d-nav-ico">
-          <Icon name={node.icon || 'grid'} size={18} />
+          <Icon name={node.icon || 'grid'} size={17} />
         </span>
         <span>{node.label}</span>
         {node.key === 'message' && unread > 0 ? <span className="d-nav-badge">{unread}</span> : null}
@@ -247,72 +256,87 @@ export default function DesktopApp({
     );
   };
 
+  /** 当前页面标题（用于内容区顶部标签条） */
+  const pageTitle = (() => {
+    for (const g of MENU) {
+      for (const it of g.items) {
+        if (it.key === page) return it.label;
+        for (const c of it.children || []) {
+          if (c.key === page) return c.label;
+        }
+      }
+    }
+    const ex = EXTRA_PAGES.find((x) => x.key === page);
+    if (ex) return ex.label;
+    return page === 'home' ? '工作台' : page === 'profile' ? '个人资料' : page === 'password' ? '修改密码' : '工作台';
+  })();
+
   return (
-    <div className="d-root">
+    <div className={`d-root${mini ? ' mini' : ''}`}>
       {/* ===== 侧边栏（与原站菜单树一致）===== */}
       <aside className="d-sidebar">
-        <div className="d-brand">
+        <div className="d-brand" onClick={() => setPage('home')}>
           <span className="d-brand-logo">
-            优品<span>OA</span>
+            <img src="/oa/login_logo.png" alt="优品生物" />
+            <span className="d-brand-name">
+              优品生物<em>UpingBio</em>
+            </span>
           </span>
-          <span className="d-brand-sub">网页版</span>
         </div>
         <nav className="d-nav">
           {MENU.map((g) => {
-            const open = !collapsed['#' + g.group];
-            const active = JSON.stringify(g.items).includes(`"${page}"`);
-            return (
-              <div key={g.group}>
-                <div
-                  className={`d-nav-group${open ? '' : ' collapsed'}${active ? ' on' : ''}`}
-                  onClick={() => setCollapsed((c) => ({ ...c, ['#' + g.group]: !c['#' + g.group] }))}
-                >
-                  <span className="d-nav-gico">
-                    <Icon name={g.icon} size={16} />
-                  </span>
-                  {g.group}
-                </div>
-                {open ? g.items.map((it) => renderNode(it)) : null}
-              </div>
-            );
+            /* 与原站一致：分组名与唯一子项同名时（工作台）显示为单级，否则显示「分组 › 子项」两级 */
+            const node: MenuNode =
+              g.items.length === 1 && !g.items[0].children && g.items[0].label === g.group
+                ? { key: g.items[0].key, label: g.group, icon: g.icon }
+                : { label: g.group, icon: g.icon, children: g.items };
+            return renderNode(node);
           })}
           <div className="d-nav-sep" />
-          <div className="d-nav-group on">常用</div>
           {EXTRA_PAGES.map((it) => renderNode(it))}
         </nav>
-        <div className="d-sidebar-foot">
-          优品OA 网页版
-          <br />
-          数据实时取自 oa.upingbio.com
-        </div>
       </aside>
 
       {/* ===== 主区 ===== */}
       <div className="d-main">
         <header className="d-topbar">
-          <div className="d-search">
-            <span className="d-search-ico">
-              <Icon name="search" size={16} />
-            </span>
-            <input placeholder="搜索客户 / 订单 / 产品 / 审批" />
-          </div>
+          <span className="d-icon-btn" title="收起 / 展开侧栏" onClick={() => setMini((v) => !v)}>
+            <Icon name="grid" size={17} />
+          </span>
+          <span className="d-icon-btn" title="皮肤">
+            <Icon name="monitor" size={17} />
+          </span>
+          <span className="d-icon-btn" title="语言">
+            <Icon name="location" size={17} />
+          </span>
           <div className="d-topbar-right">
-            {isForced ? (
-              <button className="d-btn d-btn-ghost d-btn-sm" onClick={onResetView}>
-                恢复自动判定
-              </button>
-            ) : null}
-            <button className="d-btn d-btn-ghost d-btn-sm" onClick={onSwitchView}>
-              <Icon name="phone" size={15} /> 手机版
-            </button>
-            <span className="d-icon-btn" onClick={() => setPage('message')} title="消息中心">
-              <Icon name="bell" size={18} />
+            <span className="d-icon-btn" title="刷新" onClick={() => location.reload()}>
+              <Icon name="refresh" size={17} />
+            </span>
+            <span
+              className="d-icon-btn"
+              title="全屏"
+              onClick={() => {
+                if (document.fullscreenElement) void document.exitFullscreen();
+                else void document.documentElement.requestFullscreen();
+              }}
+            >
+              <Icon name="monitor" size={17} />
+            </span>
+            <span className="d-icon-btn" title="个人设置" onClick={() => setPage('profile')}>
+              <Icon name="settings" size={17} />
+            </span>
+            <span className="d-icon-btn" title="锁屏" onClick={handleLogout}>
+              <Icon name="lock" size={17} />
+            </span>
+            <span className="d-icon-btn" title="消息中心" onClick={() => setPage('message')}>
+              <Icon name="bell" size={17} />
               {unread > 0 ? <span className="d-badge">{unread}</span> : null}
             </span>
             <div className="d-user" onClick={() => setMenuOpen((v) => !v)}>
               <span className="d-avatar">{name.slice(0, 1)}</span>
               <span className="d-user-name">{name}</span>
-              <span style={{ fontSize: 11, color: 'var(--c-text-4)' }}>▾</span>
+              <Icon name="chevronDown" size={13} />
             </div>
           </div>
           {menuOpen ? (
@@ -323,6 +347,14 @@ export default function DesktopApp({
               <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); setPage('password'); }}>
                 <Icon name="lock" size={15} /> 修改密码
               </div>
+              <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); onSwitchView(); }}>
+                <Icon name="phone" size={15} /> 手机版
+              </div>
+              {isForced ? (
+                <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); onResetView(); }}>
+                  <Icon name="refresh" size={15} /> 恢复自动判定
+                </div>
+              ) : null}
               <div className="d-user-menu-item danger" onClick={handleLogout}>
                 <Icon name="logout" size={15} /> 退出登录
               </div>
@@ -330,7 +362,14 @@ export default function DesktopApp({
           ) : null}
         </header>
 
+        {/* ===== 内容区：页面标签条 + 页面 ===== */}
         <main className="d-content">
+          <div className="d-page-tabs">
+            <span className="d-page-tab on">
+              <i style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--c-primary)', display: 'inline-block' }} />
+              {pageTitle}
+            </span>
+          </div>
           <div className="d-wrap">
             {page === 'home' ? <DesktopHome onNavigate={setPage} /> : null}
             {page === 'approve' ? <DesktopApprove /> : null}

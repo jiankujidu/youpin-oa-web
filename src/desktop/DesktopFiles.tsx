@@ -26,6 +26,7 @@ export default function DesktopFiles() {
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
   const [ext, setExt] = useState('');
+  const [group, setGroup] = useState('');
   const [uploading, setUploading] = useState<UpItem[]>([]);
   const [dragging, setDragging] = useState(false);
   const [unconfigured, setUnconfigured] = useState(false);
@@ -115,7 +116,20 @@ export default function DesktopFiles() {
     return [...s].sort();
   }, [list]);
 
-  const rows = useMemo(() => (ext ? list.filter((a) => a.fileext === ext) : list), [list, ext]);
+  /** 分组（原站附件库按分组归类） */
+  const groups = useMemo(() => {
+    const s = new Set<string>();
+    list.forEach((a) => (a as any).group_title && s.add((a as any).group_title));
+    return [...s].sort();
+  }, [list]);
+
+  const rows = useMemo(
+    () =>
+      list.filter(
+        (a) => (!ext || a.fileext === ext) && (!group || (a as any).group_title === group),
+      ),
+    [list, ext, group],
+  );
 
   const cols: Column<Attachment>[] = [
     {
@@ -162,15 +176,15 @@ export default function DesktopFiles() {
       title: '操作',
       width: 190,
       render: (r) => (
-        <span style={{ display: 'inline-flex', gap: 12 }}>
-          <span className="pc-link" onClick={() => openWithViewer(r.url)}>
+        <span className="pc-ops">
+          <span className="gg-xs ghost" onClick={() => openWithViewer(r.url)}>
             打开
           </span>
-          <span className="pc-link" onClick={() => setShareTarget(r)}>
+          <span className="gg-xs blue" onClick={() => setShareTarget(r)}>
             转发
           </span>
           <span
-            className="pc-link"
+            className="gg-xs green"
             onClick={() => {
               void urlToFile(r.url, r.name)
                 .then((f) => downloadBlob(f, r.name))
@@ -312,6 +326,14 @@ export default function DesktopFiles() {
                 </option>
               ))}
             </select>
+            <select className="pc-input" style={{ width: 180 }} value={group} onChange={(e) => setGroup(e.target.value)}>
+              <option value="">全部分组</option>
+              {groups.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
             <button className="pc-btn" onClick={() => setQuery(keyword)}>
               查询
             </button>
@@ -322,6 +344,7 @@ export default function DesktopFiles() {
                   setKeyword('');
                   setQuery('');
                   setExt('');
+                  setGroup('');
                 }}
               >
                 重置
