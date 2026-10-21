@@ -1,0 +1,17 @@
+import puppeteer from 'puppeteer-core';
+import { spawn } from 'node:child_process';
+const EDGE='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const PORT='9798';
+const edge=spawn(EDGE,[`--user-data-dir=C:/Users/Administrator/WorkBuddy/2026-10-20-05-59-01/.tmp-gh-${PORT}`,`--remote-debugging-port=${PORT}`,'--no-sandbox','--headless=new','--disable-gpu','about:blank'],{stdio:'ignore'});
+await new Promise(r=>setTimeout(r,2500));
+const b=await puppeteer.connect({browserURL:`http://127.0.0.1:${PORT}`,defaultViewport:{width:1600,height:900}});
+const p=await b.newPage();
+p.on('requestfailed',r=>console.log('FAIL',r.url().slice(0,90),r.failure()?.errorText));
+p.on('response',async r=>{const u=r.url(); if(u.includes('oa-proxy')) console.log('RES',r.status(),u.slice(0,110));});
+p.on('console',m=>{if(m.type()==='error')console.log('CONSOLE',m.text().slice(0,150));});
+await p.goto('https://jiankujidu.github.io/youpin-oa-web/',{waitUntil:'networkidle2',timeout:90000});
+await new Promise(r=>setTimeout(r,5000));
+await p.evaluate(()=>{const el=[...document.querySelectorAll('.d-nav-item')].find(e=>e.textContent.trim()==='客户列表');el&&el.click();});
+await new Promise(r=>setTimeout(r,10000));
+console.log('rows',await p.evaluate(()=>document.querySelectorAll('.pc-table tbody tr').length));
+await b.disconnect();edge.kill();

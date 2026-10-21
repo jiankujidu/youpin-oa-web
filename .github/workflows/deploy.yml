@@ -38,7 +38,9 @@ jobs:
           # ===== 站点 base =====
           # 自定义域名模式（已绑定 web.jk93.qzz.io，根路径服务）→ VITE_BASE=/
           # 若改回项目子路径页 https://<用户名>.github.io/<仓库名>/ → 设仓库变量 VITE_BASE=/<仓库名>/
-          VITE_BASE: ${{ vars.VITE_BASE || '/' }}
+          # './' = 相对路径资源：既能跑在 https://<用户名>.github.io/<仓库名>/ 子路径下，
+          # 也能跑在自定义域名根路径下（两种入口共用同一个构建产物）
+          VITE_BASE: ${{ vars.VITE_BASE || './' }}
           # ===== OA 后端 CORS 代理（默认已部署的 youpin-oa-proxy Worker）=====
           # 置仓库变量 VITE_OA_PROXY 可覆盖；设为空字符串则回落演示数据模式
           # 默认走 Cloudflare Pages 的同源代理（workers.dev 在部分网络不可达）
