@@ -328,7 +328,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       title: '客户名称',
       width: 240,
       render: (r) => (
-        <span className="pc-td-strong">
+        <span className="pc-td-strong pc-cell-2" title={r.name}>
           {r.name}
           {(r as any).avoid ? (
             <span className="pc-tag-local" style={{ marginLeft: 6, background: '#fff1f0', color: '#cf1322', border: '1px solid #ffa39e' }}>

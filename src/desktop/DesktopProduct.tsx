@@ -13,14 +13,63 @@ import { downloadCsv, fmtTime, plain, sanitizeName, toast } from '../core/util';
 import { Modal } from './ui';
 import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
 
-/** 「100UL;2230;53ul;1560;10ul;368」→「100UL ¥2230 / 53ul ¥1560」 */
+/** 价格明细展示行 */
+type PriceLine = { spec: string; price: string };
+
+/** 去掉规格串里的「规格」字样与首尾分隔符，控制长度 */
+function cleanSpec(raw: string): string {
+  const c = raw
+    .replace(/规格/g, '')
+    .replace(/^[\s:：\-]+|[\s:：\-]+$/g, '')
+    .slice(0, 12);
+  return c || '规格';
+}
+
+/**
+ * 价格明细 → 结构化行。兼容三种原站格式：
+ *  A「睿信目录价：规格：96T：2800元/48T：2000元;仑昌硕目录价：…」（分号分品牌、斜杠分规格）
+ *  B「规格：96T-目录价：4000元/经销价：2000元,规格：48T-…」（逗号分规格）
+ *  C「100UL;2230;53ul;1560」（规格;价格 交替，无「元」）
+ */
+function priceLines(s?: string): PriceLine[] {
+  if (!s) return [];
+  const segs = s.split(/[;,/]/).map((x) => x.trim()).filter(Boolean);
+  const out: PriceLine[] = [];
+  for (const seg of segs) {
+    const m = /^([\u4e00-\u9fa5A-Za-z0-9.+\- :：]{0,14}?)[-:：]?\s*(?:目录价|经销价)?\s*[:：]?\s*([\d.]+)\s*元?$/.exec(seg);
+    if (m && /\d/.test(m[2])) out.push({ spec: cleanSpec(m[1]), price: m[2] });
+  }
+  if (out.length) return out;
+  const pairs: PriceLine[] = [];
+  for (let i = 0; i + 1 < segs.length; i += 2) pairs.push({ spec: cleanSpec(segs[i]), price: segs[i + 1] });
+  return pairs;
+}
+
+/** CSV 用：完整价格文本 */
 function fmtPrice(s?: string): string {
-  if (!s) return '—';
-  if (/[元目录价经销]/.test(s)) return s.replace(/\n+/g, ' ').slice(0, 60);
-  const parts = s.split(';').map((x) => x.trim()).filter(Boolean);
-  const out: string[] = [];
-  for (let i = 0; i + 1 < parts.length; i += 2) out.push(`${parts[i]} ¥${parts[i + 1]}`);
-  return out.length ? out.join(' / ') : s.slice(0, 60);
+  const lines = priceLines(s);
+  if (!lines.length) return s ? s.replace(/\n+/g, ' ').slice(0, 60) : '—';
+  return lines.map((l) => `${l.spec} ¥${l.price}`).join(' / ');
+}
+
+/** 价格明细单元格：最多 2 行 + 「共 N 项」，悬停显示全文 */
+function PriceCell({ desc }: { desc?: string }) {
+  const lines = priceLines(desc);
+  if (!lines.length) return <span style={{ color: 'var(--c-text-4)' }}>—</span>;
+  const shown = lines.slice(0, 2);
+  const rest = lines.length - shown.length;
+  const full = lines.map((l) => `${l.spec} ¥${l.price}`).join('\n');
+  return (
+    <span className="pc-price-cell" title={full}>
+      {shown.map((l, i) => (
+        <span className="pc-price-row" key={i}>
+          <span className="pc-price-spec">{l.spec}</span>
+          <span className="pc-price-num">{l.price}</span>
+        </span>
+      ))}
+      {rest > 0 ? <span className="pc-price-more">共 {lines.length} 项规格</span> : null}
+    </span>
+  );
 }
 
 /** 说明书地址：优先稳定端点 pc_goods_no_url（get_oss_file?id=，经代理不过期）；签名直链永远 403，转代理 /oss/ */
@@ -221,18 +270,18 @@ export default function DesktopProduct() {
         return <StatusTag tone="info">{s || '—'}</StatusTag>;
       },
     },
-    { key: 'cate', title: '产品分类', width: 190, render: (r) => r.cate_title || '—' },
-    { key: 'price', title: '价格明细', width: 210, render: (r) => fmtPrice(r.price_desc) },
-    { key: 'title', title: '产品标题', width: 300, render: (r) => <span className="pc-td-strong">{plain(r.title)}</span> },
+    { key: 'cate', title: '产品分类', width: 190, render: (r) => <span className="pc-cell-2" title={r.cate_title}>{r.cate_title || '—'}</span> },
+    { key: 'price', title: '价格明细', width: 210, render: (r) => <PriceCell desc={r.price_desc} /> },
+    { key: 'title', title: '产品标题', width: 300, render: (r) => <span className="pc-td-strong pc-cell-2" title={plain(r.title)}>{plain(r.title)}</span> },
     { key: 'species', title: '种属', width: 120, render: (r) => r.species || '—' },
-    { key: 'app', title: '应用', width: 150, render: (r) => r.application || '—' },
-    { key: 'gene', title: '基因名称', width: 120, render: (r) => (r as any).gene_name || '—' },
-    { key: 'alias', title: '其他别称', width: 140, render: (r) => (r as any).other_name || '—' },
+    { key: 'app', title: '应用', width: 150, render: (r) => <span className="pc-cell-2" title={r.application}>{r.application || '—'}</span> },
+    { key: 'gene', title: '基因名称', width: 120, render: (r) => <span className="pc-cell-2" title={(r as any).gene_name}>{(r as any).gene_name || '—'}</span> },
+    { key: 'alias', title: '其他别称', width: 140, render: (r) => <span className="pc-cell-2" title={(r as any).other_name}>{(r as any).other_name || '—'}</span> },
     { key: 'mw', title: '分子量', width: 100, render: (r) => (r as any).da || '—' },
-    { key: 'method', title: '方法学', width: 110, render: (r) => (r as any).methodology || '—' },
-    { key: 'eng', title: '英文名称', width: 160, render: (r) => (r as any).eng_name || '—' },
+    { key: 'method', title: '方法学', width: 110, render: (r) => <span className="pc-cell-2" title={(r as any).methodology}>{(r as any).methodology || '—'}</span> },
+    { key: 'eng', title: '英文名称', width: 160, render: (r) => <span className="pc-cell-2" title={(r as any).eng_name}>{(r as any).eng_name || '—'}</span> },
     { key: 'tag', title: 'Tag', width: 100, render: (r) => (r as any).tag || '—' },
-    { key: 'expr', title: '表达系统', width: 130, render: (r) => (r as any).expression_system || '—' },
+    { key: 'expr', title: '表达系统', width: 130, render: (r) => <span className="pc-cell-2" title={(r as any).expression_system}>{(r as any).expression_system || '—'}</span> },
     { key: 'dl', title: '下载量', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
     { key: 'time', title: '更新时间', width: 150, render: (r) => fmtTime((r as any).update_time || (r as any).create_time) },
     {

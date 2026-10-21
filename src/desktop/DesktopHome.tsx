@@ -43,7 +43,7 @@ const MSG_COLS: Column<Message>[] = [
   { key: 'time', title: '时间', width: 150, render: (r) => fmtTime(r.send_time || r.create_time) },
 ];
 
-export default function DesktopHome({ onNavigate }: { onNavigate: (page: string) => void }) {
+export default function DesktopHome({ onNavigate, userName }: { onNavigate: (page: string) => void; userName?: string }) {
   const [stats, setStats] = useState({ pendingApprove: 0, myCustomer: 0, monthOrder: 0, monthAmount: '0.00', unreadMsg: 0 });
   const [approves, setApproves] = useState<ApproveItem[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -82,22 +82,50 @@ export default function DesktopHome({ onNavigate }: { onNavigate: (page: string)
     return cs === undefined || cs === null || Number(cs) < 2;
   });
   const todo = [
-    { label: '待审批', num: pendingList.length, go: 'approve' },
+    { label: '待审批', num: pendingList.length, go: 'approve', icon: 'approve', tone: 0 },
     {
       label: '待审报销',
       num: pendingList.filter((a) => /报销/.test(`${(a as any).flow_type || ''}${a.content || ''}${(a as any).name || ''}`)).length,
       go: 'approve',
+      icon: 'receipt',
+      tone: 1,
     },
-    { label: '待审发票', num: invoices, go: 'invoice-handle' },
-    { label: '待回款', num: 0, go: 'finance-order' },
-    { label: '待审合同', num: 0, go: 'approve' },
-    { label: '未读消息', num: msgs.filter((m) => !m.read_time).length, go: 'message' },
+    { label: '待审发票', num: invoices, go: 'invoice-handle', icon: 'invoice', tone: 2 },
+    { label: '待回款', num: 0, go: 'finance-order', icon: 'financeOrder', tone: 3 },
+    { label: '待审合同', num: 0, go: 'approve', icon: 'document', tone: 4 },
+    { label: '未读消息', num: msgs.filter((m) => !m.read_time).length, go: 'message', icon: 'message', tone: 5 },
   ];
+
+  /** 顶部问候语（按当前时间） */
+  const now = new Date();
+  const hh = now.getHours();
+  const greet = hh < 6 ? '夜深了' : hh < 9 ? '早上好' : hh < 12 ? '上午好' : hh < 14 ? '中午好' : hh < 18 ? '下午好' : '晚上好';
+  const week = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  const dateStr = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 · 星期${week}`;
 
   return (
     <div className="home-grid">
       {/* ===== 左列 ===== */}
       <div className="home-col">
+        {/* 品牌横幅 */}
+        <div className="home-hero">
+          <div className="home-hero-title">
+            {greet}
+            {userName ? `，${userName}` : ''}
+          </div>
+          <div className="home-hero-sub">{dateStr} · 欢迎回到优品生物办公系统，祝你工作顺利</div>
+          <div className="home-hero-btns">
+            <button className="home-hero-btn" onClick={() => onNavigate('approve')}>
+              <Icon name="plus" size={15} />
+              发起审批
+            </button>
+            <button className="home-hero-btn ghost" onClick={() => onNavigate('ai')}>
+              <Icon name="robot" size={15} />
+              AI 问答
+            </button>
+          </div>
+        </div>
+
         {/* 快捷申请 */}
         <Panel
           title="快捷申请"
@@ -124,8 +152,13 @@ export default function DesktopHome({ onNavigate }: { onNavigate: (page: string)
           <div className="home-todo">
             {todo.map((t) => (
               <div key={t.label} className="home-todo-item" onClick={() => onNavigate(t.go)}>
+                <div className="td-head">
+                  <span className={`td-ico td-ico-${t.tone}`}>
+                    <Icon name={t.icon} size={15} />
+                  </span>
+                  <span className="td-label">{t.label}</span>
+                </div>
                 <div className={`td-num${t.num === 0 ? ' zero' : ''}`}>{t.num}</div>
-                <div className="td-label">{t.label}</div>
               </div>
             ))}
           </div>

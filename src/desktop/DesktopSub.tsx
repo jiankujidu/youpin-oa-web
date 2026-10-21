@@ -25,6 +25,38 @@ function statusTone(v: string): 'ok' | 'no' | 'wait' | 'info' {
   return 'info';
 }
 
+/** 行操作「更多」下拉：自管理开合，点外面 / 移出即关 */
+function OpsMore({ actions, onPick }: { actions: OpAction[]; onPick: (a: OpAction) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="pc-ops-menu-wrap">
+      <span className="gg-xs ghost" onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
+        更多 ▾
+      </span>
+      {open ? (
+        <>
+          <span style={{ position: 'fixed', inset: 0, zIndex: 25 }} onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <span className="pc-ops-menu" onMouseLeave={() => setOpen(false)}>
+            {actions.map((a) => (
+              <span
+                key={a.key}
+                className="pc-ops-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onPick(a);
+                }}
+              >
+                {a.label}
+              </span>
+            ))}
+          </span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 export function DesktopSub({ pageKey }: { pageKey: string }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
@@ -138,7 +170,7 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
         }
         if (c.key === 'title' || c.key === 'name' || c.key === 'code') {
           return (
-            <span className="pc-td-strong">
+            <span className="pc-td-strong pc-cell-2" title={v}>
               {v}
               {r._local ? (
                 <span className="pc-tag-local" style={{ marginLeft: 6 }}>
@@ -149,19 +181,23 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
           );
         }
         if (/time$/.test(c.key) && /^\d{4}-\d{2}-\d{2}/.test(v)) return fmtTime(v);
-        return v;
+        return (
+          <span className="pc-cell-2" title={v}>
+            {v}
+          </span>
+        );
       },
     }));
     list.push({
       key: 'op',
       title: '操作',
-      width: 150 + actions.length * 76,
+      width: actions.length > 3 ? 380 : 150 + actions.length * 76,
       render: (r) => (
         <span className="pc-ops">
           <span className="gg-xs blue" onClick={() => setDetail(r)}>
             详情
           </span>
-          {actions.map((a) => (
+          {actions.slice(0, 2).map((a) => (
             <span
               key={a.key}
               className={`gg-xs ${a.tone || 'blue'}`}
@@ -174,6 +210,29 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
               {a.label}
             </span>
           ))}
+          {actions.length > 3 ? (
+            <OpsMore
+              actions={actions.slice(2)}
+              onPick={(a) => {
+                if (a.fields?.length) setActing({ row: r, action: a });
+                else runAction(r, a);
+              }}
+            />
+          ) : (
+            actions.slice(2).map((a) => (
+              <span
+                key={a.key}
+                className={`gg-xs ${a.tone || 'blue'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (a.fields?.length) setActing({ row: r, action: a });
+                  else runAction(r, a);
+                }}
+              >
+                {a.label}
+              </span>
+            ))
+          )}
           {fields ? (
             <>
               <span className="gg-xs blue" onClick={() => setEditing(r)}>

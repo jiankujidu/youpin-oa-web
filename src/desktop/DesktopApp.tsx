@@ -371,7 +371,7 @@ export default function DesktopApp({
             </span>
           </div>
           <div className="d-wrap">
-            {page === 'home' ? <DesktopHome onNavigate={setPage} /> : null}
+            {page === 'home' ? <DesktopHome onNavigate={setPage} userName={name} /> : null}
             {page === 'approve' ? <DesktopApprove /> : null}
             {page === 'customer' ? <DesktopCustomer initialType={1} /> : null}
             {page === 'customer-sea' ? <DesktopCustomer initialType={2} /> : null}
