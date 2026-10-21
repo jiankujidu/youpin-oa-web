@@ -73,6 +73,7 @@ export default function DesktopHome({ onNavigate, userName }: { onNavigate: (pag
   const [articles, setArticles] = useState<Article[]>([]);
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [invoices, setInvoices] = useState(0);
+  const [financeOrder, setFinanceOrder] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,7 +85,8 @@ export default function DesktopHome({ onNavigate, userName }: { onNavigate: (pag
       fetchArticles().catch(() => [] as Article[]),
       fetchMessages().catch(() => [] as Message[]),
       fetchSubRows('invoice-handle').catch(() => []),
-    ]).then(([s, ap, no, ar, ms, inv]) => {
+      fetchSubRows('finance-order').catch(() => []),
+    ]).then(([s, ap, no, ar, ms, inv, fo]) => {
       if (!alive) return;
       setStats(s);
       setApproves(ap);
@@ -92,6 +94,7 @@ export default function DesktopHome({ onNavigate, userName }: { onNavigate: (pag
       setArticles(ar);
       setMsgs(ms);
       setInvoices(inv.length);
+      setFinanceOrder(fo.length);
       setLoading(false);
     });
     return () => {
@@ -114,8 +117,14 @@ export default function DesktopHome({ onNavigate, userName }: { onNavigate: (pag
       tone: 1,
     },
     { label: '待审发票', num: invoices, go: 'invoice-handle', icon: 'invoice', tone: 2 },
-    { label: '待回款', num: 0, go: 'finance-order', icon: 'financeOrder', tone: 3 },
-    { label: '待审合同', num: 0, go: 'approve', icon: 'document', tone: 4 },
+    { label: '待回款', num: financeOrder, go: 'finance-order', icon: 'financeOrder', tone: 3 },
+    {
+      label: '待审合同',
+      num: pendingList.filter((a) => /合同|contract/i.test(`${(a as any).flow_type || ''}${a.content || ''}${(a as any).name || ''}`)).length,
+      go: 'approve',
+      icon: 'document',
+      tone: 4,
+    },
     { label: '未读消息', num: msgs.filter((m) => !m.read_time).length, go: 'message', icon: 'message', tone: 5 },
   ];
 

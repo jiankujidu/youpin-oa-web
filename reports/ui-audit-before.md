@@ -1,4 +1,4 @@
-# UI 体检报告
+# UI 体检报告（优化前 · before）
 
 - 目标：https://youpin-oa.pages.dev/
 - 视口：1440×900 ｜ 页面数：30
