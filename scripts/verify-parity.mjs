@@ -87,11 +87,26 @@ async function gotoMenu(path) {
   await sleep(5600);
 }
 
-/** 采集当前页可见按钮文案 + 行内 gg-xs */
+/** 采集当前页可见按钮文案 + 行内 gg-xs（含「更多 ▾」下拉内的项） */
 async function probe(name, expect) {
+  // 先点开首行「更多 ▾」下拉（React 异步渲染，需等菜单出现再采集）
+  const clicked = await p.evaluate(() => {
+    const more = [...document.querySelectorAll('.gg-xs.ghost')].find((e) => e.textContent.includes('更多'));
+    if (more) { more.click(); return true; }
+    return false;
+  });
+  if (clicked) {
+    for (let i = 0; i < 20; i++) {
+      await sleep(100);
+      const has = await p.evaluate(() => !!document.querySelector('.pc-ops-menu'));
+      if (has) break;
+    }
+  }
   const r = await p.evaluate(() => {
     const btns = [...document.querySelectorAll('.pc-btn')].map((x) => x.textContent.trim());
     const xs = [...document.querySelectorAll('.gg-xs')].map((x) => x.textContent.trim());
+    const menu = document.querySelector('.pc-ops-menu');
+    if (menu) for (const item of menu.querySelectorAll('.pc-ops-menu-item')) xs.push(item.textContent.trim());
     const title = document.querySelector('.pc-title')?.textContent?.trim() || '(none)';
     return { btns: [...new Set(btns)], xs: [...new Set(xs)], rows: document.querySelectorAll('.pc-table tbody tr').length, title };
   });
