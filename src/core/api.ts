@@ -532,10 +532,24 @@ export function fetchMails(keyword = ''): Promise<MailContact[]> {
 
 export function fetchHomeStats(): Promise<typeof DEMO.HOME_STATS> {
   if (!IS_DEMO_DATA) {
-    return oaFetch('/home/index/index')
+    // 后端 /home/index/index 仅返回 {data:{msg_num}}，其余统计需从各自接口补全
+    const unread = oaFetch('/home/index/index')
       .then((r) => r.json())
-      .then((r) => extractObj<typeof DEMO.HOME_STATS>(r, DEMO.HOME_STATS))
-      .catch(() => DEMO.HOME_STATS);
+      .then((r) => (r?.data?.msg_num ?? 0))
+      .catch(() => 0);
+    const pending = fetchApproves(1)
+      .then((rows) => rows.length)
+      .catch(() => 0);
+    const cust = fetchCustomers(1)
+      .then((rows) => rows.length)
+      .catch(() => 0);
+    return Promise.all([unread, pending, cust]).then(([unreadMsg, pendingApprove, myCustomer]) => ({
+      pendingApprove,
+      myCustomer,
+      monthOrder: 0,
+      monthAmount: '—',
+      unreadMsg,
+    }));
   }
   const src = S();
   const stats = {

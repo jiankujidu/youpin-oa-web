@@ -260,6 +260,7 @@ export const SUB_PAGES: Record<string, SubPageDef> = {
   school: { title: '校展预名单', path: '/customer/schoolexhibition/index', demo: school },
   'school-handle': { title: '校展管理（我处理的）', path: '/customer/schoolexhibition/list', demo: school },
   after: { title: '售后管理（我申请的）', path: '/customer/aftersalesservice/index', demo: after },
+  platform: { title: '平台订单', path: '/customer/order/platform/index', demo: () => [] },
 };
 
 /** 需要后端会话才能取到、因此演示模式也走演示集的 key 列表（=全部） */

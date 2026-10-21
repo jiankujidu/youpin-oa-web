@@ -18,23 +18,35 @@ const QUICK_APPROVE: [number, string, string][] = [
   [10, '用车', 'car'],
 ];
 
-/** 办公入口（对齐 app.js 的 entries 顺序，图标统一为线性 SVG） */
+/** 办公入口（严格对齐原 Android OA 应用的 28 项顺序） */
 const ENTRIES: { key: string; icon: string; name: string; kind: 'sub' | 'tab' }[] = [
   { key: 'note', icon: 'note', name: '企业公告', kind: 'sub' },
   { key: 'article', icon: 'article', name: '问答知识', kind: 'sub' },
+  { key: 'ai', icon: 'robot', name: 'AI问答', kind: 'sub' },
   { key: 'product', icon: 'product', name: '产品管理', kind: 'sub' },
   { key: 'files', icon: 'file', name: '附件管理', kind: 'sub' },
   { key: 'message', icon: 'message', name: '消息中心', kind: 'sub' },
   { key: 'mail', icon: 'mail', name: '通讯录', kind: 'sub' },
   { key: 'approve-add', icon: 'approve', name: '发起审批', kind: 'sub' },
   { key: 'customer', icon: 'customer', name: '客户列表', kind: 'tab' },
-  { key: 'order-my', icon: 'order', name: '我的订单', kind: 'sub' },
-  { key: 'sample', icon: 'sample', name: '样本管理', kind: 'sub' },
-  { key: 'school', icon: 'school', name: '校展管理', kind: 'sub' },
-  { key: 'after', icon: 'after', name: '售后管理', kind: 'sub' },
+  { key: 'workbench', icon: 'grid', name: '工作台', kind: 'sub' },
+  { key: 'finance-advance', icon: 'finance', name: '预存款', kind: 'sub' },
+  { key: 'deduction', icon: 'deduction', name: '抵扣券', kind: 'sub' },
+  { key: 'margin', icon: 'margin', name: '保证金', kind: 'sub' },
+  { key: 'invoice-my', icon: 'invoice', name: '发票申请', kind: 'sub' },
+  { key: 'invoice-handle', icon: 'invoice', name: '发票处理', kind: 'sub' },
+  { key: 'finance-income', icon: 'financeIncome', name: '到账(发票)', kind: 'sub' },
+  { key: 'finance-order', icon: 'financeOrder', name: '到账(订单)', kind: 'sub' },
+  { key: 'orderapply-handle', icon: 'financeOrder', name: '订单到账处理', kind: 'sub' },
   { key: 'contact', icon: 'contact', name: '客户联系人', kind: 'sub' },
   { key: 'chance', icon: 'chance', name: '销售机会', kind: 'sub' },
   { key: 'trace', icon: 'trace', name: '跟进记录', kind: 'sub' },
+  { key: 'order-my', icon: 'order', name: '我的订单', kind: 'sub' },
+  { key: 'order-handle', icon: 'order', name: '订单处理', kind: 'sub' },
+  { key: 'platform', icon: 'order', name: '平台订单', kind: 'sub' },
+  { key: 'sample', icon: 'sample', name: '样本管理', kind: 'sub' },
+  { key: 'school', icon: 'school', name: '校展管理', kind: 'sub' },
+  { key: 'after', icon: 'after', name: '售后管理', kind: 'sub' },
   { key: 'customer-add', icon: 'plus', name: '新增客户', kind: 'sub' },
 ];
 

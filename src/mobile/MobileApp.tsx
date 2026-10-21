@@ -5,17 +5,17 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import '../mobile/mobile.css';
-import { setSession, getSession, clearSession, setDisplayName, getDisplayName } from '../core/session';
-import { clearOaSession } from '../core/api';
+import { setSession, setDisplayName, getDisplayName } from '../core/session';
 import { fetchHomeStats } from '../core/api';
 import type { Session } from '../core/types';
-import MobileLogin from './MobileLogin';
 import MobileHome from './MobileHome';
 import MobileApprove from './MobileApprove';
 import MobileCustomer from './MobileCustomer';
 import MobileMine from './MobileMine';
 import MobileFiles from './MobileFiles';
 import MobileProduct from './MobileProduct';
+import MobileAi from './MobileAi';
+import MobileWorkbench from './MobileWorkbench';
 import { MobileArticle, MobileMail, MobileMessage, MobileNote } from './MobileContent';
 import { MobileApproveAdd, MobileCustomerAdd, MobilePassword, MobileProfile, MobileSub } from './MobileSub';
 import { Icon } from '../core/icons';
@@ -32,6 +32,8 @@ const SUB_TITLES: Record<string, string> = {
   files: '附件管理',
   message: '消息中心',
   mail: '通讯录',
+  ai: 'AI问答',
+  workbench: '工作台',
   profile: '基本资料',
   password: '修改密码',
   'approve-add': '发起审批',
@@ -52,30 +54,33 @@ const SUB_TITLES: Record<string, string> = {
   sample: '样本管理',
   school: '校展管理',
   after: '售后管理',
+  platform: '平台订单',
   'customer-add': '新增客户',
 };
 
 export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }) {
-  /** 免登录：默认会话直接生效（后端会话由代理以固定 PHPSESSID 维持） */
-  const [session, setSessionState] = useState<Session | null>(
-    () => getSession() || { username: 'auto', displayName: '陈美龙', loginAt: Date.now() },
-  );
+  /** 免登录：固定会话直接生效（后端会话由代理以固定 PHPSESSID 维持），初始化即带出，无需登录 */
+  const [session, setSessionState] = useState<Session>(() => ({
+    username: 'auto',
+    displayName: '陈美龙',
+    loginAt: Date.now(),
+  }));
   const [tab, setTab] = useState<Tab>('home');
   const [sub, setSub] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
 
+  // 仅挂载时执行一次：同步会话 + 未读轮询。绝不可依赖 [session]，否则每次渲染都重新 set 新对象 → 无限重渲染
   useEffect(() => {
-    const auto = { username: 'auto', displayName: '陈美龙', loginAt: Date.now() };
+    const auto: Session = { username: 'auto', displayName: '陈美龙', loginAt: Date.now() };
     setSession(auto);
     setDisplayName(auto.displayName);
-    setSessionState(auto);
-    if (!session) return;
-    // 未读角标：前台轮询（限制 L-3：后台标签会被浏览器节流）
     const tick = () => {
-      fetchHomeStats().then((s) => setUnread(s.unreadMsg));
+      fetchHomeStats()
+        .then((s) => setUnread(s.unreadMsg))
+        .catch(() => {});
     };
     tick();
-    const timer = window.setInterval(tick, 15000);
+    const timer = window.setInterval(tick, 30000);
     const onVisible = () => {
       if (document.visibilityState === 'visible') tick();
     };
@@ -84,20 +89,14 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [session]);
-
-  const handleLogin = useCallback((s: Session) => {
-    setSession(s);
-    setDisplayName(s.displayName);
-    setSessionState(s);
-    setTab('home');
-    setSub(null);
   }, []);
 
+  /** 免登录模式：退出仅重置为固定会话，不退回登录页（遵循「不要账号」要求） */
   const handleLogout = useCallback(() => {
-    clearSession();
-    clearOaSession();
-    setSessionState(null);
+    const auto: Session = { username: 'auto', displayName: '陈美龙', loginAt: Date.now() };
+    setSession(auto);
+    setDisplayName(auto.displayName);
+    setSessionState(auto);
     setSub(null);
     setTab('home');
   }, []);
@@ -108,15 +107,6 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
   }, []);
 
   const openSub = useCallback((key: string) => setSub(key), []);
-
-  if (!session) {
-    return (
-      <div className="m-root">
-        <MobileLogin onSuccess={handleLogin} />
-        <ToastHost />
-      </div>
-    );
-  }
 
   const title = sub ? SUB_TITLES[sub] || '功能' : TITLES[tab];
   const displayName = getDisplayName() || session.displayName;
@@ -150,6 +140,8 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
         {sub === 'files' ? <MobileFiles /> : null}
         {sub === 'message' ? <MobileMessage /> : null}
         {sub === 'mail' ? <MobileMail /> : null}
+        {sub === 'ai' ? <MobileAi /> : null}
+        {sub === 'workbench' ? <MobileWorkbench onOpenSub={openSub} /> : null}
         {sub === 'profile' ? <MobileProfile /> : null}
         {sub === 'password' ? <MobilePassword /> : null}
         {sub === 'customer-add' ? (
@@ -158,7 +150,7 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
         {sub === 'approve-add' ? (
           <MobileApproveAdd onDone={() => { setSub(null); switchTab('approve'); }} />
         ) : null}
-        {sub && !['note', 'article', 'product', 'files', 'message', 'mail', 'profile', 'password', 'customer-add', 'approve-add'].includes(sub) ? (
+        {sub && !['note', 'article', 'product', 'files', 'message', 'mail', 'ai', 'workbench', 'profile', 'password', 'customer-add', 'approve-add'].includes(sub) ? (
           <MobileSub pageKey={sub} />
         ) : null}
 
