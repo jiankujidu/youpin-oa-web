@@ -41,7 +41,8 @@ jobs:
           VITE_BASE: ${{ vars.VITE_BASE || '/' }}
           # ===== OA 后端 CORS 代理（默认已部署的 youpin-oa-proxy Worker）=====
           # 置仓库变量 VITE_OA_PROXY 可覆盖；设为空字符串则回落演示数据模式
-          VITE_OA_PROXY: ${{ vars.VITE_OA_PROXY || 'https://youpin-oa-proxy.jiankujidu.workers.dev' }}
+          # 默认走 Cloudflare Pages 的同源代理（workers.dev 在部分网络不可达）
+          VITE_OA_PROXY: ${{ vars.VITE_OA_PROXY || 'https://youpin-oa.pages.dev/oa-proxy' }}
           # ===== 可选：上传服务凭证（留空则上传按钮明确提示「未配置」）=====
           VITE_CLOUDINARY_CLOUD: ${{ vars.VITE_CLOUDINARY_CLOUD }}
           VITE_CLOUDINARY_PRESET: ${{ vars.VITE_CLOUDINARY_PRESET }}

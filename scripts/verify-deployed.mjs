@@ -1,0 +1,17 @@
+import puppeteer from 'puppeteer-core';
+import { spawn } from 'node:child_process';
+const EDGE='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const PORT='9795';
+const BASE=process.env.BASE;
+const edge=spawn(EDGE,[`--user-data-dir=C:/Users/Administrator/WorkBuddy/2026-10-20-05-59-01/.tmp-dep-${PORT}`,`--remote-debugging-port=${PORT}`,'--no-sandbox','--headless=new','--disable-gpu','about:blank'],{stdio:'ignore'});
+await new Promise(r=>setTimeout(r,2500));
+const b=await puppeteer.connect({browserURL:`http://127.0.0.1:${PORT}`,defaultViewport:{width:1600,height:900}});
+const p=await b.newPage();
+const errs=[];p.on('pageerror',e=>errs.push(String(e).slice(0,120)));
+await p.goto(BASE,{waitUntil:'networkidle2',timeout:90000});
+await new Promise(r=>setTimeout(r,6000));
+await p.evaluate(()=>{const el=[...document.querySelectorAll('.d-nav-item')].find(e=>e.textContent.trim()==='客户列表');el&&el.click();});
+await new Promise(r=>setTimeout(r,12000));
+const info=await p.evaluate(()=>({rows:document.querySelectorAll('.pc-table tbody tr').length,pager:document.querySelector('.pc-pager-info')?.textContent?.trim(),first:[...(document.querySelectorAll('.pc-table tbody tr')[0]?.querySelectorAll('td')||[])].slice(0,4).map(t=>t.textContent.trim().slice(0,18)).join(' | ')}));
+console.log(BASE,'→',JSON.stringify(info),'errs:',errs.join(';')||'无');
+await b.disconnect();edge.kill();

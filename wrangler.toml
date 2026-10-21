@@ -2,6 +2,14 @@ name = "youpin-oa-proxy"
 main = "workers/oa-proxy.js"
 compatibility_date = "2024-09-23"
 
+# 每 30 分钟用固定会话请求一次后台首页，避免 OA 服务端会话因空闲过期
+[triggers]
+crons = ["*/30 * * * *"]
+
+# 免登录固定会话（部署时用 --var 注入，或用 wrangler secret put OA_FIXED_SID）
+[vars]
+OA_BASE = "https://oa.upingbio.com"
+
 # OA 会话存储。首次部署前先创建命名空间并填入下面的 id：
 #   npx wrangler kv namespace create OA_SESSIONS
 [[kv_namespaces]]

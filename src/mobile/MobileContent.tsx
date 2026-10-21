@@ -222,7 +222,7 @@ export function MobileMail() {
             </div>
             <div className="m-card-line">{m.tel}</div>
             <div className="m-file-actions">
-              <a className="m-mini-btn m-mini-blue" href={`tel:${(m.tel || '').replace(/[^\d+-]/g, '')}`}>
+              <a className="m-mini-btn m-mini-blue" href={`tel:${String(m.tel || '').replace(/[^\d+-]/g, '')}`}>
                 拨打
               </a>
               <a className="m-mini-btn m-mini-green" href={`mailto:${m.email || ''}`}>

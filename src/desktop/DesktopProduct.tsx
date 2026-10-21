@@ -239,6 +239,7 @@ export default function DesktopProduct() {
             onRowClick={setCur}
             loading={loading}
             pageSize={20}
+            totalText={total ? `已载入 ${list.length} / 共 ${total} 个` : undefined}
           />
         </div>
       </Panel>

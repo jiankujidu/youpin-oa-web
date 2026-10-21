@@ -23,9 +23,21 @@
  * 本地等价实现（无 Cloudflare 账号时可用）：scripts/oa-proxy-local.mjs
  */
 
-const OA_ORIGIN = 'https://oa.upingbio.cn';
+const DEFAULT_ORIGIN = 'https://oa.upingbio.com';
 
-/** 允许访问本 Worker 的源；'*' 表示任意（部署后建议收紧为你的 Pages 域名，如 ['https://oa1.jk93.qzz.io']） */
+/**
+ * 免登录固定会话：env.OA_FIXED_SID = 已登录的 PHPSESSID。
+ * 浏览器没有自带会话（或 KV 中查不到）时一律改用该会话转发，
+ * 于是「打开站点就是已登录的后台」，用户无需输入账号密码。
+ * 部署：npx wrangler deploy --var OA_FIXED_SID:xxxxxxxx
+ */
+function resolveSid(env, request, kvCookie) {
+  if (kvCookie !== null && kvCookie !== undefined) return kvCookie;
+  const fixed = (env && env.OA_FIXED_SID ? String(env.OA_FIXED_SID) : '').trim();
+  return fixed ? `PHPSESSID=${fixed}` : '';
+}
+
+/** 允许访问本 Worker 的源；'*' 表示任意（部署后建议收紧为你的 Pages 域名，如 ['https://web.jk93.qzz.io']） */
 const ALLOWED_ORIGINS = ['*'];
 
 /** OA 会话在 KV 里的过期时间（秒），与 OA 服务端会话时长保持一致即可 */
@@ -127,12 +139,24 @@ export default {
      * ★ 完整路径透传：pathname 原样拼到 OA_ORIGIN 之后，绝不增删前缀。
      *   这保证与前端 oaFetch() 的约定零偏差（/oa/... 与 /home/... 都能正确到达）。
      */
+    const OA_ORIGIN = (env && env.OA_BASE ? String(env.OA_BASE) : DEFAULT_ORIGIN).replace(/\/+$/, '');
+
+    if (url.pathname === '/__health') {
+      return json(
+        { ok: true, oaBase: OA_ORIGIN, fixedSid: !!(env && env.OA_FIXED_SID) },
+        200,
+        origin,
+      );
+    }
+
     let sid = request.headers.get('x-oa-session');
     let storedCookie = sid ? await env.OA_SESSIONS.get(sid) : null;
-    if (!sid || storedCookie === null) {
-      sid = crypto.randomUUID();
-      storedCookie = '';
-      await env.OA_SESSIONS.put(sid, '', { expirationTtl: SESSION_TTL });
+    // 免登录：无自带会话时改用固定会话（不要再建空会话，否则线上全部页面取不到数据）
+    const cookie = resolveSid(env, request, storedCookie);
+    if (!sid) {
+      sid = 'fixed';
+      storedCookie = cookie;
+      if (cookie) await env.OA_SESSIONS.put(sid, cookie, { expirationTtl: SESSION_TTL });
     }
 
     // 组装转发请求
@@ -142,7 +166,10 @@ export default {
     headers.delete('x-oa-session'); // 不下发到 OA
     headers.set('Referer', OA_ORIGIN + '/');
     headers.set('User-Agent', 'Mozilla/5.0 (YoupinOA-Web/1.0)');
-    if (storedCookie) headers.set('Cookie', storedCookie);
+    // 后端以此判定 ajax：缺失会回整页 HTML 而不是 JSON 列表
+    if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
+    headers.set('Accept-Encoding', 'identity');
+    if (cookie) headers.set('Cookie', cookie);
 
     let body;
     if (request.method === 'POST') {
@@ -169,8 +196,9 @@ export default {
       typeof upstream.headers.getSetCookie === 'function'
         ? upstream.headers.getSetCookie()
         : [upstream.headers.get('set-cookie')].filter(Boolean);
-    if (setCookies.length) {
-      const merged = mergeCookies(storedCookie, setCookies);
+    // 免登录固定会话不写回 KV（否则一次后端换 session 就会把整站打回未登录态）
+    if (setCookies.length && sid !== 'fixed') {
+      const merged = mergeCookies(storedCookie || '', setCookies);
       await env.OA_SESSIONS.put(sid, merged, { expirationTtl: SESSION_TTL });
     }
 
@@ -187,6 +215,8 @@ export default {
       'connection',
       'keep-alive',
       'content-length',
+      // Cloudflare fetch 已自动解压；回传上游的 content-encoding 会让浏览器二次解压失败
+      'content-encoding',
     ]);
     const out = new Headers();
     upstream.headers.forEach((v, k) => {
@@ -199,6 +229,29 @@ export default {
       statusText: upstream.statusText,
       headers: out,
     });
+  },
+
+  /**
+   * 定时保活：每 30 分钟用固定会话请求一次后台首页，
+   * 让 OA 服务端的会话不会因为长时间空闲被回收（见 wrangler.toml 的 crons 配置）。
+   */
+  async scheduled(controller, env) {
+    const fixed = (env && env.OA_FIXED_SID ? String(env.OA_FIXED_SID) : '').trim();
+    if (!fixed) return;
+    const OA_ORIGIN = (env && env.OA_BASE ? String(env.OA_BASE) : DEFAULT_ORIGIN).replace(/\/+$/, '');
+    try {
+      await fetch(OA_ORIGIN + '/home/index/index', {
+        headers: {
+          Cookie: `PHPSESSID=${fixed}`,
+          Referer: OA_ORIGIN + '/',
+          'User-Agent': 'Mozilla/5.0 (YoupinOA-Web/1.0)',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept-Encoding': 'identity',
+        },
+      });
+    } catch {
+      /* 保活失败不影响请求链路 */
+    }
   },
 };
 

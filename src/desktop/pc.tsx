@@ -134,6 +134,8 @@ export function DataTable<T>({
   page: pageProp,
   total: totalProp,
   onPageChange,
+  /** 自定义分页文案（如「已载入 100 / 共 1006 条」，用于逐页载入的超大列表） */
+  totalText,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -147,6 +149,7 @@ export function DataTable<T>({
   page?: number;
   total?: number;
   onPageChange?: (page: number) => void;
+  totalText?: string;
 }) {
   const [innerPage, setInnerPage] = useState(1);
   const server = typeof pageProp === 'number' && !!onPageChange;
@@ -211,7 +214,7 @@ export function DataTable<T>({
       {total > pageSize ? (
         <div className="pc-pager">
           <span className="pc-pager-info">
-            共 {total} 条 · 每页 {pageSize} 条 · 第 {cur}/{pages} 页
+            {totalText || `共 ${total} 条`} · 每页 {pageSize} 条 · 第 {cur}/{pages} 页
           </span>
           <span className="pc-pager-btns">
             <button className="pc-pg" disabled={cur <= 1} onClick={() => setPage(1)}>
@@ -230,7 +233,7 @@ export function DataTable<T>({
         </div>
       ) : total > 0 ? (
         <div className="pc-pager">
-          <span className="pc-pager-info">共 {total} 条</span>
+          <span className="pc-pager-info">{totalText || `共 ${total} 条`}</span>
         </div>
       ) : null}
     </div>

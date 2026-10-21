@@ -508,7 +508,20 @@ export function fetchMessages(): Promise<Message[]> {
 }
 
 export function fetchMails(keyword = ''): Promise<MailContact[]> {
-  if (!IS_DEMO_DATA) return oaList<MailContact>('/home/index/mail_list', { keywords: keyword });
+  if (!IS_DEMO_DATA) {
+    // 后端 id/mobile 是数字、且含 pwd/salt 等敏感字段：统一收敛成字符串并只留通讯录需要的列
+    return oaList<any>('/home/index/mail_list', { keywords: keyword, limit: 200 }).then((rows) =>
+      rows.map((r) => ({
+        id: String(r.id),
+        name: r.name || r.nickname || r.username || '—',
+        department: r.department || '',
+        position: r.position || '',
+        mobile: r.mobile ? String(r.mobile) : '',
+        tel: String(r.mobile ?? r.tel ?? ''),
+        email: r.email || '',
+      })),
+    );
+  }
   let list = S().mails;
   if (keyword) {
     const k = keyword.toLowerCase();

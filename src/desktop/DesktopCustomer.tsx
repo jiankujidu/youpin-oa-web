@@ -316,6 +316,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
             onRowClick={setCur}
             loading={loading}
             pageSize={20}
+            totalText={total ? `已载入 ${list.length} / 共 ${total} 家` : undefined}
           />
         </div>
       </Panel>

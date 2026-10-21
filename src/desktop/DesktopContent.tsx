@@ -400,7 +400,7 @@ export function DesktopMail() {
       render: (r) => (
         <span style={{ display: 'inline-flex', gap: 10 }}>
           {r.mobile || r.tel ? (
-            <a className="pc-link" href={`tel:${(r.mobile || r.tel || '').replace(/[^\d+-]/g, '')}`}>
+            <a className="pc-link" href={`tel:${String(r.mobile || r.tel || '').replace(/[^\d+-]/g, '')}`}>
               拨打
             </a>
           ) : null}

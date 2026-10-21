@@ -1,9 +1,14 @@
 node_modules/
 dist/
+dist-pages/
 .env.local
 .env.*.local
 verify-shots/
 *.log
+.tmp-*
+
+# 含会话 ID 的 Pages Functions 生成物（由 scripts/prepare-pages.mjs 生成）
+/functions/
 
 # Vite 构建期临时文件
 vite.config.ts.timestamp-*.mjs
