@@ -30,9 +30,20 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  // 桌面端习惯：Esc 关闭弹层
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
     <div className="d-mask" onClick={onClose}>
-      <div className="d-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="d-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
         <div className="d-modal-title">{title}</div>
         {children}
         {footer ? <div className="d-modal-btns">{footer}</div> : null}
@@ -52,8 +63,8 @@ export function Empty({ text = '暂无数据' }: { text?: string }) {
 /* ==================== 编辑表单（本地操作，不提交原站） ==================== */
 
 /**
- * 通用编辑弹窗：字段配置驱动，只写 localStorage（见 core/localOps.ts）。
- * title 会带「本地」角标，让用户明确这不会提交到 OA。
+ * 通用编辑弹窗：字段配置驱动。各页面 onSave 决定提交行为
+ * （已真实化的模块走原站接口，见 core/api.ts；未接入的模块仍落本地层）。
  */
 export function EditModal({
   title,
@@ -86,14 +97,11 @@ export function EditModal({
               onClose();
             }}
           >
-            保存（本地）
+            保存
           </button>
         </>
       }
     >
-      <div style={{ fontSize: 12, color: '#e8862a', background: '#fff7ec', border: '1px solid #ffd9a8', borderRadius: 6, padding: '7px 10px', marginBottom: 14 }}>
-        本地操作模式：改动仅保存在本机浏览器，不会提交到 oa.upingbio.com。
-      </div>
       {fields.map((f) => (
         <div key={f.key} style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 12.5, color: '#8a919f', marginBottom: 5 }}>{f.label}</div>

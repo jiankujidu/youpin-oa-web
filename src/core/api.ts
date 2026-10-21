@@ -958,6 +958,40 @@ export async function noteSave(input: { id?: string; title: string; content?: st
   return { ok: true, msg: '' };
 }
 
+/** 问答知识新增/编辑（原站 POST /article/index/listadd，带 id 即编辑） */
+export async function articleSave(input: { id?: string; title: string; content?: string }): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const payload: Record<string, string> = { title: input.title, content: input.content || '' };
+      if (input.id) payload.id = input.id;
+      const res = await oaPost('/article/index/listadd', payload);
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || `提交失败（HTTP ${res.status}）` };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
+/** 问答知识删除（原站 POST /article/index/listdelete {id}） */
+export async function articleDelete(id: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/article/index/listdelete', { id });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '删除失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
 /** 公告删除（原站 POST /note/index/delete {id}） */
 export async function noteDelete(id: string): Promise<ActionResult> {
   if (!IS_DEMO_DATA) {

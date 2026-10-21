@@ -1,6 +1,9 @@
 /** 桌面端内容类页面：公告 / 问答知识 / 消息中心 / 通讯录 — 统一 PC 后台表格版式 */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchArticles, fetchMails, fetchMessages, fetchNotes, messageCheck, noteDelete, noteSave } from '../core/api';
+import {
+  articleDelete, articleSave, fetchArticles, fetchMails, fetchMessages, fetchNotes,
+  messageCheck, noteDelete, noteSave,
+} from '../core/api';
 import { fixContentHtml } from '../core/fileurl';
 import { addLocal, deleteLocal, editLocal, mergeLocal } from '../core/localOps';
 import { localBadge, opsFields } from '../core/opsFields';
@@ -387,18 +390,25 @@ export function DesktopArticle() {
         </Modal>
       ) : null}
 
-      {/* 本地新增 / 编辑问答（不提交原站） */}
+      {/* 新增 / 编辑问答（原站 POST /article/index/listadd，带 id 即编辑） */}
       {editing ? (
         <EditModal
-          title={editing.id ? '编辑问答' : '新增问答'}
+          title={editing.id && !String(editing.id).startsWith('local-') ? '编辑问答' : '新增问答'}
           fields={opsFields('article') || []}
           value={editing}
-          onSave={(v) => {
-            if (editing.id) editLocal('article', { ...editing, ...v });
-            else addLocal('article', v);
+          onSave={async (v) => {
+            const isLocal = String(editing.id || '').startsWith('local-');
+            const res = await articleSave({
+              id: isLocal ? undefined : String(editing.id || ''),
+              title: String(v.title ?? editing.title ?? ''),
+              content: String((v as any).content ?? (editing as any).content ?? ''),
+            });
+            if (!res.ok) return toast(res.msg || '提交失败');
+            if (isLocal) editLocal('article', { ...editing, ...v });
             setLocalVer((n) => n + 1);
             setEditing(null);
-            toast('已保存到本地（未提交原站）');
+            toast(editing.id && !isLocal ? '已保存（原站已更新）' : '已新增（原站已同步）');
+            load();
           }}
           onClose={() => setEditing(null)}
         />
@@ -407,12 +417,14 @@ export function DesktopArticle() {
       {confirmDel ? (
         <ConfirmDialog
           title="删除确认"
-          text={`确认删除问答「${String(confirmDel.title || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
-          onOk={() => {
+          text={`确认删除问答「${String(confirmDel.title || confirmDel.id || '')}」？将同步删除 OA 原站的这条问答。`}
+          onOk={async () => {
+            const r = await articleDelete(String(confirmDel.id ?? ''));
+            if (!r.ok) return toast(r.msg || '删除失败');
             deleteLocal('article', String(confirmDel.id ?? ''));
             setCur(null);
             setLocalVer((n) => n + 1);
-            toast('已删除（本地生效，未提交原站）');
+            toast('已删除（原站已同步）');
           }}
           onClose={() => setConfirmDel(null)}
         />

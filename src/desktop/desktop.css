@@ -1566,3 +1566,50 @@
   color: #fff;
   box-shadow: none;
 }
+
+/* ============================================================================
+   桌面端交互与密度（桌面为主：键盘/鼠标友好、宽屏自适应、对话宽度）
+   ——手机端在 src/mobile/mobile.css 独立适配，两套布局互不妥协
+   ============================================================================ */
+
+/* ---------- 键盘可达：焦点环（仅键盘触发，鼠标点击不显示）---------- */
+.d-nav-item:focus-visible,
+.d-brand:focus-visible,
+.d-icon-btn:focus-visible,
+.d-user:focus-visible,
+.home-todo-item:focus-visible,
+.home-quick-item:focus-visible,
+.pc-btn:focus-visible,
+.pc-link:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 1px;
+  border-radius: var(--r-sm);
+}
+.pc-input:focus-visible,
+.pc-select:focus-visible {
+  outline: none;
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px rgba(30, 111, 255, 0.12);
+}
+.pc-table tbody tr:focus-visible { outline: 2px solid var(--c-primary); outline-offset: -2px; }
+
+/* ---------- 对话框：桌面尺寸（表单/详情弹层比手机弹窗宽）---------- */
+.d-modal {
+  max-width: 560px;
+  padding: 24px;
+}
+.d-modal-title { font-size: 16px; font-weight: 600; }
+.d-modal-btns { margin-top: 20px; gap: 10px; }
+
+/* ---------- 桌面断点自适应（769px 以上一律桌面布局）---------- */
+@media (min-width: 769px) and (max-width: 1280px) {
+  .d-sidebar { width: 208px; }
+  .d-wrap { padding: 16px 18px 24px; }
+  .home-grid { grid-template-columns: minmax(0, 1fr); }
+  .pc-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1600px) {
+  .d-wrap { padding: 24px 32px 32px; }
+  .home-quick { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .home-todo { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}

@@ -203,6 +203,21 @@ export default function DesktopApp({
     setPage('home');
   }, []);
 
+  /**
+   * 桌面端键盘可达性：菜单项可 Tab 聚焦，Enter / Space 激活
+   * （手机端无键盘，此能力只在桌面树提供）
+   */
+  const keyProps = (fn: () => void) => ({
+    role: 'button' as const,
+    tabIndex: 0,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        fn();
+      }
+    },
+  });
+
   /** 渲染单个菜单节点（可展开二级） */
   const renderNode = (node: MenuNode, depth = 0) => {
     if (node.children) {
@@ -214,6 +229,7 @@ export default function DesktopApp({
             className={`d-nav-item d-nav-parent${active ? ' on' : ''}`}
             onClick={() => setCollapsed((c) => ({ ...c, [node.label]: !c[node.label] }))}
             title={mini ? node.label : undefined}
+            {...keyProps(() => setCollapsed((c) => ({ ...c, [node.label]: !c[node.label] })))}
           >
             <span className="d-nav-ico">
               <Icon name={node.icon || 'grid'} size={17} />
@@ -231,6 +247,7 @@ export default function DesktopApp({
                     className={`d-nav-item d-nav-sub${page === c.key ? ' active' : ''}`}
                     onClick={() => setPage(c.key as string)}
                     title={mini ? c.label : undefined}
+                    {...keyProps(() => setPage(c.key as string))}
                   >
                     <span>{c.label}</span>
                   </div>
@@ -246,6 +263,7 @@ export default function DesktopApp({
         className={`d-nav-item${page === node.key ? ' active' : ''}`}
         onClick={() => setPage(node.key as string)}
         title={mini ? node.label : undefined}
+        {...keyProps(() => setPage(node.key as string))}
       >
         <span className="d-nav-ico">
           <Icon name={node.icon || 'grid'} size={17} />
@@ -255,6 +273,30 @@ export default function DesktopApp({
       </div>
     );
   };
+
+  /**
+   * 桌面端快捷键：`/` 聚焦当前页搜索框（在输入框内输入时不拦截）
+   * ——桌面端习惯（如 GitHub / Jira 的搜索快捷键），手机端不涉及
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+      if (typing) return;
+      const el =
+        document.querySelector<HTMLInputElement>('.pc-toolbar input.pc-input') ||
+        document.querySelector<HTMLInputElement>('.pc-toolbar input') ||
+        document.querySelector<HTMLInputElement>('.d-search input');
+      if (el) {
+        e.preventDefault();
+        el.focus();
+        el.select?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   /** 当前页面标题（用于内容区顶部标签条） */
   const pageTitle = (() => {
