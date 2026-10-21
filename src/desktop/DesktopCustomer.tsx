@@ -4,9 +4,11 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchCustomerPage } from '../core/api';
+import { addLocal, deleteLocal, editLocal, mergeLocal } from '../core/localOps';
+import { localBadge, opsFields } from '../core/opsFields';
 import type { Customer } from '../core/types';
 import { fmtTime, toast } from '../core/util';
-import { Modal } from './ui';
+import { ConfirmDialog, EditModal, Modal } from './ui';
 import { DataTable, FilterTabs, PageHead, Panel, StatusTag, type Column } from './pc';
 
 const TABS = [
@@ -23,9 +25,14 @@ const CRUMB: Record<number, string[]> = {
   3: ['客户管理', '废弃客户'],
 };
 
+/** 三种列表各自的本地操作存储 key（公海/废弃分开存） */
+const MODULE_OF: Record<1 | 2 | 3, string> = { 1: 'customer', 2: 'customer-sea', 3: 'customer-trash' };
+
 function gradeText(c: Customer): string {
   return c.grade_text || String((c as any).grade || '') || '—';
 }
+
+type Row = Record<string, any>;
 
 function statusTone(s?: string): 'ok' | 'no' | 'wait' | 'info' {
   if (!s) return 'info';
@@ -50,6 +57,12 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [cur, setCur] = useState<Customer | null>(null);
+  const [localVer, setLocalVer] = useState(0);
+  const [editing, setEditing] = useState<Row | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Row | null>(null);
+
+  const module = MODULE_OF[type];
+  const fields = opsFields(module);
 
   /** 逐页载入（后端共 1000+ 家，一次拉完会超时） */
   const load = useCallback((t: 1 | 2 | 3, kw: string, p: number, append: boolean) => {
@@ -92,6 +105,13 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     [list, grade, statusF, intentF, sourceF, industryF],
   );
 
+  /** OA 行 + 本地新增/编辑 合并（本地行置顶，便于查看操作结果） */
+  const displayRows = useMemo(
+    () => [...mergeLocal(module, []), ...rows] as unknown as Customer[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [module, rows, localVer],
+  );
+
   /** 筛选项取自真实数据的去重值（与原站下拉内容一致） */
   const opts = useMemo(
     () => ({
@@ -111,7 +131,16 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       key: 'name',
       title: '客户名称',
       width: 240,
-      render: (r) => <span className="pc-td-strong">{r.name}</span>,
+      render: (r) => (
+        <span className="pc-td-strong">
+          {r.name}
+          {(r as any)._local ? (
+            <span className="pc-tag-local" style={{ marginLeft: 6 }}>
+              {localBadge(r as any)}
+            </span>
+          ) : null}
+        </span>
+      ),
     },
     { key: 'user', title: '联系人', width: 90, render: (r) => (r as any).user || (r as any).contact_first || '—' },
     { key: 'mobile', title: '手机号码', width: 130, render: (r) => r.mobile || r.tel || '—' },
@@ -173,10 +202,22 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     {
       key: 'op',
       title: '操作',
-      width: 90,
+      width: 150,
       render: (r) => (
-        <span className="gg-xs blue" onClick={() => setCur(r)}>
-          详情
+        <span className="pc-ops">
+          <span className="gg-xs blue" onClick={() => setCur(r)}>
+            详情
+          </span>
+          {fields ? (
+            <>
+              <span className="gg-xs blue" onClick={() => setEditing(r)}>
+                编辑
+              </span>
+              <span className="gg-xs red" onClick={() => setConfirmDel(r)}>
+                删除
+              </span>
+            </>
+          ) : null}
         </span>
       ),
     },
@@ -245,6 +286,9 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
             >
               导出名单
             </button>
+            <button className="pc-btn" onClick={() => setEditing({ id: '' })}>
+              ＋ 新增客户
+            </button>
           </>
         }
       />
@@ -311,7 +355,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
         <div style={{ padding: '0 16px 12px' }}>
           <DataTable
             columns={cols}
-            rows={rows}
+            rows={displayRows}
             rowKey={(r) => String(r.id)}
             onRowClick={setCur}
             loading={loading}
@@ -339,6 +383,20 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
               >
                 复制电话
               </button>
+              {fields ? (
+                <>
+                  <button className="pc-btn" onClick={() => setEditing(cur)}>
+                    编辑
+                  </button>
+                  <button
+                    className="pc-btn"
+                    style={{ background: '#e4564f' }}
+                    onClick={() => setConfirmDel(cur)}
+                  >
+                    删除
+                  </button>
+                </>
+              ) : null}
             </>
           }
         >
@@ -358,6 +416,36 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
             </div>
           ) : null}
         </Modal>
+      ) : null}
+
+      {/* 本地新增 / 编辑客户（不提交原站） */}
+      {editing && fields ? (
+        <EditModal
+          title={editing.id ? '编辑客户' : '新增客户'}
+          fields={fields}
+          value={editing}
+          onSave={(v) => {
+            if (editing.id) editLocal(module, { ...editing, ...v });
+            else addLocal(module, v);
+            setLocalVer((n) => n + 1);
+            toast('已保存到本地（未提交原站）');
+          }}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {confirmDel ? (
+        <ConfirmDialog
+          title="删除确认"
+          text={`确认删除客户「${String(confirmDel.name || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
+          onOk={() => {
+            deleteLocal(module, String(confirmDel.id ?? ''));
+            setCur(null);
+            setLocalVer((n) => n + 1);
+            toast('已删除（本地生效，未提交原站）');
+          }}
+          onClose={() => setConfirmDel(null)}
+        />
       ) : null}
     </div>
   );

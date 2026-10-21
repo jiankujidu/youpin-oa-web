@@ -8,8 +8,10 @@ import {
   changePassword, fetchSubPage, getProfile, saveProfile, subPageTitle,
 } from '../core/api';
 import { cellText, dynamicColumns, FIELD_LABEL } from '../core/biz';
+import { addLocal, deleteLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
+import { localBadge, opsFields } from '../core/opsFields';
 import { fmtTime, toast } from '../core/util';
-import { Modal } from './ui';
+import { ConfirmDialog, EditModal, Modal } from './ui';
 import { PageHead, Panel, StatusTag, DataTable, type Column } from './pc';
 
 type Row = Record<string, any>;
@@ -31,6 +33,11 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
   const [detail, setDetail] = useState<Row | null>(null);
   const [q, setQ] = useState('');
   const [kw, setKw] = useState('');
+  const [localVer, setLocalVer] = useState(0);
+  const [editing, setEditing] = useState<Row | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Row | null>(null);
+
+  const fields = opsFields(pageKey);
 
   const load = useCallback(
     (p: number, k: string) => {
@@ -49,6 +56,22 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
   useEffect(() => {
     load(page, kw);
   }, [page, kw, load]);
+
+  /** OA 行 + 本地新增/编辑/删除 合并后渲染 */
+  const displayRows = useMemo(
+    () => mergeLocal(pageKey, rows),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pageKey, rows, localVer],
+  );
+
+  function saveRow(v: Row) {
+    if (editing) {
+      if (editing.id) editLocal(pageKey, { ...editing, ...v });
+      else addLocal(pageKey, v);
+      toast('已保存到本地（未提交原站）');
+    }
+    setLocalVer((n) => n + 1);
+  }
 
   const cols = useMemo<Column<Row>[]>(() => {
     const dyn = dynamicColumns(rows);
@@ -70,7 +93,16 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
           return v === '—' ? '—' : <StatusTag tone={statusTone(v)}>{v}</StatusTag>;
         }
         if (c.key === 'title' || c.key === 'name' || c.key === 'code') {
-          return <span className="pc-td-strong">{v}</span>;
+          return (
+            <span className="pc-td-strong">
+              {v}
+              {r._local ? (
+                <span className="pc-tag-local" style={{ marginLeft: 6 }}>
+                  {localBadge(r)}
+                </span>
+              ) : null}
+            </span>
+          );
         }
         if (/time$/.test(c.key) && /^\d{4}-\d{2}-\d{2}/.test(v)) return fmtTime(v);
         return v;
@@ -79,15 +111,27 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
     list.push({
       key: 'op',
       title: '操作',
-      width: 80,
-      render: () => (
+      width: 150,
+      render: (r) => (
         <span className="pc-ops">
-          <span className="gg-xs blue">详情</span>
+          <span className="gg-xs blue" onClick={() => setDetail(r)}>
+            详情
+          </span>
+          {fields ? (
+            <>
+              <span className="gg-xs blue" onClick={() => setEditing(r)}>
+                编辑
+              </span>
+              <span className="gg-xs red" onClick={() => setConfirmDel(r)}>
+                删除
+              </span>
+            </>
+          ) : null}
         </span>
       ),
     });
     return list;
-  }, [rows]);
+  }, [rows, fields]);
 
   const detailPairs = useMemo<[string, string][]>(() => {
     if (!detail) return [];
@@ -106,11 +150,18 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
       <PageHead
         title={subPageTitle(pageKey)}
         crumb={['业务', subPageTitle(pageKey)]}
-        desc={`共 ${total} 条记录 · 数据实时取自 oa.upingbio.com`}
+        desc={`共 ${total} 条记录 · 数据实时取自 oa.upingbio.com${localAdded(pageKey).length ? ` · 本地新增 ${localAdded(pageKey).length} 条` : ''}`}
         actions={
-          <button className="pc-btn pc-btn-ghost" onClick={() => load(page, kw)}>
-            刷新
-          </button>
+          <>
+            <button className="pc-btn pc-btn-ghost" onClick={() => load(page, kw)}>
+              刷新
+            </button>
+            {fields ? (
+              <button className="pc-btn" onClick={() => setEditing({ id: '' })}>
+                ＋ 新增
+              </button>
+            ) : null}
+          </>
         }
       />
 
@@ -147,7 +198,7 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
         <div style={{ padding: '0 16px 12px' }}>
           <DataTable
             columns={cols}
-            rows={rows}
+            rows={displayRows}
             rowKey={(r, i) => String(r.id ?? i)}
             onRowClick={setDetail}
             pageSize={PAGE_SIZE}
@@ -165,9 +216,25 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
           title="记录详情"
           onClose={() => setDetail(null)}
           footer={
-            <button className="pc-btn" onClick={() => setDetail(null)}>
-              关闭
-            </button>
+            <>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setDetail(null)}>
+                关闭
+              </button>
+              {fields && detail.id ? (
+                <>
+                  <button className="pc-btn" onClick={() => setEditing(detail)}>
+                    编辑
+                  </button>
+                  <button
+                    className="pc-btn"
+                    style={{ background: '#e4564f' }}
+                    onClick={() => setConfirmDel(detail)}
+                  >
+                    删除
+                  </button>
+                </>
+              ) : null}
+            </>
           }
         >
           <dl className="pc-kv">
@@ -186,6 +253,32 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
             )}
           </dl>
         </Modal>
+      ) : null}
+
+      {/* 本地新增 / 编辑（不提交原站） */}
+      {editing && fields ? (
+        <EditModal
+          title={editing.id ? `编辑记录 · ${subPageTitle(pageKey)}` : `新增记录 · ${subPageTitle(pageKey)}`}
+          fields={fields}
+          value={editing}
+          onSave={(v) => saveRow(v)}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {/* 删除确认（仅本地生效） */}
+      {confirmDel ? (
+        <ConfirmDialog
+          title="删除确认"
+          text={`确认删除「${String(confirmDel.title || confirmDel.name || confirmDel.id || '该记录')}」？删除只在本机生效，OA 原站数据不受影响。`}
+          onOk={() => {
+            deleteLocal(pageKey, String(confirmDel.id ?? ''));
+            setDetail(null);
+            setLocalVer((n) => n + 1);
+            toast('已删除（本地生效，未提交原站）');
+          }}
+          onClose={() => setConfirmDel(null)}
+        />
       ) : null}
     </div>
   );

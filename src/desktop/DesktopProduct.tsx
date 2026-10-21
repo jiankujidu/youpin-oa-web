@@ -127,7 +127,7 @@ export default function DesktopProduct() {
     { key: 'tag', title: 'Tag', width: 100, render: (r) => (r as any).tag || '—' },
     { key: 'expr', title: '表达系统', width: 130, render: (r) => (r as any).expression_system || '—' },
     { key: 'dl', title: '下载量', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
-    { key: 'time', title: '更新时间', width: 150, render: (r) => fmtTime(r.create_time) },
+    { key: 'time', title: '更新时间', width: 150, render: (r) => fmtTime((r as any).update_time || (r as any).create_time) },
     {
       key: 'op',
       title: '操作',
@@ -284,9 +284,8 @@ export default function DesktopProduct() {
                 ['浓度', cur.concentration],
                 ['关键词', cur.keywords],
                 ['下载数', String(cur.down_load_num ?? 0)],
-                ['更新时间', fmtTime(cur.create_time)],
-              ] as [string, string | undefined][]
-            )
+                ['更新时间', fmtTime((cur as any).update_time || (cur as any).create_time)],
+              ] as [string, string | undefined][])
               .filter(([, v]) => v !== undefined && v !== null && v !== '')
               .map(([k, v]) => (
                 <div key={k} style={{ display: 'contents' }}>

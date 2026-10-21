@@ -82,7 +82,7 @@ export default function MobileProduct() {
           <div className="m-dh-title">{plain(detail.title)}</div>
           <div className="m-dh-sub">
             {detail.cate_title ? <span className="m-tag m-tag-pass">{detail.cate_title}</span> : null}
-            {fmtTime(detail.create_time)}
+            {fmtTime((detail as any).update_time || detail.create_time)}
           </div>
         </div>
 

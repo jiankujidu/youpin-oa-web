@@ -590,29 +590,16 @@ export interface ActionResult {
 
 /**
  * 审批通过 / 拒绝。
- * - 真实模式：POST /oa/approve/check（后端 status：1通过 2拒绝），成功后本地同步状态。
- * - 演示模式：本地持久化生效（列表与筛选立即反映，刷新不丢）。
+ * ★ 本地模式（应「不要用账号提交」要求）：仅本地持久化决定，绝不 POST 原站；
+ * 列表状态 / 筛选 / 刷新后均按本地结果呈现。
  */
 export async function applyApproveDecision(
   id: string,
   pass: boolean,
   remark: string,
 ): Promise<ActionResult> {
-  if (!IS_DEMO_DATA) {
-    try {
-      const res = await oaPost('/oa/approve/check', { id, status: pass ? '1' : '2', remark });
-      const data = (await res.json().catch(() => null)) as any;
-      if (res.ok && data && data.code === 0) {
-        persistDecision(id, pass, remark);
-        return { ok: true, msg: '' };
-      }
-      return { ok: false, msg: (data && data.msg) || `提交失败（HTTP ${res.status}）` };
-    } catch (e) {
-      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
-    }
-  }
   persistDecision(id, pass, remark);
-  return { ok: true, msg: '' };
+  return { ok: true, msg: '本地操作：已记录（未提交原站）' };
 }
 
 export function getApproveStatus(item: ApproveItem): 0 | 1 | 2 | 3 {
@@ -626,29 +613,14 @@ export function getApproveRemark(item: ApproveItem): string {
 
 /**
  * 发起审批。
- * - 真实模式：POST /oa/approve/add（该接口按原 APP 约定不带 XHR 头）
- * - 演示模式：本地落库为「待审批」，随即出现在审批列表并可被通过 / 拒绝。
+ * ★ 本地模式（应「不要用账号提交」要求）：始终本地落库为「待审批」，绝不 POST 原站。
+ * 记录带 _local 标记，列表顶部出现并可被本地通过 / 拒绝。
  */
 export async function createApprove(input: {
   typeName: string;
   title: string;
   content?: string;
 }): Promise<ActionResult> {
-  if (!IS_DEMO_DATA) {
-    try {
-      const res = await oaPost(
-        '/oa/approve/add',
-        { type_name: input.typeName, title: input.title, content: input.content || '' },
-        false,
-      );
-      const data = (await res.json().catch(() => null)) as any;
-      return res.ok && data && data.code === 0
-        ? { ok: true, msg: '' }
-        : { ok: false, msg: (data && data.msg) || '提交失败' };
-    } catch (e) {
-      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
-    }
-  }
   const now = new Date();
   const p = (n: number) => (n < 10 ? '0' + n : '' + n);
   const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
@@ -668,7 +640,7 @@ export async function createApprove(input: {
     ],
   };
   writeJson(K_APPROVE_LOCAL, [item, ...readLocalApproves()]);
-  return { ok: true, msg: '' };
+  return { ok: true, msg: '已本地创建（未提交原站）' };
 }
 
 /** 当前登录人显示名（发起审批 / 新增客户时作为申请人） */
@@ -730,27 +702,10 @@ export interface CustomerInput {
 
 /**
  * 新增客户。
- * - 真实模式：POST /customer/index/add（后端返回 id 后回填）。
- * - 演示模式：本地落库，立即出现在客户列表（刷新不丢）。
+ * ★ 本地模式（应「不要用账号提交」要求）：始终本地落库，绝不 POST 原站。
+ * 记录立即出现在客户列表（刷新不丢）。
  */
 export async function createCustomer(input: CustomerInput): Promise<ActionResult> {
-  if (!IS_DEMO_DATA) {
-    try {
-      const res = await oaPost('/customer/index/add', {
-        name: input.name,
-        contact: input.contact || '',
-        tel: input.tel || '',
-        source: input.source || '',
-        address: input.address || '',
-        remark: input.remark || '',
-      });
-      const data = (await res.json().catch(() => null)) as any;
-      if (res.ok && data && data.code === 0) return { ok: true, msg: '' };
-      return { ok: false, msg: (data && data.msg) || `提交失败（HTTP ${res.status}）` };
-    } catch (e) {
-      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
-    }
-  }
   const now = new Date();
   const p = (n: number) => (n < 10 ? '0' + n : '' + n);
   const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
@@ -772,22 +727,11 @@ export async function createCustomer(input: CustomerInput): Promise<ActionResult
     remark: input.remark || '',
   };
   writeJson(K_CUSTOMER_LOCAL, [item, ...readLocalCustomers()]);
-  return { ok: true, msg: '' };
+  return { ok: true, msg: '已本地创建（未提交原站）' };
 }
 
-/** 客户转公海（真实模式 POST /customer/index/to_sea；演示模式本地标记） */
+/** 客户转公海（★ 本地模式：仅本机标记，绝不 POST 原站） */
 export async function customerToSea(id: string): Promise<ActionResult> {
-  if (!IS_DEMO_DATA) {
-    try {
-      const res = await oaPost('/customer/index/to_sea', { id });
-      const data = (await res.json().catch(() => null)) as any;
-      return res.ok && data && data.code === 0
-        ? { ok: true, msg: '' }
-        : { ok: false, msg: (data && data.msg) || '操作失败' };
-    } catch (e) {
-      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
-    }
-  }
   const list = readLocalCustomers();
   const hit = list.find((c) => c.id === id);
   if (hit) {
@@ -795,7 +739,7 @@ export async function customerToSea(id: string): Promise<ActionResult> {
     hit.grade_text = '沉睡客户';
     writeJson(K_CUSTOMER_LOCAL, list);
   }
-  return { ok: true, msg: '' };
+  return { ok: true, msg: '已本地转公海（未提交原站）' };
 }
 
 /* ======================= 个人资料 / 修改密码 ======================= */
@@ -812,45 +756,15 @@ export function getProfile(): Profile {
   return readJson<Profile>(K_PROFILE, {});
 }
 
-/** 保存基本资料（真实模式 POST /home/index/edit_personal） */
+/** 保存基本资料（★ 本地模式：仅存本机，绝不 POST 原站） */
 export async function saveProfile(p: Profile): Promise<ActionResult> {
   writeJson(K_PROFILE, p);
-  if (!IS_DEMO_DATA) {
-    try {
-      const res = await oaPost('/home/index/edit_personal', {
-        nickname: p.nickname || '',
-        mobile: p.mobile || '',
-        email: p.email || '',
-      });
-      const data = (await res.json().catch(() => null)) as any;
-      return res.ok && data && data.code === 0
-        ? { ok: true, msg: '' }
-        : { ok: false, msg: (data && data.msg) || '保存失败' };
-    } catch (e) {
-      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
-    }
-  }
-  return { ok: true, msg: '' };
+  return { ok: true, msg: '已保存到本机（未提交原站）' };
 }
 
-/** 修改密码（真实模式 POST /home/index/edit_password；演示模式仅本地校验） */
+/** 修改密码（★ 本地模式：仅本地校验并记录，绝不 POST 原站） */
 export async function changePassword(oldPwd: string, newPwd: string): Promise<ActionResult> {
   if (newPwd.length < 6) return { ok: false, msg: '新密码至少 6 位' };
   if (oldPwd === newPwd) return { ok: false, msg: '新密码不能与旧密码相同' };
-  if (!IS_DEMO_DATA) {
-    try {
-      const res = await oaPost('/home/index/edit_password', {
-        old_password: oldPwd,
-        password: newPwd,
-        re_password: newPwd,
-      });
-      const data = (await res.json().catch(() => null)) as any;
-      return res.ok && data && data.code === 0
-        ? { ok: true, msg: '' }
-        : { ok: false, msg: (data && data.msg) || '修改失败' };
-    } catch (e) {
-      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
-    }
-  }
-  return { ok: true, msg: '演示模式：密码已在本地校验通过（接后端后将真实修改）' };
+  return { ok: true, msg: '已记录到本机（未提交原站）' };
 }
