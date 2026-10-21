@@ -16,10 +16,11 @@ import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
 /** 价格明细展示行 */
 type PriceLine = { spec: string; price: string };
 
-/** 去掉规格串里的「规格」字样与首尾分隔符，控制长度 */
+/** 去掉规格串里的「规格」字样，收敛连续分隔符，控制长度 */
 function cleanSpec(raw: string): string {
   const c = raw
     .replace(/规格/g, '')
+    .replace(/[\s:：\-]{2,}/g, '：')
     .replace(/^[\s:：\-]+|[\s:：\-]+$/g, '')
     .slice(0, 12);
   return c || '规格';
@@ -37,7 +38,16 @@ function priceLines(s?: string): PriceLine[] {
   const out: PriceLine[] = [];
   for (const seg of segs) {
     const m = /^([\u4e00-\u9fa5A-Za-z0-9.+\- :：]{0,14}?)[-:：]?\s*(?:目录价|经销价)?\s*[:：]?\s*([\d.]+)\s*元?$/.exec(seg);
-    if (m && /\d/.test(m[2])) out.push({ spec: cleanSpec(m[1]), price: m[2] });
+    // 规格段为空且不带「元」的纯数字（格式 C 的价格位）不在此解析，走下面的配对逻辑
+    if (m && /\d/.test(m[2]) && (m[1] || /元/.test(seg))) {
+      let spec = cleanSpec(m[1]);
+      if (spec === '规格') {
+        // 首部被「目录价/经销价」吃掉时用价格类型词兜底，如「经销价 ¥2000」
+        const t = /(目录价|经销价|单价)/.exec(seg);
+        if (t) spec = t[1];
+      }
+      out.push({ spec, price: m[2] });
+    }
   }
   if (out.length) return out;
   const pairs: PriceLine[] = [];
