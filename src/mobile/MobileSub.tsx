@@ -30,10 +30,15 @@ export function MobileSub({ pageKey }: { pageKey: string }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetchSubRows(pageKey).then((r) => {
-      setRows(r);
-      setLoading(false);
-    });
+    fetchSubRows(pageKey)
+      .then((r) => {
+        setRows(r);
+        setLoading(false);
+      })
+      .catch(() => {
+        setRows([]);
+        setLoading(false);
+      });
   }, [pageKey]);
 
   useEffect(() => {
