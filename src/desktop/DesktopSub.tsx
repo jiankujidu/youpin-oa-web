@@ -28,18 +28,26 @@ function statusTone(v: string): 'ok' | 'no' | 'wait' | 'info' {
 /** 依字段语义给列宽（table-layout:fixed 下严格生效；总和超视口出横向滚动） */
 function colWidth(k: string, t: string): number {
   const s = k + t;
-  if (/remark|content|desc|direction|inquiry/.test(k)) return 200;
-  if (/code|单号|编号|快递|物流/.test(s)) return 130;
-  if (/title|name|名称|标题|客户/.test(s)) return 200;
-  if (/amount|money|金额|价|额|费/.test(s)) return 100;
-  if (/time|date|时间|日期/.test(s)) return 145;
-  if (/status|状态/.test(s)) return 96;
-  if (/mobile|phone|tel|手机|电话/.test(s)) return 125;
-  return 120;
+  if (/remark|content|desc|direction|inquiry/.test(k)) return 170;
+  if (/code|单号|编号|快递|物流/.test(s)) return 118;
+  if (/title|name|名称|标题|客户/.test(s)) return 190;
+  if (/amount|money|金额|价|额|费/.test(s)) return 94;
+  if (/time|date|时间|日期/.test(s)) return 130;
+  if (/status|状态/.test(s)) return 88;
+  if (/mobile|phone|tel|手机|电话/.test(s)) return 112;
+  return 108;
 }
 
 /** 行操作「更多」下拉：自管理开合，点外面 / 移出即关 */
-function OpsMore({ actions, onPick }: { actions: OpAction[]; onPick: (a: OpAction) => void }) {
+export function OpsMore({
+  actions,
+  onPick,
+  extra,
+}: {
+  actions: OpAction[];
+  onPick: (a: OpAction) => void;
+  extra?: { key: string; label: string; tone?: 'ghost' | 'red'; onPick: () => void }[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <span className="pc-ops-menu-wrap">
@@ -61,6 +69,19 @@ function OpsMore({ actions, onPick }: { actions: OpAction[]; onPick: (a: OpActio
                 }}
               >
                 {a.label}
+              </span>
+            ))}
+            {extra?.map((x) => (
+              <span
+                key={x.key}
+                className="pc-ops-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  x.onPick();
+                }}
+              >
+                {x.label}
               </span>
             ))}
           </span>
@@ -184,90 +205,102 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
           return shown === '—' ? '—' : <StatusTag tone={statusTone(shown)}>{shown}</StatusTag>;
         }
         if (c.key === 'title' || c.key === 'name' || c.key === 'code') {
+          // 主标识列单行省略 + 徽标同行（列多时不允许 2 行，否则行高翻倍）
           return (
-            <span className="pc-td-strong pc-cell-2" title={v}>
-              {v}
-              {r._local ? (
-                <span className="pc-tag-local" style={{ marginLeft: 6 }}>
-                  {localBadge(r)}
-                </span>
-              ) : null}
+            <span className="pc-name-cell">
+              <span className="pc-td-strong pc-cell-1" title={v}>
+                {v}
+              </span>
+              {r._local ? <span className="pc-tag-local">{localBadge(r)}</span> : null}
             </span>
           );
         }
         if (/time$/.test(c.key) && /^\d{4}-\d{2}-\d{2}/.test(v)) {
           return (
-            <span className="pc-cell-1" style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>
+            <span className="pc-cell-1" title={v} style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>
               {fmtTime(v) || v}
             </span>
           );
         }
-        // 关键列（名称/单号/内容/客户）最多 2 行，其余单行省略——扫读优先
-        const long = /title|name|code|remark|content|desc|customer|inquiry|direction/.test(c.key);
+        // 其余列一律单行省略（悬停看全文 / 点开详情），保证行高一致、首屏看更多行
         return (
-          <span className={long ? 'pc-cell-2' : 'pc-cell-1'} title={v}>
+          <span className="pc-cell-1" title={v}>
             {v}
           </span>
         );
       },
     }));
+    /* 操作列：固定宽度（不参与列宽归一化），列多时全部动作收进「更多 ▾」，
+       避免 chip 换行把行高撑到 100px+ —— 这是行高密度治理的关键。 */
+    const inlineN = base.length <= 6 ? 1 : 0;
+    const opW = 78 + inlineN * 64 + (actions.length > inlineN || fields ? 66 : 0);
+    const pick = (r: Row, a: OpAction) => {
+      if (a.fields?.length) setActing({ row: r, action: a });
+      else runAction(r, a);
+    };
     list.push({
       key: 'op',
       title: '操作',
-      width: actions.length > 3 ? 380 : 150 + actions.length * 76,
-      render: (r) => (
-        <span className="pc-ops">
-          <span className="gg-xs blue" onClick={() => setDetail(r)}>
-            详情
-          </span>
-          {actions.slice(0, 2).map((a) => (
-            <span
-              key={a.key}
-              className={`gg-xs ${a.tone || 'blue'}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (a.fields?.length) setActing({ row: r, action: a });
-                else runAction(r, a);
-              }}
-            >
-              {a.label}
+      width: opW,
+      fixed: true,
+      render: (r) => {
+        const more: OpAction[] = actions.slice(inlineN).map((a) => ({ ...a }));
+        return (
+          <span className="pc-ops">
+            <span className="gg-xs blue" onClick={() => setDetail(r)}>
+              详情
             </span>
-          ))}
-          {actions.length > 3 ? (
-            <OpsMore
-              actions={actions.slice(2)}
-              onPick={(a) => {
-                if (a.fields?.length) setActing({ row: r, action: a });
-                else runAction(r, a);
-              }}
-            />
-          ) : (
-            actions.slice(2).map((a) => (
+            {actions.slice(0, inlineN).map((a) => (
               <span
                 key={a.key}
                 className={`gg-xs ${a.tone || 'blue'}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (a.fields?.length) setActing({ row: r, action: a });
-                  else runAction(r, a);
+                  pick(r, a);
                 }}
               >
                 {a.label}
               </span>
-            ))
-          )}
-          {fields ? (
-            <>
-              <span className="gg-xs blue" onClick={() => setEditing(r)}>
-                编辑
-              </span>
-              <span className="gg-xs red" onClick={() => setConfirmDel(r)}>
-                删除
-              </span>
-            </>
-          ) : null}
-        </span>
-      ),
+            ))}
+            {fields && inlineN > 0 ? (
+              <>
+                <span
+                  className="gg-xs blue"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing(r);
+                  }}
+                >
+                  编辑
+                </span>
+                <span
+                  className="gg-xs red"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDel(r);
+                  }}
+                >
+                  删除
+                </span>
+              </>
+            ) : null}
+            {more.length || (fields && inlineN === 0) ? (
+              <OpsMore
+                actions={more}
+                extra={
+                  fields && inlineN === 0
+                    ? [
+                        { key: '__edit', label: '编辑', tone: 'ghost' as const, onPick: () => setEditing(r) },
+                        { key: '__del', label: '删除', tone: 'red' as const, onPick: () => setConfirmDel(r) },
+                      ]
+                    : undefined
+                }
+                onPick={(a) => pick(r, a)}
+              />
+            ) : null}
+          </span>
+        );
+      },
     });
     return list;
   }, [rows, fields, actions]);

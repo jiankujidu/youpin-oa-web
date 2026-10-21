@@ -54,13 +54,11 @@ export function DesktopNote() {
       key: 'title',
       title: '公告标题',
       render: (r) => (
-        <span className="pc-td-strong">
-          {r.title}
-          {(r as any)._local ? (
-            <span className="pc-tag-local" style={{ marginLeft: 6 }}>
-              {localBadge(r as any)}
-            </span>
-          ) : null}
+        <span className="pc-name-cell">
+          <span className="pc-td-strong pc-cell-1" title={r.title}>
+            {r.title}
+          </span>
+          {(r as any)._local ? <span className="pc-tag-local">{localBadge(r as any)}</span> : null}
         </span>
       ),
     },
@@ -72,6 +70,7 @@ export function DesktopNote() {
       key: 'op',
       title: '操作',
       width: 170,
+      fixed: true,
       render: (r) => (
         <span className="pc-ops">
           <span className="gg-xs blue" onClick={() => setCur(r)}>
@@ -248,16 +247,17 @@ export function DesktopArticle() {
       key: 'title',
       title: '问题',
       width: 320,
-      render: (r) => (
-        <span className="pc-td-strong">
-          {plain(r.title).replace(/\n+/g, ' ').slice(0, 80)}
-          {(r as any)._local ? (
-            <span className="pc-tag-local" style={{ marginLeft: 6 }}>
-              {localBadge(r as any)}
+      render: (r) => {
+        const t = plain(r.title).replace(/\n+/g, ' ');
+        return (
+          <span className="pc-name-cell">
+            <span className="pc-td-strong pc-cell-1" title={t}>
+              {t.slice(0, 80)}
             </span>
-          ) : null}
-        </span>
-      ),
+            {(r as any)._local ? <span className="pc-tag-local">{localBadge(r as any)}</span> : null}
+          </span>
+        );
+      },
     },
     { key: 'cate', title: '分类', width: 130, render: (r) => <StatusTag tone="ok">{r.cate_title || '—'}</StatusTag> },
     { key: 'desc', title: '回答', width: 320, render: (r) => plain(r.desc || '').slice(0, 60) || '—' },
@@ -269,6 +269,7 @@ export function DesktopArticle() {
       key: 'op',
       title: '操作',
       width: 170,
+      fixed: true,
       render: (r) => (
         <span className="pc-ops">
           <span className="gg-xs blue" onClick={() => setCur(r)}>
@@ -494,7 +495,11 @@ export function DesktopMessage() {
       key: 'title',
       title: '消息内容',
       render: (r) => (
-        <span className={r.read_time ? 'pc-td-strong' : 'pc-td-strong'} style={r.read_time ? undefined : { color: 'var(--c-primary)' }}>
+        <span
+          className="pc-td-strong pc-cell-1"
+          title={r.title}
+          style={r.read_time ? undefined : { color: 'var(--c-primary)' }}
+        >
           {!r.read_time ? '• ' : ''}
           {r.title}
         </span>
@@ -625,7 +630,16 @@ export function DesktopMail() {
   useEffect(() => load(query), [query, load]);
 
   const cols: Column<MailContact>[] = [
-    { key: 'name', title: '姓名', width: 120, render: (r) => <span className="pc-td-strong">{r.name}</span> },
+    {
+      key: 'name',
+      title: '姓名',
+      width: 120,
+      render: (r) => (
+        <span className="pc-td-strong pc-cell-1" title={r.name}>
+          {r.name}
+        </span>
+      ),
+    },
     { key: 'dept', title: '部门', width: 180, render: (r) => r.department || '—' },
     { key: 'pos', title: '职位', width: 160, render: (r) => r.position || '—' },
     { key: 'mobile', title: '手机', width: 140, render: (r) => r.mobile || r.tel || '—' },
@@ -634,6 +648,7 @@ export function DesktopMail() {
       key: 'op',
       title: '操作',
       width: 140,
+      fixed: true,
       render: (r) => (
         <span style={{ display: 'inline-flex', gap: 10 }}>
           {r.mobile || r.tel ? (

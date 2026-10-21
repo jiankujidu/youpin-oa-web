@@ -209,6 +209,7 @@ export default function DesktopApprove() {
       key: 'op',
       title: '操作',
       width: 230,
+      fixed: true,
       render: (r) => {
         const s = statusOf(r);
         return (

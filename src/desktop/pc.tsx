@@ -2,7 +2,7 @@
  * 桌面端（PC 后台）通用组件 — 勾股OA 风格的后台版式件
  * 表格 / 分页 / 筛选 Tab / 工具栏 / 统计卡 / 状态徽章 / 页面头
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export interface Column<T> {
   key: string;
@@ -12,6 +12,8 @@ export interface Column<T> {
   render: (row: T, index: number) => React.ReactNode;
   /** 自定义表头（如全选框） */
   head?: React.ReactNode;
+  /** 固定宽列：不参与「按容器归一化」，始终按 width(px) 渲染（操作列用，避免按钮换行撑高行） */
+  fixed?: boolean;
 }
 
 /** 页面头：面包屑 + 标题 + 右侧操作区 */
@@ -154,6 +156,64 @@ export function DataTable<T>({
   totalText?: string;
 }) {
   const [innerPage, setInnerPage] = useState(1);
+
+  /* ---- 自适应列宽：把各列声明的 px 宽度按容器实际宽度归一化，
+         保证表格永远 100% 铺满容器（不再出现大幅横向滚动）。 ---- */
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [avail, setAvail] = useState(0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => setAvail(el.clientWidth);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const IDX_W = 46; // 序号列
+  const AUTO_MIN = 120; // 未声明宽度列的保底宽度
+  const MIN_COL = 44; // 缩放后的最小可读列宽
+  const widths = useMemo(() => {
+    const px0 = (w: number | string | undefined) =>
+      typeof w === 'number' ? w : typeof w === 'string' && /^\d+(\.\d+)?px$/.test(w) ? parseFloat(w) : 0;
+    // 固定宽列（操作列）：原样保留，不参与归一化
+    const reserved = columns.reduce((s, c) => (c.fixed ? s + (px0(c.width) || MIN_COL) : s), 0);
+    const flexIdx: number[] = [];
+    const flexRaw: number[] = [];
+    if (indexCol) { flexIdx.push(-1); flexRaw.push(IDX_W); }
+    columns.forEach((c, i) => {
+      if (c.fixed) return;
+      flexIdx.push(i);
+      flexRaw.push(px0(c.width) || AUTO_MIN);
+    });
+    const flexTotal = flexRaw.reduce((s, w) => s + w, 0);
+    const pool = Math.max(120, (avail || flexTotal + reserved) - reserved);
+    let px = flexRaw.map((w) => (w * pool) / flexTotal);
+    // 兜底：任何列都不得窄于 MIN_COL，缺口由宽列按比例让出（迭代收敛）
+    for (let it = 0; it < 6; it++) {
+      const deficit = px.reduce((s, p) => s + Math.max(0, MIN_COL - p), 0);
+      if (deficit <= 0.5) break;
+      const flexSum = px.reduce((s, p) => (p > MIN_COL ? s + p : s), 0);
+      if (flexSum - deficit <= 0) break;
+      const k = (flexSum - deficit) / flexSum;
+      px = px.map((p) => (p > MIN_COL ? p * k : MIN_COL));
+    }
+    // 映射回完整列序
+    const out: number[] = new Array(columns.length + (indexCol ? 1 : 0)).fill(MIN_COL);
+    flexIdx.forEach((ci, k) => {
+      out[ci + (indexCol ? 1 : 0)] = px[k];
+    });
+    columns.forEach((c, i) => {
+      if (c.fixed) out[i + (indexCol ? 1 : 0)] = px0(c.width) || MIN_COL;
+    });
+    const sum = out.reduce((s, w) => s + w, 0);
+    return { px: out, pct: avail ? out.map((p) => ((p / sum) * 100).toFixed(4) + '%') : null as string[] | null };
+  }, [columns, indexCol, avail]);
+  const colStyle = (i: number) =>
+    widths.pct ? { width: widths.pct[i] } : { width: widths.px[i] + 'px' };
+
   const server = typeof pageProp === 'number' && !!onPageChange;
   const setPage = (p: number) => (server ? onPageChange!(p) : setInnerPage(p));
   const page = server ? pageProp : innerPage;
@@ -163,12 +223,12 @@ export function DataTable<T>({
   const slice = server ? rows : rows.slice((cur - 1) * pageSize, cur * pageSize);
 
   return (
-    <div className="pc-table-wrap">
+    <div className="pc-table-wrap" ref={wrapRef}>
       <table className="pc-table">
         <colgroup>
-          {indexCol ? <col style={{ width: 56 }} /> : null}
-          {columns.map((c) => (
-            <col key={c.key} style={{ width: typeof c.width === 'number' ? c.width + 'px' : c.width }} />
+          {indexCol ? <col style={colStyle(0)} /> : null}
+          {columns.map((c, i) => (
+            <col key={c.key} style={colStyle(i + (indexCol ? 1 : 0))} />
           ))}
         </colgroup>
         <thead>
@@ -202,11 +262,24 @@ export function DataTable<T>({
                 style={onRowClick ? { cursor: 'pointer' } : undefined}
               >
                 {indexCol ? <td className="pc-col-idx">{(cur - 1) * pageSize + i + 1}</td> : null}
-                {columns.map((c) => (
-                  <td key={c.key} style={{ textAlign: c.align || 'left' }}>
-                    {c.render(r, (cur - 1) * pageSize + i)}
-                  </td>
-                ))}
+                {columns.map((c) => {
+                  const raw = c.render(r, (cur - 1) * pageSize + i);
+                  // 裸文本单元格统一收敛为「单行 + 省略 + 悬停全文」：
+                  // 列宽自适应后若放任换行，行高会被撑到 100px+，首屏可见行数骤减
+                  const cell =
+                    typeof raw === 'string' || typeof raw === 'number' ? (
+                      <span className="pc-cell-1" title={String(raw)}>
+                        {raw}
+                      </span>
+                    ) : (
+                      raw
+                    );
+                  return (
+                    <td key={c.key} style={{ textAlign: c.align || 'left' }}>
+                      {cell}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           )}

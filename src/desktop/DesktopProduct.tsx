@@ -66,7 +66,7 @@ function fmtPrice(s?: string): string {
 function PriceCell({ desc }: { desc?: string }) {
   const lines = priceLines(desc);
   if (!lines.length) return <span style={{ color: 'var(--c-text-4)' }}>—</span>;
-  const shown = lines.slice(0, 2);
+  const shown = lines.slice(0, 1);
   const rest = lines.length - shown.length;
   const full = lines.map((l) => `${l.spec} ¥${l.price}`).join('\n');
   return (
@@ -294,17 +294,26 @@ export default function DesktopProduct() {
     { key: 'app', title: '应用', width: 140, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || '—'}</span> },
     { key: 'gene', title: '基因名称', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || '—'}</span> },
     { key: 'alias', title: '其他别称', width: 170, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || '—'}</span> },
-    { key: 'mw', title: '分子量', width: 90, render: (r) => <span className="pc-cell-1 pc-td-sub">{(r as any).da || '—'}</span> },
+    { key: 'mw', title: '分子量', width: 90, render: (r) => (
+        <span className="pc-cell-1 pc-td-sub" title={(r as any).da}>
+          {(r as any).da || '—'}
+        </span>
+      ) },
     { key: 'method', title: '方法学', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || '—'}</span> },
     { key: 'eng', title: '英文名称', width: 150, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || '—'}</span> },
     { key: 'tag', title: 'Tag', width: 90, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || '—'}</span> },
     { key: 'expr', title: '表达系统', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || '—'}</span> },
     { key: 'dl', title: '下载量', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
-    { key: 'time', title: '更新时间', width: 155, render: (r) => <span className="pc-cell-1" style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>{fmtTime((r as any).update_time || (r as any).create_time) || '—'}</span> },
+    { key: 'time', title: '更新时间', width: 155, render: (r) => (
+        <span className="pc-cell-1" title={fmtTime((r as any).update_time || (r as any).create_time)} style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>
+          {fmtTime((r as any).update_time || (r as any).create_time) || '—'}
+        </span>
+      ) },
     {
       key: 'op',
       title: '操作',
       width: 190,
+      fixed: true,
       render: (r) => (
         <span className="pc-ops">
           <span className="gg-xs blue" onClick={() => setCur(r)}>

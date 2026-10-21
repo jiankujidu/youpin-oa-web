@@ -16,6 +16,7 @@ import { localBadge, opsFields, type EditField } from '../core/opsFields';
 import type { Customer } from '../core/types';
 import { downloadCsv, fmtTime, sanitizeName, toast } from '../core/util';
 import { ConfirmDialog, EditModal, Modal } from './ui';
+import { OpsMore } from './DesktopSub';
 import { DataTable, FilterTabs, PageHead, Panel, StatusTag, type Column } from './pc';
 
 const TABS = [
@@ -337,18 +338,16 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       title: '客户名称',
       width: 240,
       render: (r) => (
-        <span className="pc-td-strong pc-cell-2" title={r.name}>
-          {r.name}
+        <span className="pc-name-cell">
+          <span className="pc-td-strong pc-cell-1" title={r.name}>
+            {r.name}
+          </span>
           {(r as any).avoid ? (
-            <span className="pc-tag-local" style={{ marginLeft: 6, background: '#fff1f0', color: '#cf1322', border: '1px solid #ffa39e' }}>
+            <span className="pc-tag-local" style={{ background: '#fff1f0', color: '#cf1322', border: '1px solid #ffa39e' }}>
               避开
             </span>
           ) : null}
-          {(r as any)._local ? (
-            <span className="pc-tag-local" style={{ marginLeft: 6 }}>
-              {localBadge(r as any)}
-            </span>
-          ) : null}
+          {(r as any)._local ? <span className="pc-tag-local">{localBadge(r as any)}</span> : null}
         </span>
       ),
     },
@@ -412,13 +411,15 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     {
       key: 'op',
       title: '操作',
-      width: 130 + tabOps.length * 76,
+      width: 210,
+      fixed: true,
       render: (r) => (
         <span className="pc-ops">
           <span className="gg-xs blue" onClick={() => setCur(r)}>
             查看
           </span>
-          {tabOps.map((op) => (
+          {/* 最多 1 个动作常驻，其余收进「更多 ▾」：避免 chip 换行把行高撑到 60px+ */}
+          {tabOps.slice(0, 1).map((op) => (
             <span
               key={op.key}
               className={`gg-xs ${op.tone || 'blue'}`}
@@ -430,15 +431,24 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
               {op.label}
             </span>
           ))}
-          {fields ? (
-            <>
-              <span className="gg-xs blue" onClick={() => setEditing(r)}>
-                编辑
-              </span>
-              <span className="gg-xs red" onClick={() => setConfirmDel(r)}>
-                {type === 3 ? '彻底删除' : '删除'}
-              </span>
-            </>
+          {tabOps.length > 1 || fields ? (
+            <OpsMore
+              actions={tabOps.slice(1)}
+              extra={
+                fields
+                  ? [
+                      { key: '__edit', label: '编辑', tone: 'ghost' as const, onPick: () => setEditing(r) },
+                      {
+                        key: '__del',
+                        label: type === 3 ? '彻底删除' : '删除',
+                        tone: 'red' as const,
+                        onPick: () => setConfirmDel(r),
+                      },
+                    ]
+                  : undefined
+              }
+              onPick={(a) => (a as any).run ? (a as any).run() : runTabOp(r, a)}
+            />
           ) : null}
         </span>
       ),

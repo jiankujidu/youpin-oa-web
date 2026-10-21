@@ -23,24 +23,47 @@ const QUICKS: [string, string][] = [
 ];
 
 const NOTE_COLS: Column<Note>[] = [
-  { key: 'cate', title: '公告分类', width: 110, render: (r) => r.cate_title || '—' },
-  { key: 'title', title: '公告标题', render: (r) => <span className="pc-td-strong">{r.title}</span> },
-  { key: 'time', title: '发布时间', width: 160, render: (r) => fmtTime(r.create_time) },
+  { key: 'cate', title: '公告分类', width: 100, render: (r) => <span className="pc-cell-1">{r.cate_title || '—'}</span> },
+  {
+    key: 'title',
+    title: '公告标题',
+    render: (r) => (
+      <span className="pc-td-strong pc-cell-1" title={r.title}>
+        {r.title}
+      </span>
+    ),
+  },
+  { key: 'time', title: '发布时间', width: 140, render: (r) => fmtTime(r.create_time) },
 ];
 
 const ART_COLS: Column<Article>[] = [
-  { key: 'cate', title: '知识分类', width: 110, render: (r) => r.cate_title || '—' },
+  { key: 'cate', title: '知识分类', width: 100, render: (r) => <span className="pc-cell-1">{r.cate_title || '—'}</span> },
   {
     key: 'title',
     title: '知识标题',
-    render: (r) => <span className="pc-td-strong">{String(r.title).replace(/\n+/g, ' ').slice(0, 60)}</span>,
+    render: (r) => {
+      const t = String(r.title).replace(/\n+/g, ' ');
+      return (
+        <span className="pc-td-strong pc-cell-1" title={t}>
+          {t}
+        </span>
+      );
+    },
   },
-  { key: 'time', title: '发布时间', width: 160, render: (r) => fmtTime(r.create_time) },
+  { key: 'time', title: '发布时间', width: 140, render: (r) => fmtTime(r.create_time) },
 ];
 
 const MSG_COLS: Column<Message>[] = [
-  { key: 'title', title: '消息内容', render: (r) => <span className="pc-td-strong">{r.title}</span> },
-  { key: 'time', title: '时间', width: 150, render: (r) => fmtTime(r.send_time || r.create_time) },
+  {
+    key: 'title',
+    title: '消息内容',
+    render: (r) => (
+      <span className="pc-td-strong pc-cell-1" title={r.title}>
+        {r.title}
+      </span>
+    ),
+  },
+  { key: 'time', title: '时间', width: 130, render: (r) => fmtTime(r.send_time || r.create_time) },
 ];
 
 export default function DesktopHome({ onNavigate, userName }: { onNavigate: (page: string) => void; userName?: string }) {
@@ -174,7 +197,7 @@ export default function DesktopHome({ onNavigate, userName }: { onNavigate: (pag
           }
           bodyPad={false}
         >
-          <div style={{ padding: '12px 15px' }}>
+          <div style={{ padding: '6px 8px' }}>
             <DataTable columns={NOTE_COLS} rows={notes.slice(0, 8)} rowKey={(r) => String(r.id)} onRowClick={() => onNavigate('note')} loading={loading} indexCol={false} pageSize={8} />
           </div>
         </Panel>
@@ -189,7 +212,7 @@ export default function DesktopHome({ onNavigate, userName }: { onNavigate: (pag
           }
           bodyPad={false}
         >
-          <div style={{ padding: '12px 15px' }}>
+          <div style={{ padding: '6px 8px' }}>
             <DataTable
               columns={ART_COLS}
               rows={articles.slice(0, 5)}
@@ -278,7 +301,7 @@ export default function DesktopHome({ onNavigate, userName }: { onNavigate: (pag
           }
           bodyPad={false}
         >
-          <div style={{ padding: '12px 15px' }}>
+          <div style={{ padding: '6px 8px' }}>
             <DataTable
               columns={MSG_COLS}
               rows={msgs.slice(0, 6)}
