@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 const EDGE='C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const PORT='9795';
 const BASE=process.env.BASE;
-const edge=spawn(EDGE,[`--user-data-dir=C:/Users/Administrator/WorkBuddy/2026-10-20-05-59-01/.tmp-dep-${PORT}`,`--remote-debugging-port=${PORT}`,'--no-sandbox','--headless=new','--disable-gpu','about:blank'],{stdio:'ignore'});
+const edge=spawn(EDGE,[`--user-data-dir=C:/Users/Administrator/WorkBuddy/2026-10-20-05-59-01/.tmp-dep-${PORT}-${Date.now()}`,`--remote-debugging-port=${PORT}`,'--no-sandbox','--headless=new','--disable-gpu','about:blank'],{stdio:'ignore'});
 await new Promise(r=>setTimeout(r,2500));
 const b=await puppeteer.connect({browserURL:`http://127.0.0.1:${PORT}`,defaultViewport:{width:1600,height:900}});
 const p=await b.newPage();
