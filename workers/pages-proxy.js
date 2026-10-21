@@ -27,6 +27,19 @@ export async function onRequestPost(ctx) {
   return handle(ctx);
 }
 
+/** 跨域预检：GitHub Pages 等其它源也会调这个同源代理（前端会带 X-Requested-With / x-oa-session） */
+export async function onRequestOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
 async function handle({ request, params }) {
   const url = new URL(request.url);
 

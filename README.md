@@ -176,9 +176,31 @@ npm run mask:data        # = node scripts/mask-realdata.mjs，跑完自动校验
 
 `workers/oa-proxy.js` 用 Cloudflare KV 维护了「有状态会话」：浏览器只持有一个随机 `sessionId`（放在 `x-oa-session` 头里），代理侧保存 OA 的登录 Cookie 并透传，使「取验证码 → 登录 → 拉数据」三步共用同一 OA 会话。**OA 的 Cookie 绝不下发到浏览器**，安全。
 
-### 步骤一：部署代理（二选一）
+### 步骤一：部署代理（三选一）
 
-**方案 A：Cloudflare Workers（推荐，免费额度够用）**
+**方案 A★：Cloudflare Pages Functions（本项目现用，最稳）**
+
+与站点**同源**部署，`/oa-proxy/*` 由 Pages 自己的 Functions 提供，不跨域、不依赖 `workers.dev`
+（后者在部分网络不可达，曾导致线上站点取不到数据）。
+
+```bash
+# 1) 用免登录固定会话构建 + 生成 Functions
+VITE_OA_PROXY=/oa-proxy npm run build -- --outDir dist-pages
+OA_FIXED_SID=<已登录的 PHPSESSID> node scripts/prepare-pages.mjs
+
+# 2) 部署（Functions 会从仓库根目录的 functions/ 打包，脚本已自动生成）
+npx wrangler pages deploy dist-pages --project-name youpin-oa
+```
+
+**方案 B：Cloudflare Workers（给 GitHub Pages 这类纯静态托管用）**
+
+固定会话随部署注入，无需用户再登录：
+
+```bash
+npx wrangler deploy --var OA_FIXED_SID:<已登录的 PHPSESSID>
+```
+
+**方案 C：Cloudflare Workers（推荐，免费额度够用）**
 
 ```bash
 # 1) 授权（二选一）
