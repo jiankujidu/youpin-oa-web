@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProductPage } from '../core/api';
-import { absOaUrl, fixContentHtml } from '../core/fileurl';
+import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
@@ -22,11 +22,9 @@ function fmtPrice(s?: string): string {
   return out.length ? out.join(' / ') : s.slice(0, 60);
 }
 
-/** 说明书地址：优先稳定端点 pc_goods_no_url（get_oss_file?id=，经代理不过期）；OSS 签名直链仅兜底（会过期） */
+/** 说明书地址：优先稳定端点 pc_goods_no_url（get_oss_file?id=，经代理不过期）；签名直链永远 403，转代理 /oss/ */
 function docUrl(g: { goods_no_url?: string; pc_goods_no_url?: string }): string {
-  const b = absOaUrl(g.pc_goods_no_url || '');
-  if (b) return b;
-  return absOaUrl(g.goods_no_url || '');
+  return absOaUrl(g.pc_goods_no_url || '') || signedOssToProxy(g.goods_no_url || '');
 }
 
 export default function DesktopProduct() {

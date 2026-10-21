@@ -36,6 +36,18 @@ export function absOaUrl(path: string): string {
 }
 
 /**
+ * ★ OSS 签名直链 → 走代理的 /oss/ 静态路径（去掉签名参数）。
+ * 实测签名直链无论新旧都 403（签名的是阿里云内网 endpoint，外网必然 AccessDenied），
+ * 所以它绝不能直接给用户打开；唯一可用形态是经代理的 /oss/<年月>/<md5>.<ext>。
+ */
+export function signedOssToProxy(url: string): string {
+  if (!url) return '';
+  const m = url.match(/^(?:https?:)?\/\/static\.upingbio\.cn\/oa\/([^?#]+)/i);
+  if (!m) return '';
+  return CONFIG.oaProxy ? `${CONFIG.oaProxy}/oss/${m[1]}` : `https://oa.upingbio.com/oss/${m[1]}`;
+}
+
+/**
  * 正文 HTML 修复：把 OSS 签名图片 / 原站相对链接改走代理，避免刷新后图挂。
  * 用于公告 / 消息 / 问答 / 产品详情等富文本渲染处。
  */
