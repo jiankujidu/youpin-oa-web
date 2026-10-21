@@ -259,7 +259,7 @@
   overflow: hidden;
   background: var(--c-surface);
 }
-.pc-table { width: 100%; border-collapse: collapse; font-size: 13.5px; color: var(--c-text); }
+.pc-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.55; color: var(--c-text); }
 .pc-table thead th {
   background: #f8fafc;
   color: var(--c-text-2);
@@ -272,7 +272,7 @@
   letter-spacing: 0.2px;
 }
 .pc-table tbody td {
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--c-border-2);
   vertical-align: middle;
   font-variant-numeric: tabular-nums;
@@ -282,7 +282,8 @@
 .pc-table tbody tr:last-child td { border-bottom: none; }
 .pc-col-idx { color: var(--c-text-4); font-variant-numeric: tabular-nums; }
 .pc-table-empty { text-align: center; color: var(--c-text-4); padding: 44px 0 !important; font-size: 13px; }
-.pc-td-strong { font-weight: 500; color: var(--c-text); }
+.pc-td-strong { font-weight: 500; color: var(--c-text); font-size: 13.5px; }
+.pc-td-sub { color: var(--c-text-2); font-size: 12.5px; }
 
 /* ---------- 单元格内容收敛（行高治理：任何列最多 2 行，悬停看全文） ---------- */
 .pc-cell-2 {
@@ -294,12 +295,11 @@
   max-width: 100%;
 }
 .pc-cell-1 {
-  display: inline-block;
+  display: block;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: bottom;
 }
 
 /* ---------- 价格明细单元格（结构化：规格行 + 价格，最多 2 行 + 计数） ---------- */
