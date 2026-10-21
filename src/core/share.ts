@@ -112,6 +112,7 @@ export async function shareFile(input: { file?: File; url?: string; name: string
 
   if (!file) return { ok: false, reason: '没有可转发的文件' };
 
+  // ① 真实转发：把文件本体交给系统分享面板（桌面 Edge/Chrome、手机均支持）
   if (canShareFiles([file])) {
     try {
       await navigator.share({ files: [file], title: name });
@@ -124,7 +125,22 @@ export async function shareFile(input: { file?: File; url?: string; name: string
     }
   }
 
-  // 降级 1：分享/复制可访问 URL
+  // ② 浏览器不支持分享文件 → 直接把文件下载到本机（比复制链接更接近"转发"）
+  try {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return { ok: true, via: 'download' };
+  } catch {
+    /* 继续降级 */
+  }
+
+  // ③ 最后才复制可访问链接
   if (input.url) {
     if (canShare()) {
       try {
@@ -138,20 +154,7 @@ export async function shareFile(input: { file?: File; url?: string; name: string
     if (copied) return { ok: true, via: 'clipboard' };
   }
 
-  // 降级 2：直接下载到本机，由用户手动发送
-  try {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    return { ok: true, via: 'download' };
-  } catch {
-    return { ok: false, reason: '分享失败，且无法下载' };
-  }
+  return { ok: false, reason: '分享失败，且无法下载' };
 }
 
 /**
