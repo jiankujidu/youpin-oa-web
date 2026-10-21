@@ -2,10 +2,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchArticles, fetchMails, fetchMessages, fetchNotes } from '../core/api';
 import { fixContentHtml } from '../core/fileurl';
+import { addLocal, deleteLocal, editLocal, mergeLocal } from '../core/localOps';
+import { localBadge, opsFields } from '../core/opsFields';
 import { shareContent } from '../core/share';
 import type { Article, MailContact, Message, Note } from '../core/types';
-import { fmtTime, plain, toast } from '../core/util';
-import { Modal } from './ui';
+import { downloadCsv, fmtTime, plain, toast } from '../core/util';
+import { ConfirmDialog, EditModal, Modal } from './ui';
 import { DataTable, FilterTabs, PageHead, Panel, StatusTag, type Column } from './pc';
 
 /** 富文本正文（后端返回 HTML） */
@@ -21,6 +23,9 @@ export function DesktopNote() {
   const [loading, setLoading] = useState(true);
   const [kw, setKw] = useState('');
   const [cur, setCur] = useState<Note | null>(null);
+  const [localVer, setLocalVer] = useState(0);
+  const [editing, setEditing] = useState<Record<string, any> | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Record<string, any> | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -33,13 +38,29 @@ export function DesktopNote() {
   }, []);
   useEffect(load, [load]);
 
+  /** OA 行 + 本地新增/编辑/删除合并 */
   const rows = useMemo(() => {
     const k = kw.trim().toLowerCase();
-    return k ? list.filter((n) => (n.title + (n.cate_title || '')).toLowerCase().includes(k)) : list;
-  }, [list, kw]);
+    const merged = mergeLocal('note', list as any[]) as unknown as Note[];
+    return k ? merged.filter((n) => (n.title + (n.cate_title || '')).toLowerCase().includes(k)) : merged;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list, kw, localVer]);
 
   const cols: Column<Note>[] = [
-    { key: 'title', title: '公告标题', render: (r) => <span className="pc-td-strong">{r.title}</span> },
+    {
+      key: 'title',
+      title: '公告标题',
+      render: (r) => (
+        <span className="pc-td-strong">
+          {r.title}
+          {(r as any)._local ? (
+            <span className="pc-tag-local" style={{ marginLeft: 6 }}>
+              {localBadge(r as any)}
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
     { key: 'cate', title: '分类', width: 130, render: (r) => <StatusTag tone="info">{r.cate_title || '—'}</StatusTag> },
     { key: 'start', title: '生效时间', width: 130, render: (r) => r.start_time || '—' },
     { key: 'end', title: '结束时间', width: 130, render: (r) => r.end_time || '—' },
@@ -47,10 +68,18 @@ export function DesktopNote() {
     {
       key: 'op',
       title: '操作',
-      width: 90,
+      width: 170,
       render: (r) => (
-        <span className="pc-link" onClick={() => setCur(r)}>
-          查看
+        <span className="pc-ops">
+          <span className="gg-xs blue" onClick={() => setCur(r)}>
+            查看
+          </span>
+          <span className="gg-xs blue" onClick={() => setEditing(r as any)}>
+            编辑
+          </span>
+          <span className="gg-xs red" onClick={() => setConfirmDel(r as any)}>
+            删除
+          </span>
         </span>
       ),
     },
@@ -63,9 +92,14 @@ export function DesktopNote() {
         crumb={['办公首页', '企业公告']}
         desc={`共 ${rows.length} 条公告`}
         actions={
-          <button className="pc-btn pc-btn-ghost" onClick={load}>
-            刷新
-          </button>
+          <>
+            <button className="pc-btn pc-btn-ghost" onClick={load}>
+              刷新
+            </button>
+            <button className="pc-btn" onClick={() => setEditing({ id: '' })}>
+              ＋ 新增公告
+            </button>
+          </>
         }
       />
       <Panel bodyPad={false}>
@@ -107,6 +141,12 @@ export function DesktopNote() {
               >
                 转发本公告
               </button>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setEditing(cur as any)}>
+                编辑
+              </button>
+              <button className="pc-btn" style={{ background: '#e4564f' }} onClick={() => setConfirmDel(cur as any)}>
+                删除
+              </button>
             </>
           }
         >
@@ -117,6 +157,37 @@ export function DesktopNote() {
           </div>
           <Rich html={cur.content} />
         </Modal>
+      ) : null}
+
+      {/* 本地新增 / 编辑公告（不提交原站） */}
+      {editing ? (
+        <EditModal
+          title={editing.id ? '编辑公告' : '新增公告'}
+          fields={opsFields('note') || []}
+          value={editing}
+          onSave={(v) => {
+            if (editing.id) editLocal('note', { ...editing, ...v });
+            else addLocal('note', v);
+            setLocalVer((n) => n + 1);
+            setEditing(null);
+            toast('已保存到本地（未提交原站）');
+          }}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {confirmDel ? (
+        <ConfirmDialog
+          title="删除确认"
+          text={`确认删除公告「${String(confirmDel.title || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
+          onOk={() => {
+            deleteLocal('note', String(confirmDel.id ?? ''));
+            setCur(null);
+            setLocalVer((n) => n + 1);
+            toast('已删除（本地生效，未提交原站）');
+          }}
+          onClose={() => setConfirmDel(null)}
+        />
       ) : null}
     </div>
   );
@@ -130,6 +201,9 @@ export function DesktopArticle() {
   const [kw, setKw] = useState('');
   const [cate, setCate] = useState('');
   const [cur, setCur] = useState<Article | null>(null);
+  const [localVer, setLocalVer] = useState(0);
+  const [editing, setEditing] = useState<Record<string, any> | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Record<string, any> | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -150,8 +224,10 @@ export function DesktopArticle() {
 
   const rows = useMemo(() => {
     const k = kw.trim().toLowerCase();
-    return list.filter((a) => (!cate || a.cate_title === cate) && (!k || (a.title + (a.desc || '')).toLowerCase().includes(k)));
-  }, [list, kw, cate]);
+    const merged = mergeLocal('article', list as any[]) as unknown as Article[];
+    return merged.filter((a) => (!cate || a.cate_title === cate) && (!k || (a.title + (a.desc || '')).toLowerCase().includes(k)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list, kw, cate, localVer]);
 
   const cols: Column<Article>[] = [
     { key: 'id', title: '编号', width: 80, render: (r) => String(r.id ?? '—') },
@@ -159,7 +235,16 @@ export function DesktopArticle() {
       key: 'title',
       title: '问题',
       width: 320,
-      render: (r) => <span className="pc-td-strong">{plain(r.title).replace(/\n+/g, ' ').slice(0, 80)}</span>,
+      render: (r) => (
+        <span className="pc-td-strong">
+          {plain(r.title).replace(/\n+/g, ' ').slice(0, 80)}
+          {(r as any)._local ? (
+            <span className="pc-tag-local" style={{ marginLeft: 6 }}>
+              {localBadge(r as any)}
+            </span>
+          ) : null}
+        </span>
+      ),
     },
     { key: 'cate', title: '分类', width: 130, render: (r) => <StatusTag tone="ok">{r.cate_title || '—'}</StatusTag> },
     { key: 'desc', title: '回答', width: 320, render: (r) => plain(r.desc || '').slice(0, 60) || '—' },
@@ -170,10 +255,18 @@ export function DesktopArticle() {
     {
       key: 'op',
       title: '操作',
-      width: 90,
+      width: 170,
       render: (r) => (
-        <span className="pc-link" onClick={() => setCur(r)}>
-          查看
+        <span className="pc-ops">
+          <span className="gg-xs blue" onClick={() => setCur(r)}>
+            查看
+          </span>
+          <span className="gg-xs blue" onClick={() => setEditing(r as any)}>
+            编辑
+          </span>
+          <span className="gg-xs red" onClick={() => setConfirmDel(r as any)}>
+            删除
+          </span>
         </span>
       ),
     },
@@ -191,34 +284,40 @@ export function DesktopArticle() {
               刷新
             </button>
             <button
-              className="pc-btn"
+              className="pc-btn pc-btn-ghost"
               onClick={() => {
-                const head = ['编号', '问题', '分类', '回答', '阅读量', '发布人', '部门', '创建时间'];
-                const lines = rows.map((r) => [
-                  r.id,
-                  plain(r.title).replace(/\n+/g, ' '),
-                  r.cate_title || '',
-                  plain(r.desc || '').replace(/\n+/g, ' '),
-                  (r as any).read ?? '',
-                  (r as any).user ?? '',
-                  (r as any).department ?? '',
-                  r.create_time,
-                ]);
-                const csv =
-                  '\uFEFF' +
-                  [head, ...lines]
-                    .map((r) => r.map((c) => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(','))
-                    .join('\r\n');
-                const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-                const el = document.createElement('a');
-                el.href = url;
-                el.download = '问答知识.csv';
-                el.click();
-                URL.revokeObjectURL(url);
-                toast('已导出 ' + rows.length + ' 条');
+                if (!rows.length) return toast('暂无可导出的数据');
+                const cols = [
+                  { key: 'id', title: '编号' },
+                  { key: 'title', title: '问题' },
+                  { key: 'cate', title: '分类' },
+                  { key: 'desc', title: '回答' },
+                  { key: 'read', title: '阅读量' },
+                  { key: 'user', title: '发布人' },
+                  { key: 'dept', title: '部门' },
+                  { key: 'time', title: '创建时间' },
+                ];
+                downloadCsv(
+                  `问答知识-${new Date().toISOString().slice(0, 10)}`,
+                  cols,
+                  rows.map((r) => ({
+                    id: r.id,
+                    title: plain(r.title).replace(/\n+/g, ' '),
+                    cate: r.cate_title || '',
+                    desc: plain(r.desc || '').replace(/\n+/g, ' '),
+                    read: (r as any).read ?? '',
+                    user: (r as any).user ?? '',
+                    dept: (r as any).department ?? '',
+                    time: fmtTime(r.create_time),
+                  })),
+                );
+                toast(`已导出 ${rows.length} 条为 CSV`);
               }}
             >
-              导出(CSV)
+              导出
+            </button>
+            <button className="pc-btn" onClick={() => setEditing({ id: '' })}>
+              ＋ 新增问答
             </button>
           </>
         }
@@ -256,9 +355,17 @@ export function DesktopArticle() {
           title={plain(cur.title).replace(/\n+/g, ' ').slice(0, 60)}
           onClose={() => setCur(null)}
           footer={
-            <button className="pc-btn" onClick={() => setCur(null)}>
-              关闭
-            </button>
+            <>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setCur(null)}>
+                关闭
+              </button>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setEditing(cur as any)}>
+                编辑
+              </button>
+              <button className="pc-btn" style={{ background: '#e4564f' }} onClick={() => setConfirmDel(cur as any)}>
+                删除
+              </button>
+            </>
           }
         >
           <div style={{ fontSize: 12.5, color: 'var(--c-text-4)', marginBottom: 12 }}>
@@ -268,6 +375,37 @@ export function DesktopArticle() {
           </div>
           <Rich html={cur.content || cur.desc} />
         </Modal>
+      ) : null}
+
+      {/* 本地新增 / 编辑问答（不提交原站） */}
+      {editing ? (
+        <EditModal
+          title={editing.id ? '编辑问答' : '新增问答'}
+          fields={opsFields('article') || []}
+          value={editing}
+          onSave={(v) => {
+            if (editing.id) editLocal('article', { ...editing, ...v });
+            else addLocal('article', v);
+            setLocalVer((n) => n + 1);
+            setEditing(null);
+            toast('已保存到本地（未提交原站）');
+          }}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {confirmDel ? (
+        <ConfirmDialog
+          title="删除确认"
+          text={`确认删除问答「${String(confirmDel.title || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
+          onOk={() => {
+            deleteLocal('article', String(confirmDel.id ?? ''));
+            setCur(null);
+            setLocalVer((n) => n + 1);
+            toast('已删除（本地生效，未提交原站）');
+          }}
+          onClose={() => setConfirmDel(null)}
+        />
       ) : null}
     </div>
   );

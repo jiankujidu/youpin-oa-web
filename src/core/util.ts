@@ -86,6 +86,30 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
+/** CSV 单元格转义（含逗号/引号/换行时加双引号） */
+function csvCell(v: unknown): string {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * 导出 CSV（对齐原站「导出」按钮）。
+ * 带 BOM，保证 Excel 直接打开中文不乱码；本地生成，不提交原站。
+ * @param filename 文件名（自动补 .csv）
+ * @param columns  表头（title 即 CSV 首行）
+ * @param rows     每行的列值（顺序与 columns 对齐）
+ */
+export function downloadCsv(
+  filename: string,
+  columns: { key: string; title: string }[],
+  rows: Record<string, unknown>[],
+): void {
+  const head = columns.map((c) => csvCell(c.title)).join(',');
+  const body = rows.map((r) => columns.map((c) => csvCell(r[c.key])).join(',')).join('\r\n');
+  const csv = `\uFEFF${head}\r\n${body}\r\n`;
+  downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename.replace(/\.csv$/i, '') + '.csv');
+}
+
 /** 把公网 URL fetch 成 File（转发给 Web Share 前必须拿到真实 File 对象） */
 export async function urlToFile(url: string, filename: string): Promise<File> {
   const res = await fetch(url, { mode: 'cors' });

@@ -5,10 +5,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProductPage } from '../core/api';
 import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
+import { addLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
-import { fmtTime, plain, sanitizeName, toast } from '../core/util';
+import { downloadCsv, fmtTime, plain, sanitizeName, toast } from '../core/util';
 import { Modal } from './ui';
 import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
 
@@ -42,6 +43,14 @@ export default function DesktopProduct() {
   const [folders, setFolders] = useState<FavFolder[]>([]);
   const [saving, setSaving] = useState<{ name: string; url: string; productId: string } | null>(null);
   const [newName, setNewName] = useState('');
+  /** 勾选的产品（对齐原站批量说明书 / getCheckData） */
+  const [checked, setChecked] = useState<string[]>([]);
+  /** 模糊搜索（对齐原站「模糊」开关） */
+  const [fuzzy, setFuzzy] = useState(false);
+  /** 批量说明书结果弹窗 */
+  const [batch, setBatch] = useState(false);
+  /** 本地层版本号（复制/编辑后刷新合并行） */
+  const [localVer, setLocalVer] = useState(0);
 
   /** 逐页载入（后端 12 万+ 条，一次拉完会超时） */
   const load = useCallback((kw: string, p: number, append: boolean) => {
@@ -89,6 +98,77 @@ export default function DesktopProduct() {
     [list, cate, speciesF, appF],
   );
 
+  /** OA 行 + 本地新增/编辑合并（复制出来的产品在本地层） */
+  const displayRows = useMemo(
+    () => [...mergeLocal('product', []), ...rows] as Product[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ['product', rows, localVer],
+  );
+
+  const localCount = useMemo(() => localAdded('product').length, [localVer]);
+
+  /** 勾选行的产品 */
+  const checkedRows = useMemo(
+    () => (displayRows as any[]).filter((p) => checked.includes(String(p.id ?? ''))),
+    [displayRows, checked],
+  );
+
+  /** 勾选（或全部已载入）产品的说明书清单 */
+  const batchDocs = useMemo(() => {
+    const base = checkedRows.length ? checkedRows : (displayRows as any[]);
+    const out: { no: string; title: string; url: string; name: string }[] = [];
+    for (const p of base.slice(0, 100)) {
+      for (const g of p.goods_no_list || []) {
+        const url = docUrl(g);
+        if (!url) continue;
+        out.push({
+          no: g.goods_no,
+          title: plain(p.title || ''),
+          url,
+          name: `${sanitizeName(g.goods_no)}-${sanitizeName(plain(p.title || ''))}.pdf`,
+        });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkedRows, displayRows, localVer]);
+
+  /** 复制产品（本地新增一条同字段记录，不提交原站） */
+  function copyProduct(p: Product) {
+    const { id: _drop, ...rest } = p as any;
+    addLocal('product', { ...rest, title: `${plain(p.title || '')}（副本）`, op_copy: new Date().toISOString().slice(0, 10) });
+    setLocalVer((n) => n + 1);
+    toast('已复制到本地（未提交原站）');
+  }
+
+  /** 导出当前产品为 CSV（对齐原站「导出」） */
+  function exportCsv() {
+    const cols = [
+      { key: 'id', title: '编号' },
+      { key: 'no', title: '产品货号' },
+      { key: 'title', title: '产品标题' },
+      { key: 'cate', title: '产品分类' },
+      { key: 'price', title: '价格明细' },
+      { key: 'species', title: '种属' },
+      { key: 'app', title: '应用' },
+      { key: 'dl', title: '下载量' },
+      { key: 'time', title: '更新时间' },
+    ];
+    const csvRows = (checkedRows.length ? checkedRows : (displayRows as any[])).slice(0, 5000).map((r) => ({
+      id: r.id,
+      no: String(r.goods_no || '').split(';')[0] || '',
+      title: plain(r.title || ''),
+      cate: r.cate_title || '',
+      price: fmtPrice(r.price_desc),
+      species: r.species || '',
+      app: r.application || '',
+      dl: r.down_load_num ?? 0,
+      time: fmtTime(r.update_time || r.create_time),
+    }));
+    downloadCsv(`产品列表-${new Date().toISOString().slice(0, 10)}`, cols, csvRows);
+    toast(`已导出 ${csvRows.length} 个产品为 CSV`);
+  }
+
   async function shareDoc(name: string, url: string) {
     if (!url) {
       toast('该说明书暂无可访问地址');
@@ -101,6 +181,33 @@ export default function DesktopProduct() {
 
   /** 与原站一致：编号 / 货号 / 状态 / 分类 / 价格 / 标题 / 种属 / 应用 / 基因名 / 别称 / 分子量 / 方法学 / 英文名 / Tag / 表达系统 / 下载量 / 更新时间 */
   const cols: Column<Product>[] = [
+    {
+      key: '_check',
+      title: '',
+      width: 40,
+      head: (
+        <input
+          type="checkbox"
+          className="pc-check"
+          title="全选"
+          checked={displayRows.length > 0 && checked.length === displayRows.length}
+          onChange={(e) => setChecked(e.target.checked ? (displayRows as any[]).map((p) => String(p.id ?? '')) : [])}
+        />
+      ),
+      render: (r) => (
+        <input
+          type="checkbox"
+          className="pc-check"
+          checked={checked.includes(String(r.id ?? ''))}
+          onChange={() =>
+            setChecked((prev) =>
+              prev.includes(String(r.id ?? '')) ? prev.filter((x) => x !== String(r.id ?? '')) : [...prev, String(r.id ?? '')],
+            )
+          }
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    },
     { key: 'id', title: '编号', width: 80, render: (r) => String(r.id ?? '—') },
     { key: 'no', title: '产品货号', width: 180, render: (r) => String(r.goods_no || '').split(';')[0] || '—' },
     {
@@ -131,10 +238,26 @@ export default function DesktopProduct() {
     {
       key: 'op',
       title: '操作',
-      width: 130,
+      width: 190,
       render: (r) => (
-        <span className="gg-xs blue" onClick={() => setCur(r)}>
-          说明书
+        <span className="pc-ops">
+          <span className="gg-xs blue" onClick={() => setCur(r)}>
+            说明书
+          </span>
+          <span
+            className="gg-xs purple"
+            onClick={(e) => {
+              e.stopPropagation();
+              copyProduct(r);
+            }}
+          >
+            复制
+          </span>
+          {String((r as any).id ?? '').startsWith('local-') ? (
+            <span className="gg-xs green" onClick={() => setCur(r)}>
+              本地
+            </span>
+          ) : null}
         </span>
       ),
     },
@@ -151,12 +274,32 @@ export default function DesktopProduct() {
       <PageHead
         title="产品列表"
         crumb={['产品中心', '产品列表']}
-        desc={`共 ${total || rows.length} 个产品 · 已载入 ${list.length} 个`}
+        desc={`共 ${total || rows.length} 个产品 · 已载入 ${list.length} 个${localCount ? ` · 本地新增 ${localCount} 个` : ''}${checked.length ? ` · 已勾选 ${checked.length} 个` : ''}`}
         actions={
           <>
             <button className="pc-btn pc-btn-ghost" onClick={() => load(query, 1, false)}>
               刷新
             </button>
+            <button className="pc-btn pc-btn-ghost" onClick={exportCsv}>
+              导出
+            </button>
+            <button className="pc-btn" onClick={() => setBatch(true)}>
+              批量说明书
+            </button>
+            <button
+              className="pc-btn pc-btn-ghost"
+              onClick={() => {
+                setFuzzy((f) => !f);
+                toast(fuzzy ? '已切换为精确搜索' : '已切换为模糊搜索（关键词分词匹配）');
+              }}
+            >
+              模糊：{fuzzy ? '开' : '关'}
+            </button>
+            {checked.length ? (
+              <button className="pc-btn pc-btn-ghost" onClick={() => setChecked([])}>
+                清空选中
+              </button>
+            ) : null}
             {list.length < total ? (
               <button
                 className="pc-btn"
@@ -231,7 +374,7 @@ export default function DesktopProduct() {
         <div style={{ padding: '0 16px 12px' }}>
           <DataTable
             columns={cols}
-            rows={rows}
+            rows={displayRows}
             rowKey={(r) => String(r.id)}
             onRowClick={setCur}
             loading={loading}
@@ -240,6 +383,74 @@ export default function DesktopProduct() {
           />
         </div>
       </Panel>
+
+      {/* ===== 批量说明书（对齐原站 批量说明书 / 批量产品+说明书） ===== */}
+      {batch ? (
+        <Modal
+          title="批量说明书"
+          onClose={() => setBatch(false)}
+          footer={
+            <>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setBatch(false)}>
+                关闭
+              </button>
+              {batchDocs.length ? (
+                <button
+                  className="pc-btn"
+                  onClick={() => {
+                    void shareFilesAsZip(
+                      batchDocs.map((d) => ({ name: d.name, url: d.url })),
+                      '批量说明书',
+                    ).then((r) => {
+                      if (r.ok) toast(r.via === 'download' ? '已下载 zip' : '已调起系统分享');
+                      else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
+                    });
+                  }}
+                >
+                  打包转发（{batchDocs.length}）
+                </button>
+              ) : null}
+            </>
+          }
+        >
+          <div style={{ fontSize: 12.5, color: '#e8862a', background: '#fff7ec', border: '1px solid #ffd9a8', borderRadius: 6, padding: '7px 10px', marginBottom: 12 }}>
+            {checkedRows.length ? `已勾选 ${checkedRows.length} 个产品` : '未勾选，默认取当前已载入产品（最多 100 个）'}；说明文书签在本地生成，不提交原站。
+          </div>
+          {batchDocs.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--c-text-4)' }}>这些产品暂无可访问的说明书</div>
+          ) : (
+            <div style={{ maxHeight: 400, overflow: 'auto', border: '1px solid var(--c-border)', borderRadius: 6 }}>
+              <table className="pc-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 50 }}>序号</th>
+                    <th>货号</th>
+                    <th>产品</th>
+                    <th style={{ width: 170 }}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batchDocs.map((d, i) => (
+                    <tr key={`${d.no}-${i}`}>
+                      <td className="pc-col-idx">{i + 1}</td>
+                      <td>{d.no}</td>
+                      <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</td>
+                      <td>
+                        <span className="pc-link" onClick={() => window.open(d.url, '_blank', 'noopener')}>
+                          预览
+                        </span>
+                        <span className="pc-link" onClick={() => void shareDoc(d.name, d.url)}>
+                          转发
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Modal>
+      ) : null}
 
       {/* ===== 产品详情 + 说明书 ===== */}
       {cur ? (

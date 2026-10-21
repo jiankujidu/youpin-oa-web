@@ -10,6 +10,8 @@ export interface Column<T> {
   width?: number | string;
   align?: 'left' | 'right' | 'center';
   render: (row: T, index: number) => React.ReactNode;
+  /** 自定义表头（如全选框） */
+  head?: React.ReactNode;
 }
 
 /** 页面头：面包屑 + 标题 + 右侧操作区 */
@@ -174,7 +176,7 @@ export function DataTable<T>({
             {indexCol ? <th>序号</th> : null}
             {columns.map((c) => (
               <th key={c.key} style={{ textAlign: c.align || 'left' }}>
-                {c.title}
+                {c.head !== undefined ? c.head : c.title}
               </th>
             ))}
           </tr>

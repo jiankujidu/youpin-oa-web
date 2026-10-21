@@ -75,9 +75,19 @@ export default function DesktopFiles() {
       key: 'ck',
       title: '',
       width: 44,
+      head: (
+        <input
+          type="checkbox"
+          className="pc-check"
+          title="全选"
+          checked={rows.length > 0 && checked.size === rows.length}
+          onChange={(e) => setChecked(e.target.checked ? new Set(rows.map((r) => r.id)) : new Set())}
+        />
+      ),
       render: (r) => (
         <input
           type="checkbox"
+          className="pc-check"
           checked={checked.has(r.id)}
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => {
@@ -152,16 +162,43 @@ export default function DesktopFiles() {
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
+  /** 批量下载勾选文件（对齐原站「点击下载」） */
+  async function downloadChecked() {
+    const items = rows.filter((x) => checked.has(x.id));
+    if (!items.length) return toast('请先勾选要下载的文件');
+    if (items.length > 10) toast(`开始下载 ${items.length} 个文件，请勿关闭页面…`);
+    for (const x of items) {
+      try {
+        const f = await urlToFile(x.url, x.name);
+        downloadBlob(f, x.name);
+      } catch {
+        window.open(x.url, '_blank', 'noopener');
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    toast(`已触发 ${items.length} 个文件下载`);
+  }
+
   return (
     <div>
       <PageHead
         title="文件库"
         crumb={['日常办公', '文件库']}
-        desc={`共 ${rows.length} 个文件`}
+        desc={`共 ${rows.length} 个文件${checked.size ? ` · 已勾选 ${checked.size} 个` : ''}`}
         actions={
-          <button className="pc-btn pc-btn-ghost" onClick={() => void shareZipChecked()}>
-            打包转发（{checked.size}）
-          </button>
+          <>
+            <button className="pc-btn pc-btn-ghost" onClick={() => void downloadChecked()}>
+              批量下载（{checked.size}）
+            </button>
+            <button className="pc-btn pc-btn-ghost" onClick={() => void shareZipChecked()}>
+              打包转发（{checked.size}）
+            </button>
+            {checked.size ? (
+              <button className="pc-btn pc-btn-ghost" onClick={() => setChecked(new Set())}>
+                清空选中
+              </button>
+            ) : null}
+          </>
         }
       />
 

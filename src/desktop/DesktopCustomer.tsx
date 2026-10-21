@@ -1,13 +1,20 @@
 /**
- * 客户管理 › 客户列表（/customer/index/index | /sea | /trash）
+ * 客户管理 › 客户列表 / 公海客户 / 废弃客户（/customer/index/index | /sea | /trash）
  * PC 后台统一版式：筛选 Tab + 工具栏 + 数据表格 + 分页 + 详情弹层
+ *
+ * 功能对齐 oa.upingbio.com：
+ *   工具栏：＋ 添加客户 / 导入名单 / 转移全部 / 避开名单 / 导出 / 预览 / 清空选中
+ *   行内（我的客户）：查看 / 编辑 / 移入公海 / 走访 / 分类
+ *   行内（公海客户）：查看 / 获取（领取）/ 分配 / 编辑 / 删除
+ *   行内（废弃客户）：查看 / 恢复 / 彻底删除
+ * 所有写操作只落 localStorage，绝不提交原站。
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchCustomerPage } from '../core/api';
 import { addLocal, deleteLocal, editLocal, mergeLocal } from '../core/localOps';
-import { localBadge, opsFields } from '../core/opsFields';
+import { localBadge, opsFields, type EditField } from '../core/opsFields';
 import type { Customer } from '../core/types';
-import { fmtTime, toast } from '../core/util';
+import { downloadCsv, fmtTime, sanitizeName, toast } from '../core/util';
 import { ConfirmDialog, EditModal, Modal } from './ui';
 import { DataTable, FilterTabs, PageHead, Panel, StatusTag, type Column } from './pc';
 
@@ -28,6 +35,44 @@ const CRUMB: Record<number, string[]> = {
 /** 三种列表各自的本地操作存储 key（公海/废弃分开存） */
 const MODULE_OF: Record<1 | 2 | 3, string> = { 1: 'customer', 2: 'customer-sea', 3: 'customer-trash' };
 
+/** 每个 tab 的行操作（对齐原站 lay-event） */
+type TabOp = { key: string; label: string; tone?: 'blue' | 'red' | 'orange' | 'purple' };
+const TAB_OPS: Record<1 | 2 | 3, TabOp[]> = {
+  1: [
+    { key: 'to_sea', label: '移入公海', tone: 'orange' },
+    { key: 'visit', label: '走访', tone: 'purple' },
+    { key: 'classification', label: '分类', tone: 'purple' },
+  ],
+  2: [
+    { key: 'get', label: '获取', tone: 'blue' },
+    { key: 'distribute', label: '分配', tone: 'purple' },
+  ],
+  3: [
+    { key: 'back', label: '恢复', tone: 'blue' },
+  ],
+};
+
+/** 走访 / 分类 / 分配 表单（照原站弹窗字段） */
+const VISIT_FIELDS: EditField[] = [
+  { key: 'visit_time', label: '走访时间', type: 'date' },
+  { key: 'visit_way', label: '走访方式', type: 'select', options: ['上门走访', '电话沟通', '视频会议', '其他'] },
+  { key: 'visit_content', label: '走访内容', type: 'textarea' },
+  { key: 'next_visit', label: '下次走访', type: 'date' },
+];
+const CLASS_FIELDS: EditField[] = [
+  {
+    key: 'grade_text',
+    label: '客户分类',
+    type: 'select',
+    options: ['AA类成交经销商', 'A类成交终端', 'B类意向客户', 'C类潜在客户', 'D类无效客户'],
+  },
+  { key: 'class_remark', label: '分类说明', type: 'textarea' },
+];
+const DISTRIBUTE_FIELDS: EditField[] = [
+  { key: 'belong_name', label: '分配给', placeholder: '如：张三' },
+  { key: 'distribute_remark', label: '分配说明', type: 'textarea' },
+];
+
 function gradeText(c: Customer): string {
   return c.grade_text || String((c as any).grade || '') || '—';
 }
@@ -40,6 +85,35 @@ function statusTone(s?: string): 'ok' | 'no' | 'wait' | 'info' {
   if (/无效|废弃|流失|关闭/.test(s)) return 'no';
   if (/意向|跟进|待/.test(s)) return 'wait';
   return 'info';
+}
+
+/** 把一行从 fromModule 搬到 toModule（本地层内部搬迁，不碰原站） */
+function moveRow(fromModule: string, toModule: string, row: Row): void {
+  const id = String(row.id ?? '');
+  deleteLocal(fromModule, id);
+  const { id: _drop, _local, _op, ...rest } = row;
+  addLocal(toModule, { ...rest, from_id: id || undefined });
+}
+
+/** 解析 CSV/逗号文本为客户行（本地导入，不提交原站） */
+function parseCustomerText(text: string): Row[] {
+  const out: Row[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t) continue;
+    const cells = t.split(/[,，\t]/).map((c) => c.trim().replace(/^"|"$/g, ''));
+    if (!cells[0] || /客户名称/i.test(cells[0])) continue;
+    out.push({
+      name: cells[0],
+      contact: cells[1] || '',
+      mobile: cells[2] || '',
+      source: cells[3] || '其他',
+      status_name: cells[4] || '待联系',
+      address: cells[5] || '',
+      remark: cells[6] || '',
+    });
+  }
+  return out;
 }
 
 export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 | 2 | 3 } = {}) {
@@ -60,9 +134,17 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   const [localVer, setLocalVer] = useState(0);
   const [editing, setEditing] = useState<Row | null>(null);
   const [confirmDel, setConfirmDel] = useState<Row | null>(null);
+  /** 行内带表单的操作（走访 / 分类 / 分配） */
+  const [acting, setActing] = useState<{ row: Row; op: TabOp; fields: EditField[] } | null>(null);
+  /** 勾选的行 id（对齐原站 getCheckData） */
+  const [checked, setChecked] = useState<string[]>([]);
+  /** 预览名单弹窗 */
+  const [preview, setPreview] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const module = MODULE_OF[type];
   const fields = opsFields(module);
+  const tabOps = TAB_OPS[type];
 
   /** 逐页载入（后端共 1000+ 家，一次拉完会超时） */
   const load = useCallback((t: 1 | 2 | 3, kw: string, p: number, append: boolean) => {
@@ -84,6 +166,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
 
   useEffect(() => {
     setPage(1);
+    setChecked([]);
     load(type, query, 1, false);
   }, [type, query, load]);
 
@@ -124,8 +207,121 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     [list],
   );
 
+  const toggleCheck = (id: string) =>
+    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  /** 批量操作目标行：有勾选走勾选，否则当前已载入全部 */
+  const targetRows: Row[] = useMemo(() => {
+    const all = displayRows as unknown as Row[];
+    return checked.length ? all.filter((r) => checked.includes(String(r.id ?? ''))) : all;
+  }, [displayRows, checked]);
+
+  /** 转移全部 / 移入公海 / 获取（领取）/ 恢复：本地层搬迁行 */
+  function transfer(targetModule: string, label: string, rowsToMove: Row[]) {
+    if (!rowsToMove.length) return toast('没有可操作的客户');
+    rowsToMove.forEach((r) => moveRow(module, targetModule, r));
+    setChecked([]);
+    setLocalVer((n) => n + 1);
+    toast(`已${label} ${rowsToMove.length} 家（本地生效，未提交原站）`);
+  }
+
+  /** 导出 CSV（对齐原站「导出」） */
+  function exportCsv() {
+    const cols = [
+      { key: 'id', title: '编号' },
+      { key: 'name', title: '客户名称' },
+      { key: 'user', title: '联系人' },
+      { key: 'mobile', title: '手机号码' },
+      { key: 'grade', title: '客户等级' },
+      { key: 'status', title: '状态' },
+      { key: 'intent', title: '客户意向' },
+      { key: 'source', title: '来源渠道' },
+      { key: 'industry', title: '客户所属行业' },
+      { key: 'city', title: '城市' },
+      { key: 'belong', title: '所属员工' },
+      { key: 'time', title: '创建时间' },
+    ];
+    const csvRows = targetRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      user: (r as any).user || (r as any).contact_first || '',
+      mobile: r.mobile || r.tel || '',
+      grade: gradeText(r as Customer),
+      status: r.status_name || '',
+      intent: r.intent_status_name || '',
+      source: r.source || '',
+      industry: r.industry || '',
+      city: (r as any).city || '',
+      belong: r.belong_name || r.admin_name || '',
+      time: fmtTime(r.create_time),
+    }));
+    downloadCsv(`${CRUMB[type][1]}-${new Date().toISOString().slice(0, 10)}`, cols, csvRows);
+    toast(`已导出 ${csvRows.length} 家客户为 CSV`);
+  }
+
+  /** 避开名单（对齐原站 avoidList：本地打标记） */
+  function avoidSelected() {
+    if (!targetRows.length) return toast('请先勾选要避开的客户');
+    targetRows.forEach((r) => {
+      const id = String(r.id ?? '');
+      if (id.startsWith('local-')) editLocal(module, { ...r, avoid: 1 });
+      else if (id) editLocal(module, { id, avoid: 1 });
+    });
+    setChecked([]);
+    setLocalVer((n) => n + 1);
+    toast(`已标记 ${targetRows.length} 家为避开名单（本地生效）`);
+  }
+
+  /** 导入 CSV / 文本名单（本地新增，不提交原站） */
+  async function importFile(file: File) {
+    try {
+      const text = await file.text();
+      const parsed = parseCustomerText(text);
+      if (!parsed.length) return toast('未解析到有效行（格式：客户名称,联系人,电话,来源,状态,地址,备注）');
+      parsed.forEach((r) => addLocal(module, r));
+      setLocalVer((n) => n + 1);
+      toast(`已导入 ${parsed.length} 家到本地（未提交原站）`);
+    } catch {
+      toast('文件读取失败');
+    }
+  }
+
+  /** 行内操作 */
+  function runTabOp(row: Row, op: TabOp) {
+    if (op.key === 'to_sea') return transfer('customer-sea', '移入公海', [row]);
+    if (op.key === 'back') return transfer('customer', '恢复', [row]);
+    if (op.key === 'get') return transfer('customer', '领取', [row]);
+    if (op.key === 'visit') return setActing({ row, op, fields: VISIT_FIELDS });
+    if (op.key === 'classification') return setActing({ row, op, fields: CLASS_FIELDS });
+    if (op.key === 'distribute') return setActing({ row, op, fields: DISTRIBUTE_FIELDS });
+    toast(`已执行「${op.label}」（本地生效）`);
+  }
+
   /** 与原站一致的列（编号 / 客户名称 / 联系人 / 手机号 / 是否加微信 / 等级 / 沟通情况 / 部门 / 员工 / QQ / 微信 / 求购内容 / 最后下单 / 最近沟通 / 下次跟进 / 研究方向 / 城市 / 意向 / 状态 / 来源 / 行业 / 创建时间 / 操作） */
   const cols: Column<Customer>[] = [
+    {
+      key: '_check',
+      title: '',
+      width: 40,
+      head: (
+        <input
+          type="checkbox"
+          className="pc-check"
+          title="全选"
+          checked={displayRows.length > 0 && checked.length === displayRows.length}
+          onChange={(e) => setChecked(e.target.checked ? (displayRows as any[]).map((r) => String(r.id ?? '')) : [])}
+        />
+      ),
+      render: (r) => (
+        <input
+          type="checkbox"
+          className="pc-check"
+          checked={checked.includes(String(r.id ?? ''))}
+          onChange={() => toggleCheck(String(r.id ?? ''))}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    },
     { key: 'id', title: '编号', width: 76, render: (r) => r.id },
     {
       key: 'name',
@@ -134,6 +330,11 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       render: (r) => (
         <span className="pc-td-strong">
           {r.name}
+          {(r as any).avoid ? (
+            <span className="pc-tag-local" style={{ marginLeft: 6, background: '#fff1f0', color: '#cf1322', border: '1px solid #ffa39e' }}>
+              避开
+            </span>
+          ) : null}
           {(r as any)._local ? (
             <span className="pc-tag-local" style={{ marginLeft: 6 }}>
               {localBadge(r as any)}
@@ -202,19 +403,31 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     {
       key: 'op',
       title: '操作',
-      width: 150,
+      width: 130 + tabOps.length * 76,
       render: (r) => (
         <span className="pc-ops">
           <span className="gg-xs blue" onClick={() => setCur(r)}>
-            详情
+            查看
           </span>
+          {tabOps.map((op) => (
+            <span
+              key={op.key}
+              className={`gg-xs ${op.tone || 'blue'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                runTabOp(r, op);
+              }}
+            >
+              {op.label}
+            </span>
+          ))}
           {fields ? (
             <>
               <span className="gg-xs blue" onClick={() => setEditing(r)}>
                 编辑
               </span>
               <span className="gg-xs red" onClick={() => setConfirmDel(r)}>
-                删除
+                {type === 3 ? '彻底删除' : '删除'}
               </span>
             </>
           ) : null}
@@ -256,14 +469,45 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   return (
     <div>
       <PageHead
-        title="客户列表"
+        title={CRUMB[type][1]}
         crumb={CRUMB[type]}
-        desc={`共 ${total || rows.length} 家客户 · 已载入 ${list.length} 家`}
+        desc={`共 ${total || rows.length} 家客户 · 已载入 ${list.length} 家${checked.length ? ` · 已勾选 ${checked.length} 家` : ''}`}
         actions={
           <>
             <button className="pc-btn pc-btn-ghost" onClick={() => load(type, query, 1, false)}>
               刷新
             </button>
+            <button className="pc-btn pc-btn-ghost" onClick={exportCsv}>
+              导出
+            </button>
+            <button className="pc-btn pc-btn-ghost" onClick={() => setPreview(true)}>
+              预览
+            </button>
+            <button className="pc-btn pc-btn-ghost" onClick={avoidSelected}>
+              避开名单
+            </button>
+            {type === 1 ? (
+              <button
+                className="pc-btn pc-btn-danger"
+                onClick={() => transfer('customer-sea', '转移全部到公海', targetRows)}
+              >
+                转移全部
+              </button>
+            ) : null}
+            <button className="pc-btn pc-btn-ghost" onClick={() => fileRef.current?.click()}>
+              导入名单
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.txt,text/csv,text/plain"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void importFile(f);
+                e.target.value = '';
+              }}
+            />
             {list.length < total ? (
               <button
                 className="pc-btn"
@@ -277,18 +521,14 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
                 {loadingMore ? '载入中…' : `载入更多（${list.length}/${total}）`}
               </button>
             ) : null}
-            <button
-              className="pc-btn"
-              onClick={() => {
-                void navigator.clipboard?.writeText(rows.map((r) => r.name).join('\n'));
-                toast('已复制当前客户名单');
-              }}
-            >
-              导出名单
-            </button>
             <button className="pc-btn" onClick={() => setEditing({ id: '' })}>
-              ＋ 新增客户
+              ＋ 添加客户
             </button>
+            {checked.length ? (
+              <button className="pc-btn pc-btn-ghost" onClick={() => setChecked([])}>
+                清空选中
+              </button>
+            ) : null}
           </>
         }
       />
@@ -375,7 +615,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
                 关闭
               </button>
               <button
-                className="pc-btn"
+                className="pc-btn pc-btn-ghost"
                 onClick={() => {
                   void navigator.clipboard?.writeText(cur.mobile || cur.tel || '');
                   toast('已复制联系电话');
@@ -383,6 +623,11 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
               >
                 复制电话
               </button>
+              {tabOps.map((op) => (
+                <button key={op.key} className="pc-btn pc-btn-ghost" onClick={() => runTabOp(cur, op)}>
+                  {op.label}
+                </button>
+              ))}
               {fields ? (
                 <>
                   <button className="pc-btn" onClick={() => setEditing(cur)}>
@@ -393,7 +638,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
                     style={{ background: '#e4564f' }}
                     onClick={() => setConfirmDel(cur)}
                   >
-                    删除
+                    {type === 3 ? '彻底删除' : '删除'}
                   </button>
                 </>
               ) : null}
@@ -418,10 +663,68 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
         </Modal>
       ) : null}
 
+      {/* ===== 预览名单（对齐原站「预览」） ===== */}
+      {preview ? (
+        <Modal
+          title={`${CRUMB[type][1]}预览`}
+          onClose={() => setPreview(false)}
+          footer={
+            <>
+              <button className="pc-btn pc-btn-ghost" onClick={exportCsv}>
+                导出 CSV
+              </button>
+              <button className="pc-btn" onClick={() => setPreview(false)}>
+                关闭
+              </button>
+            </>
+          }
+        >
+          <div style={{ fontSize: 12.5, color: '#e8862a', background: '#fff7ec', border: '1px solid #ffd9a8', borderRadius: 6, padding: '7px 10px', marginBottom: 12 }}>
+            预览为本地名单快照（共 {targetRows.length} 家），不提交原站。
+          </div>
+          <div style={{ maxHeight: 380, overflow: 'auto', border: '1px solid var(--c-border)', borderRadius: 6 }}>
+            <table className="pc-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 60 }}>序号</th>
+                  <th>客户名称</th>
+                  <th style={{ width: 120 }}>联系人</th>
+                  <th style={{ width: 140 }}>手机号码</th>
+                  <th style={{ width: 130 }}>客户等级</th>
+                </tr>
+              </thead>
+              <tbody>
+                {targetRows.slice(0, 300).map((r, i) => (
+                  <tr key={String(r.id ?? i)}>
+                    <td className="pc-col-idx">{i + 1}</td>
+                    <td>{r.name}</td>
+                    <td>{(r as any).user || (r as any).contact_first || '—'}</td>
+                    <td>{r.mobile || r.tel || '—'}</td>
+                    <td>{gradeText(r as Customer)}</td>
+                  </tr>
+                ))}
+                {targetRows.length === 0 ? (
+                  <tr>
+                    <td className="pc-table-empty" colSpan={5}>
+                      暂无数据
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          {targetRows.length > 300 ? (
+            <div style={{ fontSize: 12, color: 'var(--c-text-4)', marginTop: 8 }}>
+              仅预览前 300 条，完整数据请点「导出 CSV」。
+            </div>
+          ) : null}
+        </Modal>
+      ) : null}
+
       {/* 本地新增 / 编辑客户（不提交原站） */}
       {editing && fields ? (
         <EditModal
-          title={editing.id ? '编辑客户' : '新增客户'}
+          title={editing.id ? '编辑客户' : '添加客户'}
           fields={fields}
           value={editing}
           onSave={(v) => {
@@ -431,6 +734,25 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
             toast('已保存到本地（未提交原站）');
           }}
           onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {/* 行内带表单操作：走访 / 分类 / 分配 */}
+      {acting ? (
+        <EditModal
+          title={`${acting.op.label} · ${String(acting.row.name || acting.row.id || '')}`}
+          fields={acting.fields}
+          value={acting.row}
+          onSave={(v) => {
+            const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            const id = String(acting.row.id ?? '');
+            if (id.startsWith('local-')) editLocal(module, { ...acting.row, ...v, [`op_${acting.op.key}`]: stamp });
+            else if (id) editLocal(module, { id, ...v, [`op_${acting.op.key}`]: stamp });
+            setActing(null);
+            setLocalVer((n) => n + 1);
+            toast(`已保存「${acting.op.label}」（本地生效，未提交原站）`);
+          }}
+          onClose={() => setActing(null)}
         />
       ) : null}
 

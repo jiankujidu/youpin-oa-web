@@ -310,6 +310,10 @@
 .pc-btn:disabled { opacity: .6; cursor: default; }
 .pc-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 
+/* 表格勾选框（对齐原站批量操作） */
+.pc-check { width: 15px; height: 15px; accent-color: #1e6fff; cursor: pointer; vertical-align: middle; }
+.pc-ops .pc-check { margin-right: 2px; }
+
 /* 两栏（首页：左主表 + 右侧栏） */
 .pc-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
 

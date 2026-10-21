@@ -9,8 +9,8 @@ import {
 } from '../core/api';
 import { cellText, dynamicColumns, FIELD_LABEL } from '../core/biz';
 import { addLocal, deleteLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
-import { localBadge, opsFields } from '../core/opsFields';
-import { fmtTime, toast } from '../core/util';
+import { localBadge, opActionLabel, opsActions, opsFields, opsToolbar, type OpAction, type ToolAction } from '../core/opsFields';
+import { downloadCsv, fmtTime, toast } from '../core/util';
 import { ConfirmDialog, EditModal, Modal } from './ui';
 import { PageHead, Panel, StatusTag, DataTable, type Column } from './pc';
 
@@ -36,8 +36,14 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
   const [localVer, setLocalVer] = useState(0);
   const [editing, setEditing] = useState<Row | null>(null);
   const [confirmDel, setConfirmDel] = useState<Row | null>(null);
+  /** 行内额外操作（快速下单 / 退回 / 付款记录…，全部本地生效） */
+  const [acting, setActing] = useState<{ row: Row; action: OpAction } | null>(null);
+  /** 工具栏带表单的批量操作（如群发消息） */
+  const [tooling, setTooling] = useState<{ tool: ToolAction; form: Row } | null>(null);
 
   const fields = opsFields(pageKey);
+  const actions = opsActions(pageKey);
+  const toolbar = opsToolbar(pageKey);
 
   const load = useCallback(
     (p: number, k: string) => {
@@ -71,6 +77,44 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
       toast('已保存到本地（未提交原站）');
     }
     setLocalVer((n) => n + 1);
+  }
+
+  /** 行内额外操作：写一条本地 op_<key> 记录（不提交原站） */
+  function runAction(row: Row, action: OpAction, form?: Row) {
+    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const id = String(row.id ?? '');
+    if (id.startsWith('local-')) {
+      editLocal(pageKey, { ...row, [`op_${action.key}`]: stamp, ...(form || {}) });
+    } else if (id) {
+      editLocal(pageKey, { id, [`op_${action.key}`]: stamp, ...(form || {}) });
+    }
+    setLocalVer((n) => n + 1);
+    toast(action.msg || `已执行「${action.label}」（本地生效，未提交原站）`);
+  }
+
+  /** 工具栏批量操作：导出走 CSV，record 写一条页面级本地记录，info 仅提示 */
+  function runTool(t: ToolAction, form?: Row) {
+    if (t.kind === 'export') {
+      if (!displayRows.length) return toast('暂无可导出的数据');
+      const csvCols = cols.filter((c) => c.key !== 'op').map((c) => ({ key: c.key, title: c.title }));
+      downloadCsv(`${subPageTitle(pageKey)}-${t.label}-${new Date().toISOString().slice(0, 10)}`, csvCols, displayRows);
+      return toast(`已导出 ${displayRows.length} 条为 CSV`);
+    }
+    if (t.kind === 'record') {
+      const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      editLocal(pageKey, { id: `page-${pageKey}`, [`op_${t.key}`]: stamp, ...(form || {}) });
+      setLocalVer((n) => n + 1);
+      return toast(t.msg || `已执行「${t.label}」（本地生效，未提交原站）`);
+    }
+    toast(t.msg || `「${t.label}」本地模式未执行（不提交原站）`);
+  }
+
+  /** 导出当前已载入数据为 CSV（本地生成，对齐原站「导出」） */
+  function exportCsv() {
+    if (!displayRows.length) return toast('暂无可导出的数据');
+    const csvCols = cols.filter((c) => c.key !== 'op').map((c) => ({ key: c.key, title: c.title }));
+    downloadCsv(`${subPageTitle(pageKey)}-${new Date().toISOString().slice(0, 10)}`, csvCols, displayRows);
+    toast(`已导出 ${displayRows.length} 条为 CSV`);
   }
 
   const cols = useMemo<Column<Row>[]>(() => {
@@ -111,12 +155,25 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
     list.push({
       key: 'op',
       title: '操作',
-      width: 150,
+      width: 150 + actions.length * 76,
       render: (r) => (
         <span className="pc-ops">
           <span className="gg-xs blue" onClick={() => setDetail(r)}>
             详情
           </span>
+          {actions.map((a) => (
+            <span
+              key={a.key}
+              className={`gg-xs ${a.tone || 'blue'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (a.fields?.length) setActing({ row: r, action: a });
+                else runAction(r, a);
+              }}
+            >
+              {a.label}
+            </span>
+          ))}
           {fields ? (
             <>
               <span className="gg-xs blue" onClick={() => setEditing(r)}>
@@ -131,13 +188,17 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
       ),
     });
     return list;
-  }, [rows, fields]);
+  }, [rows, fields, actions]);
 
   const detailPairs = useMemo<[string, string][]>(() => {
     if (!detail) return [];
     return Object.entries(detail)
       .filter(([, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object')
-      .map(([k, v]) => [FIELD_LABEL[k] || k, String(v).replace(/<[^>]+>/g, ' ').trim()] as [string, string]);
+      .map(([k, v]) => {
+        const m = /^op_(.+)$/.exec(k);
+        const label = m ? `本地操作 · ${opActionLabel(m[1])}` : FIELD_LABEL[k] || k;
+        return [label, String(v).replace(/<[^>]+>/g, ' ').trim()] as [string, string];
+      });
   }, [detail]);
 
   const search = () => {
@@ -156,6 +217,21 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
             <button className="pc-btn pc-btn-ghost" onClick={() => load(page, kw)}>
               刷新
             </button>
+            <button className="pc-btn pc-btn-ghost" onClick={exportCsv}>
+              导出
+            </button>
+            {toolbar.map((t) => (
+              <button
+                key={t.key}
+                className={`pc-btn ${!t.tone || t.tone === 'ghost' ? 'pc-btn-ghost' : ''}`}
+                onClick={() => {
+                  if (t.kind === 'record' && t.fields?.length) setTooling({ tool: t, form: {} });
+                  else runTool(t);
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
             {fields ? (
               <button className="pc-btn" onClick={() => setEditing({ id: '' })}>
                 ＋ 新增
@@ -263,6 +339,34 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
           value={editing}
           onSave={(v) => saveRow(v)}
           onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {/* 行内额外操作（快速下单 / 退回 / 责任人…，全部本地生效） */}
+      {acting ? (
+        <EditModal
+          title={`${acting.action.label} · ${subPageTitle(pageKey)}`}
+          fields={acting.action.fields || []}
+          value={acting.row}
+          onSave={(v) => {
+            runAction(acting.row, acting.action, v);
+            setActing(null);
+          }}
+          onClose={() => setActing(null)}
+        />
+      ) : null}
+
+      {/* 工具栏批量操作表单（如群发消息，本地生效） */}
+      {tooling ? (
+        <EditModal
+          title={`${tooling.tool.label} · ${subPageTitle(pageKey)}`}
+          fields={tooling.tool.fields || []}
+          value={tooling.form}
+          onSave={(v) => {
+            runTool(tooling.tool, v);
+            setTooling(null);
+          }}
+          onClose={() => setTooling(null)}
         />
       ) : null}
 

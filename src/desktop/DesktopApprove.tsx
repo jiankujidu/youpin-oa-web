@@ -1,15 +1,27 @@
 /**
  * 办公审批 › 我发起的（/oa/approve/index）
  * PC 后台统一版式：筛选 Tab + 数据表格 + 分页 + 详情弹层（含审批意见与通过/拒绝）
+ *
+ * 功能对齐 oa.upingbio.com：
+ *   - 24 类审批类型（付款/会议室预定/借款/入职/公文流转/出差/加班/垫付退回/外出/奖励/实验付款/
+ *     招聘需求/活动经费/物品维修/用章/用车/用车归还/离职/请假/资质借用/转岗/转正/通用审批/采购）
+ *   - 行内：审批 / 详情 / 重新申请 / 删除
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { applyApproveDecision, createApprove, fetchApproves, getApproveRemark, getApproveStatus } from '../core/api';
+import { addLocal, deleteLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
+import { localBadge, opsFields } from '../core/opsFields';
 import type { ApproveItem } from '../core/types';
 import { fmtTime, toast } from '../core/util';
-import { Modal } from './ui';
+import { ConfirmDialog, EditModal, Modal } from './ui';
 import { DataTable, FilterTabs, PageHead, Panel, StatusTag, type Column } from './pc';
 
-const APPROVE_TYPES = ['请假', '出差', '外出', '加班', '采购', '维修', '用章', '用车'];
+/** 原站 24 类审批（/oa/approve/index 页面 lay-filter 里的类型标签） */
+const APPROVE_TYPES = [
+  '付款', '会议室预定', '借款', '入职', '公文流转', '出差', '加班', '垫付退回',
+  '外出', '奖励', '实验付款', '招聘需求', '活动经费', '物品维修', '用章', '用车',
+  '用车归还', '离职', '请假', '资质借用', '转岗', '转正', '通用审批', '采购',
+];
 
 const TABS = [
   { key: 0, label: '全部' },
@@ -57,6 +69,11 @@ export default function DesktopApprove() {
   const [addType, setAddType] = useState(APPROVE_TYPES[0]);
   const [addTitle, setAddTitle] = useState('');
   const [addContent, setAddContent] = useState('');
+  const [localVer, setLocalVer] = useState(0);
+  /** 重新申请 / 删除 */
+  const [reapply, setReapply] = useState<ApproveItem | null>(null);
+  const [reTitle, setReTitle] = useState('');
+  const [confirmDel, setConfirmDel] = useState<ApproveItem | null>(null);
 
   /** 一次取全部，状态筛选在前端做（后端 status 语义与列表字段不一致） */
   const load = useCallback(() => {
@@ -73,9 +90,16 @@ export default function DesktopApprove() {
     load();
   }, [load]);
 
+  /** OA 行 + 本地新增/编辑合并 */
+  const allRows = useMemo(
+    () => mergeLocal('approve', list as any[]) as unknown as ApproveItem[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [list, localVer],
+  );
+
   const rows = useMemo(() => {
     const k = q.trim().toLowerCase();
-    return list.filter((r) => {
+    return allRows.filter((r) => {
       if (status !== 0 && statusOf(r) !== status) return false;
       if (typeF && typeOf(r) !== typeF) return false;
       if (!k) return true;
@@ -92,12 +116,12 @@ export default function DesktopApprove() {
         .toLowerCase()
         .includes(k);
     });
-  }, [list, q, status, typeF]);
+  }, [allRows, q, status, typeF]);
 
-  /** 审批类型下拉：取自真实数据 */
+  /** 审批类型下拉：原站 24 类 + 真实数据里出现过的类型 */
   const typeOpts = useMemo(
-    () => [...new Set(list.map((r) => typeOf(r)).filter((v) => v && v !== '—'))].sort(),
-    [list],
+    () => [...new Set([...APPROVE_TYPES, ...allRows.map((r) => typeOf(r))].filter((v) => v && v !== '—'))],
+    [allRows],
   );
 
   async function submitAdd() {
@@ -109,10 +133,30 @@ export default function DesktopApprove() {
     setAdd(false);
     setAddTitle('');
     setAddContent('');
-    setStatus(1);
-    toast('已提交，进入待审批');
-    setStatus(1);
+    setLocalVer((n) => n + 1);
     load();
+  }
+
+  /** 重新申请（对齐原站 reapply）：本地新增一条同类型同内容的新申请 */
+  function doReapply(r: ApproveItem, title: string) {
+    const t = title.trim();
+    if (!t) return toast('请填写申请事由');
+    addLocal('approve', {
+      type_name: typeOf(r),
+      flow_type: (r as any).flow_type || typeOf(r),
+      title: t,
+      content: (r as any).content || '',
+      admin_name: r.admin_name || '',
+      department_name: (r as any).department_name || '',
+      check_status: 1,
+      op_reapply: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      reapply_from: String(r.id ?? ''),
+    });
+    setReapply(null);
+    setReTitle('');
+    setLocalVer((n) => n + 1);
+    setStatus(1);
+    toast('已重新申请（本地生效，未提交原站）');
   }
 
   async function decide(pass: boolean) {
@@ -126,6 +170,7 @@ export default function DesktopApprove() {
     toast(pass ? '已通过' : '已拒绝');
     setRemark('');
     setCur(null);
+    setLocalVer((n) => n + 1);
     load();
   }
 
@@ -149,21 +194,34 @@ export default function DesktopApprove() {
     {
       key: 'op',
       title: '操作',
-      width: 160,
+      width: 230,
       render: (r) => {
         const s = statusOf(r);
-        return s === 1 ? (
+        return (
           <span className="pc-ops">
-            <span className="gg-xs orange" onClick={() => setCur(r)}>
-              审批
-            </span>
+            {s === 1 ? (
+              <span className="gg-xs orange" onClick={() => setCur(r)}>
+                审批
+              </span>
+            ) : null}
             <span className="gg-xs blue" onClick={() => setCur(r)}>
               详情
             </span>
-          </span>
-        ) : (
-          <span className="gg-xs blue" onClick={() => setCur(r)}>
-            详情
+            {s === 3 || s === 4 ? (
+              <span
+                className="gg-xs purple"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setReapply(r);
+                  setReTitle(String(titleOf(r) || ''));
+                }}
+              >
+                重新申请
+              </span>
+            ) : null}
+            <span className="gg-xs red" onClick={() => setConfirmDel(r)}>
+              删除
+            </span>
           </span>
         );
       },
@@ -177,7 +235,7 @@ export default function DesktopApprove() {
       <PageHead
         title="我发起的"
         crumb={['办公审批', '我发起的']}
-        desc={`共 ${rows.length} 条审批`}
+        desc={`共 ${rows.length} 条审批${localAdded('approve').length ? ` · 本地新增 ${localAdded('approve').length} 条` : ''}`}
         actions={
           <>
             <button className="pc-btn pc-btn-ghost" onClick={() => load()}>
@@ -194,7 +252,7 @@ export default function DesktopApprove() {
           <FilterTabs tabs={TABS} value={status} onChange={(v: 0 | 1 | 2 | 3) => setStatus(v)} />
           <div className="pc-toolbar">
             <input className="pc-input" style={{ width: 260 }} placeholder="物品名称 / 申请人 / 部门" value={q} onChange={(e) => setQ(e.target.value)} />
-            <select className="pc-input" style={{ width: 160 }} value={typeF} onChange={(e) => setTypeF(e.target.value)}>
+            <select className="pc-input" style={{ width: 170 }} value={typeF} onChange={(e) => setTypeF(e.target.value)}>
               <option value="">全部类型</option>
               {typeOpts.map((t) => (
                 <option key={t} value={t}>
@@ -208,9 +266,33 @@ export default function DesktopApprove() {
               </button>
             ) : null}
           </div>
+          {/* 24 类审批类型筛选（对齐原站页面顶部的类型标签） */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '0 0 12px' }}>
+            <span
+              className={`gg-xs ${typeF === '' ? '' : 'ghost'}`}
+              style={{ cursor: 'pointer', padding: '3px 10px', borderRadius: 4 }}
+              onClick={() => setTypeF('')}
+            >
+              全部类型
+            </span>
+            {APPROVE_TYPES.map((t) => {
+              const n = allRows.filter((r) => typeOf(r) === t).length;
+              return (
+                <span
+                  key={t}
+                  className={`gg-xs ${typeF === t ? '' : 'ghost'}`}
+                  style={{ cursor: 'pointer', padding: '3px 10px', borderRadius: 4 }}
+                  onClick={() => setTypeF(typeF === t ? '' : t)}
+                >
+                  {t}
+                  {n ? ` (${n})` : ''}
+                </span>
+              );
+            })}
+          </div>
         </div>
         <div style={{ padding: '0 16px 12px' }}>
-          <DataTable columns={cols} rows={rows} rowKey={(r) => r.id} onRowClick={setCur} loading={loading} pageSize={20} />
+          <DataTable columns={cols} rows={rows} rowKey={(r) => String(r.id)} onRowClick={setCur} loading={loading} pageSize={20} />
         </div>
       </Panel>
 
@@ -310,6 +392,49 @@ export default function DesktopApprove() {
           <div style={{ fontSize: 13, marginBottom: 6 }}>详细说明</div>
           <input className="pc-input" style={{ width: '100%' }} placeholder="补充说明（可选）" value={addContent} onChange={(e) => setAddContent(e.target.value)} />
         </Modal>
+      ) : null}
+
+      {/* ===== 重新申请（对齐原站 reapply，本地生效） ===== */}
+      {reapply ? (
+        <Modal
+          title="重新申请"
+          onClose={() => { setReapply(null); setReTitle(''); }}
+          footer={
+            <>
+              <button className="pc-btn pc-btn-ghost" onClick={() => { setReapply(null); setReTitle(''); }}>
+                取消
+              </button>
+              <button className="pc-btn" onClick={() => doReapply(reapply, reTitle)}>
+                提交
+              </button>
+            </>
+          }
+        >
+          <div style={{ fontSize: 12.5, color: '#e8862a', background: '#fff7ec', border: '1px solid #ffd9a8', borderRadius: 6, padding: '7px 10px', marginBottom: 14 }}>
+            重新申请会在本机生成一条新的同类型审批，原记录保留，不提交 oa.upingbio.com。
+          </div>
+          <div style={{ fontSize: 13, marginBottom: 6 }}>类型</div>
+          <input className="pc-input" style={{ width: '100%', marginBottom: 12 }} value={typeOf(reapply)} readOnly />
+          <div style={{ fontSize: 13, marginBottom: 6 }}>申请事由 *</div>
+          <input className="pc-input" style={{ width: '100%', marginBottom: 12 }} value={reTitle} onChange={(e) => setReTitle(e.target.value)} placeholder="请填写申请事由" />
+          <div style={{ fontSize: 13, marginBottom: 6 }}>原申请说明</div>
+          <div style={{ fontSize: 13, color: 'var(--c-text-2)', whiteSpace: 'pre-wrap' }}>{(reapply as any).content || '（无）'}</div>
+        </Modal>
+      ) : null}
+
+      {/* 删除审批（本地生效） */}
+      {confirmDel ? (
+        <ConfirmDialog
+          title="删除确认"
+          text={`确认删除审批「${String(titleOf(confirmDel) || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
+          onOk={() => {
+            deleteLocal('approve', String(confirmDel.id ?? ''));
+            setCur(null);
+            setLocalVer((n) => n + 1);
+            toast('已删除（本地生效，未提交原站）');
+          }}
+          onClose={() => setConfirmDel(null)}
+        />
       ) : null}
     </div>
   );
