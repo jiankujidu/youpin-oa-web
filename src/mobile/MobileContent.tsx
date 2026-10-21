@@ -7,6 +7,7 @@ import { fetchArticles, fetchMails, fetchMessages, fetchNotes } from '../core/ap
 import { shareContent } from '../core/share';
 import type { Article, MailContact, Message, Note } from '../core/types';
 import { fmtTime, toast } from '../core/util';
+import { fixContentHtml } from '../core/fileurl';
 import { Empty, Loading } from './ui';
 
 /* ======================= 企业公告 ======================= */
@@ -34,7 +35,7 @@ export function MobileNote() {
             {detail.cate_title} · {detail.admin_name} · {fmtTime(detail.create_time)}
           </div>
         </div>
-        <div className="m-detail-content" dangerouslySetInnerHTML={{ __html: detail.content || '' }} />
+        <div className="m-detail-content" dangerouslySetInnerHTML={{ __html: fixContentHtml(detail.content || '') }} />
         <div className="m-card">
           <div className="m-card-title">转发</div>
           <div className="m-file-actions">
@@ -101,7 +102,7 @@ export function MobileArticle() {
             {detail.cate_title} · {fmtTime(detail.create_time)}
           </div>
         </div>
-        <div className="m-detail-content" dangerouslySetInnerHTML={{ __html: detail.content || '' }} />
+        <div className="m-detail-content" dangerouslySetInnerHTML={{ __html: fixContentHtml(detail.content || '') }} />
         <div style={{ padding: '0 12px 20px' }}>
           <button className="m-btn" style={{ background: '#f0f2f5', color: '#666' }} onClick={() => setDetail(null)}>
             返回列表
@@ -152,7 +153,7 @@ export function MobileMessage() {
             来自 {detail.from_name} · {fmtTime(detail.create_time)}
           </div>
         </div>
-        <div className="m-detail-content" dangerouslySetInnerHTML={{ __html: detail.content || '' }} />
+        <div className="m-detail-content" dangerouslySetInnerHTML={{ __html: fixContentHtml(detail.content || '') }} />
         <div style={{ padding: '0 12px 20px' }}>
           <button className="m-btn" style={{ background: '#f0f2f5', color: '#666' }} onClick={() => setDetail(null)}>
             返回列表

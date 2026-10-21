@@ -16,6 +16,7 @@ import type {
   ApproveItem, Article, Attachment, Customer, MailContact, Message, Note, Product,
 } from './types';
 import { uid } from './util';
+import { absOaUrl, oaFileUrl } from './fileurl';
 
 const K_UPLOADED = 'youpin_uploaded_meta';
 const K_OA_SID = 'youpin_oa_sid';
@@ -474,7 +475,12 @@ export function fetchAttachments(keyword = ''): Promise<Attachment[]> {
       rows.map((r) => ({
         id: String(r.id),
         name: r.name || r.filename || '未命名',
-        url: r.filepath || '',
+        // ★ 稳定流式端点（get_oss_file?id=，经代理注入会话）。
+        //   不用 r.filepath：那是 OSS 签名直链，约 3.5 小时过期，直连 403。
+        url:
+          absOaUrl(r.ossfilepath || '') ||
+          oaFileUrl(r.id, r.name) ||
+          absOaUrl(r.filepath || ''),
         filepath: r.filepath || '',
         filesize: Number(r.filesize || 0),
         fileext: r.fileext || '',

@@ -130,8 +130,12 @@ export interface Product {
 
 export interface DocRef {
   goods_no: string;
+  /** OSS 签名直链（约 3.5 小时过期，仅兜底） */
   goods_no_url?: string;
+  /** 原站稳定预览端点 /api/index/get_oss_file.html?id=…（优先使用） */
   pc_goods_no_url?: string;
+  /** 原站稳定下载端点 /api/index/down_oss_file.html?id=… */
+  pc_yu_goods_no_url?: string;
 }
 
 /** 公告（/note/index/index） */

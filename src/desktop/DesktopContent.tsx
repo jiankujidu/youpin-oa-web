@@ -1,6 +1,7 @@
 /** 桌面端内容类页面：公告 / 问答知识 / 消息中心 / 通讯录 — 统一 PC 后台表格版式 */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchArticles, fetchMails, fetchMessages, fetchNotes } from '../core/api';
+import { fixContentHtml } from '../core/fileurl';
 import { shareContent } from '../core/share';
 import type { Article, MailContact, Message, Note } from '../core/types';
 import { fmtTime, plain, toast } from '../core/util';
@@ -10,7 +11,7 @@ import { DataTable, FilterTabs, PageHead, Panel, StatusTag, type Column } from '
 /** 富文本正文（后端返回 HTML） */
 function Rich({ html }: { html?: string }) {
   if (!html) return <div style={{ fontSize: 13, color: 'var(--c-text-4)' }}>（无正文）</div>;
-  return <div className="ai-doc-body" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className="ai-doc-body" dangerouslySetInnerHTML={{ __html: fixContentHtml(html) }} />;
 }
 
 /* ======================= 公告（/note/index/index） ======================= */

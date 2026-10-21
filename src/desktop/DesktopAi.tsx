@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchArticles } from '../core/api';
+import { fixContentHtml } from '../core/fileurl';
 import type { Article } from '../core/types';
 import { Icon } from '../core/icons';
 import { PageHead, Panel } from './pc';
@@ -157,7 +158,7 @@ export function DesktopAi() {
             </div>
             <div
               className="ai-doc-body"
-              dangerouslySetInnerHTML={{ __html: open.content || '（无正文）' }}
+              dangerouslySetInnerHTML={{ __html: fixContentHtml(open.content || '（无正文）') }}
             />
           </div>
         </div>

@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProductPage } from '../core/api';
-import { CONFIG } from '../core/config';
+import { absOaUrl, fixContentHtml } from '../core/fileurl';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
@@ -22,12 +22,11 @@ function fmtPrice(s?: string): string {
   return out.length ? out.join(' / ') : s.slice(0, 60);
 }
 
-/** 说明书地址：优先 OSS 直链（协议相对补齐 https），否则走同源代理 */
+/** 说明书地址：优先稳定端点 pc_goods_no_url（get_oss_file?id=，经代理不过期）；OSS 签名直链仅兜底（会过期） */
 function docUrl(g: { goods_no_url?: string; pc_goods_no_url?: string }): string {
-  const a = g.goods_no_url || '';
-  if (a) return a.startsWith('//') ? 'https:' + a : a;
-  const b = g.pc_goods_no_url || '';
-  return b ? `${CONFIG.oaProxy}${b}` : '';
+  const b = absOaUrl(g.pc_goods_no_url || '');
+  if (b) return b;
+  return absOaUrl(g.goods_no_url || '');
 }
 
 export default function DesktopProduct() {
@@ -342,7 +341,7 @@ export default function DesktopProduct() {
               <div style={{ marginTop: 16, fontSize: 13, fontWeight: 600, marginBottom: 8 }}>产品详情</div>
               <div
                 className="ai-doc-body"
-                dangerouslySetInnerHTML={{ __html: cur.content }}
+                dangerouslySetInnerHTML={{ __html: fixContentHtml(cur.content) }}
               />
             </>
           ) : null}

@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchArticles } from '../core/api';
+import { fixContentHtml } from '../core/fileurl';
 import type { Article } from '../core/types';
 import { fmtTime } from '../core/util';
 
@@ -146,7 +147,7 @@ export default function MobileAi() {
             <div style={{ padding: '8px 16px', color: '#8a8f99', fontSize: 12, borderBottom: '1px solid #f2f4f8' }}>
               {open.cate_title || '问答'} · {fmtTime(open.create_time)}
             </div>
-            <div style={{ padding: 16, overflowY: 'auto' }} dangerouslySetInnerHTML={{ __html: open.content || '（无正文）' }} />
+            <div style={{ padding: 16, overflowY: 'auto' }} dangerouslySetInnerHTML={{ __html: fixContentHtml(open.content || '（无正文）') }} />
           </div>
         </div>
       ) : null}

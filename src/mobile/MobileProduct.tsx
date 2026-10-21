@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { fetchProducts } from '../core/api';
+import { absOaUrl, fixContentHtml } from '../core/fileurl';
 import { createFolder, addDocToFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
@@ -102,7 +103,8 @@ export default function MobileProduct() {
             <div className="m-section-title">说明书</div>
             <div className="m-card">
               {detail.goods_no_list.map((g, gi) => {
-                const url = g.goods_no_url || g.pc_goods_no_url || '';
+                // ★ 优先稳定端点 pc_goods_no_url（get_oss_file?id=）；goods_no_url 是会过期的 OSS 签名链
+                const url = absOaUrl(g.pc_goods_no_url || '') || absOaUrl(g.goods_no_url || '');
                 const docName = `${sanitizeName(g.goods_no)}-${sanitizeName(detail.title)}.pdf`;
                 return (
                   <div className="m-doc-row" key={gi}>
@@ -134,7 +136,7 @@ export default function MobileProduct() {
                     const items = (detail.goods_no_list || [])
                       .map((g) => ({
                         name: `${sanitizeName(g.goods_no)}-${sanitizeName(detail.title)}.pdf`,
-                        url: g.goods_no_url || g.pc_goods_no_url || '',
+                        url: absOaUrl(g.pc_goods_no_url || '') || absOaUrl(g.goods_no_url || ''),
                       }))
                       .filter((x) => x.url);
                     void shareFilesAsZip(items, detail.title).then((r) => {
@@ -153,7 +155,7 @@ export default function MobileProduct() {
         {detail.content ? (
           <div
             className="m-detail-content"
-            dangerouslySetInnerHTML={{ __html: detail.content }}
+            dangerouslySetInnerHTML={{ __html: fixContentHtml(detail.content) }}
           />
         ) : null}
 

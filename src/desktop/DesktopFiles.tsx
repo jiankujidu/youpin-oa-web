@@ -1,24 +1,18 @@
 /**
  * 附件管理 › 文件库（/home/files/index）
- * PC 后台统一版式：上传区 + 工具栏 + 数据表格 + 分页 + 转发弹层
+ * PC 后台统一版式：工具栏 + 数据表格 + 转发弹层
+ *
+ * 只读版（对齐"不要账号不要提交"）：打开/下载/转发走稳定流式端点
+ * get_oss_file.html?id=（经同源代理注入会话，永不过期）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { addUploadedAttachment, fetchAttachments, removeUploadedAttachment } from '../core/api';
-import { PROVIDER_HOWTO, PROVIDER_LABEL } from '../core/config';
-import { FILE_EXTS, fileTypeInfo, validateFile } from '../core/filetype';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { fetchAttachments } from '../core/api';
+import { fileTypeInfo } from '../core/filetype';
 import { copyText, openWithViewer, shareFile, shareFilesAsZip } from '../core/share';
-import { UploadUnconfiguredError, activeProvider, isUploadConfigured, uploadFile } from '../core/upload';
 import type { Attachment } from '../core/types';
 import { downloadBlob, fmtSize, fmtTime, toast, urlToFile } from '../core/util';
 import { Modal } from './ui';
 import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
-
-interface UpItem {
-  id: string;
-  name: string;
-  percent: number;
-  error?: string;
-}
 
 export default function DesktopFiles() {
   const [list, setList] = useState<Attachment[]>([]);
@@ -27,14 +21,8 @@ export default function DesktopFiles() {
   const [query, setQuery] = useState('');
   const [ext, setExt] = useState('');
   const [group, setGroup] = useState('');
-  const [uploading, setUploading] = useState<UpItem[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const [unconfigured, setUnconfigured] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [shareTarget, setShareTarget] = useState<Attachment | null>(null);
-
-  const fileInput = useRef<HTMLInputElement>(null);
-  const dragDepth = useRef(0);
 
   const load = useCallback((kw: string) => {
     setLoading(true);
@@ -52,63 +40,6 @@ export default function DesktopFiles() {
   useEffect(() => {
     load(query);
   }, [query, load]);
-
-  async function handleFiles(files: File[]) {
-    if (!files.length) return;
-    setUnconfigured(false);
-
-    const accepted = files.filter((f) => {
-      const err = validateFile(f);
-      if (err) toast(err);
-      return !err;
-    });
-    if (!accepted.length) return;
-
-    if (!isUploadConfigured()) {
-      setUnconfigured(true);
-      toast('未配置上传服务，无法上传');
-      return;
-    }
-
-    const batch: UpItem[] = accepted.map((f, i) => ({ id: `du_${Date.now()}_${i}`, name: f.name, percent: 0 }));
-    setUploading((prev) => [...prev, ...batch]);
-
-    for (let i = 0; i < accepted.length; i++) {
-      const f = accepted[i];
-      const id = batch[i].id;
-      try {
-        const res = await uploadFile(f, (p) => {
-          setUploading((prev) => prev.map((x) => (x.id === id ? { ...x, percent: p.percent } : x)));
-        });
-        addUploadedAttachment({
-          url: res.url,
-          name: res.name,
-          size: res.size,
-          ext: res.ext || f.name.split('.').pop()?.toLowerCase() || '',
-        });
-        toast(`已上传：${res.name}`);
-        setUploading((prev) => prev.filter((x) => x.id !== id));
-      } catch (e) {
-        const err = e instanceof Error ? e : new Error(String(e));
-        if (err instanceof UploadUnconfiguredError) {
-          setUnconfigured(true);
-          setUploading((prev) => prev.filter((x) => x.id !== id));
-          break;
-        }
-        setUploading((prev) => prev.map((x) => (x.id === id ? { ...x, error: err.message } : x)));
-      }
-    }
-    load(query);
-  }
-
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    dragDepth.current = 0;
-    setDragging(false);
-    void handleFiles(Array.from(e.dataTransfer.files));
-  }
-
-  const provider = activeProvider();
 
   const exts = useMemo(() => {
     const s = new Set<string>();
@@ -130,6 +61,14 @@ export default function DesktopFiles() {
       ),
     [list, ext, group],
   );
+
+  function doOpen(r: Attachment) {
+    if (/\.pdf$/i.test(r.name) || /\.pdf$/i.test(r.url)) {
+      window.open(r.url, '_blank', 'noopener');
+      return;
+    }
+    openWithViewer(r.url);
+  }
 
   const cols: Column<Attachment>[] = [
     {
@@ -177,7 +116,7 @@ export default function DesktopFiles() {
       width: 190,
       render: (r) => (
         <span className="pc-ops">
-          <span className="gg-xs ghost" onClick={() => openWithViewer(r.url)}>
+          <span className="gg-xs ghost" onClick={() => doOpen(r)}>
             打开
           </span>
           <span className="gg-xs blue" onClick={() => setShareTarget(r)}>
@@ -220,89 +159,11 @@ export default function DesktopFiles() {
         crumb={['日常办公', '文件库']}
         desc={`共 ${rows.length} 个文件`}
         actions={
-          <>
-            <button className="pc-btn pc-btn-ghost" onClick={() => void shareZipChecked()}>
-              打包转发（{checked.size}）
-            </button>
-            <button className="pc-btn" onClick={() => fileInput.current?.click()}>
-              ＋ 上传文件
-            </button>
-          </>
+          <button className="pc-btn pc-btn-ghost" onClick={() => void shareZipChecked()}>
+            打包转发（{checked.size}）
+          </button>
         }
       />
-
-      {/* ===== 上传区 ===== */}
-      <Panel>
-        <div
-          className={`d-dropzone${dragging ? ' dragging' : ''}`}
-          onClick={() => fileInput.current?.click()}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            dragDepth.current++;
-            setDragging(true);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onDragLeave={() => {
-            dragDepth.current--;
-            if (dragDepth.current <= 0) setDragging(false);
-          }}
-          onDrop={onDrop}
-        >
-          <div className="d-drop-ico">⬆</div>
-          <div className="d-drop-title">把文件拖到这里，或点击选择文件</div>
-          <div className="d-drop-sub">
-            支持 {FILE_EXTS.length} 种格式（{FILE_EXTS.slice(0, 8).join(' / ')} …），单文件 ≤ 10MB
-          </div>
-        </div>
-        <input
-          ref={fileInput}
-          type="file"
-          multiple
-          accept={FILE_EXTS.map((e) => '.' + e).join(',')}
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const files = Array.from(e.target.files || []);
-            e.target.value = '';
-            void handleFiles(files);
-          }}
-        />
-
-        {uploading.length ? (
-          <div style={{ marginTop: 12 }}>
-            {uploading.map((u) => (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', fontSize: 13 }}>
-                <span style={{ width: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name}</span>
-                {u.error ? (
-                  <span style={{ color: 'var(--c-danger)' }}>失败：{u.error}</span>
-                ) : (
-                  <>
-                    <span className="d-up-bar" style={{ flex: 1 }}>
-                      <i style={{ width: `${u.percent}%` }} />
-                    </span>
-                    <span style={{ width: 44, textAlign: 'right', color: 'var(--c-primary)' }}>{u.percent}%</span>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="d-notice" style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.8 }}>
-          {unconfigured || !isUploadConfigured() ? (
-            <>
-              <b>上传服务未配置：</b>上传需要一个前端可直接调用的第三方对象存储。在仓库根目录建 <code>.env.local</code> 填入以下任一后重新构建：
-              <div>· <code>VITE_CLOUDINARY_CLOUD</code> + <code>VITE_CLOUDINARY_PRESET</code> — {PROVIDER_HOWTO.cloudinary}</div>
-              <div>· <code>VITE_UPLOADCARE_PUB_KEY</code> — {PROVIDER_HOWTO.uploadcare}</div>
-              <div>· <code>VITE_R2_PRESIGN_URL</code> — {PROVIDER_HOWTO.r2}</div>
-              <div style={{ marginTop: 4, color: 'var(--c-text-3)' }}>列表中的文件来自 OA 真实文件库，浏览 / 下载 / 转发不受影响。</div>
-            </>
-          ) : (
-            <>
-              <b>上传服务：{PROVIDER_LABEL[provider!]}</b> — 文件会真实上传到该服务并返回公网链接，可直接转发。
-            </>
-          )}
-        </div>
-      </Panel>
 
       {/* ===== 文件表格 ===== */}
       <Panel bodyPad={false}>
@@ -388,7 +249,7 @@ export default function DesktopFiles() {
             </>
           }
         >
-          <div style={{ fontSize: 13, color: 'var(--c-text-2)' }}>公网可访问链接：</div>
+          <div style={{ fontSize: 13, color: 'var(--c-text-2)' }}>可分享链接（公网可直接访问）：</div>
           <div
             style={{
               marginTop: 8,
@@ -413,17 +274,6 @@ export default function DesktopFiles() {
             </span>
             <span className="pc-link" onClick={() => window.open(shareTarget.url, '_blank', 'noopener')}>
               在浏览器打开
-            </span>
-            <span
-              className="pc-link"
-              onClick={() => {
-                removeUploadedAttachment(shareTarget.id);
-                toast('已从本机列表移除');
-                setShareTarget(null);
-                load(query);
-              }}
-            >
-              从本机列表移除
             </span>
           </div>
         </Modal>
