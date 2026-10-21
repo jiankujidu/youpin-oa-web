@@ -335,6 +335,11 @@ const CHECK_STATUS: Record<string, string> = {
   '0': '待审核', '1': '审核中', '2': '已通过', '3': '已驳回', '4': '已撤销', '5': '已撤销',
 };
 
+/** 勾股OA check_status 数字 → 中文（对外导出供列表/详情使用） */
+export function checkStatusText(v: string | number): string {
+  return CHECK_STATUS[String(v)] || String(v);
+}
+
 /** gouguOA 常见字段 → 中文列名（详情字段对展示用） */
 export const FIELD_LABEL: Record<string, string> = {
   id: '编号', code: '单号', title: '标题', name: '名称', content: '内容', remark: '备注',

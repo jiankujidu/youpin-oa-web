@@ -256,10 +256,11 @@
   width: 100%;
   border: 1px solid var(--c-border);
   border-radius: var(--r-lg);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: var(--c-surface);
 }
-.pc-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.55; color: var(--c-text); }
+.pc-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; line-height: 1.55; color: var(--c-text); }
 .pc-table thead th {
   background: #f8fafc;
   color: var(--c-text-2);

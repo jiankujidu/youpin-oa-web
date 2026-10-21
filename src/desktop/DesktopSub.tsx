@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   changePassword, fetchSubPage, getProfile, saveProfile, subPageTitle,
 } from '../core/api';
-import { cellText, dynamicColumns, FIELD_LABEL } from '../core/biz';
+import { cellText, checkStatusText, dynamicColumns, FIELD_LABEL } from '../core/biz';
 import { addLocal, deleteLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { localBadge, opActionLabel, opsActions, opsFields, opsToolbar, type OpAction, type ToolAction } from '../core/opsFields';
 import { downloadCsv, fmtTime, toast } from '../core/util';
@@ -23,6 +23,19 @@ function statusTone(v: string): 'ok' | 'no' | 'wait' | 'info' {
   if (/待|处理中|审核|运输中|进行中|投标|计划中|未/.test(v)) return 'wait';
   if (/已|完成|生效|成交|解决|通过/.test(v)) return 'ok';
   return 'info';
+}
+
+/** 依字段语义给列宽（table-layout:fixed 下严格生效；总和超视口出横向滚动） */
+function colWidth(k: string, t: string): number {
+  const s = k + t;
+  if (/remark|content|desc|direction|inquiry/.test(k)) return 200;
+  if (/code|单号|编号|快递|物流/.test(s)) return 130;
+  if (/title|name|名称|标题|客户/.test(s)) return 200;
+  if (/amount|money|金额|价|额|费/.test(s)) return 100;
+  if (/time|date|时间|日期/.test(s)) return 145;
+  if (/status|状态/.test(s)) return 96;
+  if (/mobile|phone|tel|手机|电话/.test(s)) return 125;
+  return 120;
 }
 
 /** 行操作「更多」下拉：自管理开合，点外面 / 移出即关 */
@@ -162,11 +175,13 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
     const list: Column<Row>[] = base.map((c) => ({
       key: c.key,
       title: c.title,
-      width: /remark|content|desc|direction|inquiry/.test(c.key) ? 200 : undefined,
+      width: colWidth(c.key, c.title),
       render: (r) => {
         const v = cellText(r[c.key]);
         if (/status$/.test(c.key) || c.key === 'check_status') {
-          return v === '—' ? '—' : <StatusTag tone={statusTone(v)}>{v}</StatusTag>;
+          // 勾股OA check_status 是数字，转中文再上色
+          const shown = c.key === 'check_status' && /^\d+$/.test(v) ? checkStatusText(v) : v;
+          return shown === '—' ? '—' : <StatusTag tone={statusTone(shown)}>{shown}</StatusTag>;
         }
         if (c.key === 'title' || c.key === 'name' || c.key === 'code') {
           return (
