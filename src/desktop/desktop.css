@@ -1115,16 +1115,16 @@
   --r-lg: 10px;
   --c-badge: #ff4d4f;
 
-  /* ---- 深色侧栏令牌 ---- */
-  --nav-bg: #0f1a2e;
-  --nav-bg-2: #0d1728;
-  --nav-text: rgba(255, 255, 255, 0.66);
-  --nav-text-strong: #ffffff;
-  --nav-hover: rgba(255, 255, 255, 0.07);
+  /* ---- 浅色侧栏令牌（蓝主色，与首页 hero 一致） ---- */
+  --nav-bg: #ffffff;
+  --nav-bg-2: #fafbfe;
+  --nav-text: #4e5969;
+  --nav-text-strong: #1f2329;
+  --nav-hover: #f2f6ff;
   --nav-active: #1e6fff;
-  --nav-group: rgba(255, 255, 255, 0.34);
-  --nav-line: rgba(255, 255, 255, 0.07);
-  --nav-ico: rgba(255, 255, 255, 0.45);
+  --nav-group: #a9aeb8;
+  --nav-line: #eef1f6;
+  --nav-ico: #8a919f;
 }
 
 /* 内容区细滚动条 */
@@ -1137,14 +1137,14 @@
 .d-main ::-webkit-scrollbar-track,
 .d-content ::-webkit-scrollbar-track { background: transparent; }
 .d-nav::-webkit-scrollbar { width: 4px; }
-.d-nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 2px; }
+.d-nav::-webkit-scrollbar-thumb { background: #e5e9f0; border-radius: 2px; }
 
 /* ---------- 侧栏：深海军蓝 ---------- */
 .d-sidebar {
   width: 232px;
-  background: linear-gradient(180deg, var(--nav-bg) 0%, var(--nav-bg-2) 100%);
+  background: var(--nav-bg);
   border-right: 1px solid var(--nav-line);
-  box-shadow: none;
+  box-shadow: 1px 0 0 rgba(16, 24, 40, 0.02);
 }
 .d-brand {
   height: 60px;
@@ -1167,7 +1167,7 @@
 .d-brand-name {
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: #1f2329;
   line-height: 1.15;
   letter-spacing: 0.3px;
 }
@@ -1176,7 +1176,7 @@
   font-style: normal;
   font-size: 10px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.42);
+  color: #a9aeb8;
   letter-spacing: 0.8px;
   margin-top: 2px;
 }
@@ -1203,7 +1203,7 @@
   user-select: none;
 }
 .d-nav-item:hover { background: var(--nav-hover); color: var(--nav-text-strong); }
-.d-nav-item:hover .d-nav-ico { color: rgba(255, 255, 255, 0.85); }
+.d-nav-item:hover .d-nav-ico { color: var(--c-primary); }
 .d-nav-item.active {
   background: var(--nav-active);
   color: #fff;
@@ -1223,7 +1223,7 @@
 .d-nav-arrow {
   margin-left: auto;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.3);
+  color: #c0c6d1;
   flex: none;
 }
 .d-nav-item.active .d-nav-arrow { color: rgba(255, 255, 255, 0.85); }

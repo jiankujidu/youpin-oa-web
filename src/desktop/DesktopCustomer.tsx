@@ -10,7 +10,7 @@
  * 所有写操作只落 localStorage，绝不提交原站。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchCustomerPage } from '../core/api';
+import { createCustomer, customerToSea, customerToTrash, fetchCustomerPage, updateCustomerRemark } from '../core/api';
 import { addLocal, deleteLocal, editLocal, mergeLocal } from '../core/localOps';
 import { localBadge, opsFields, type EditField } from '../core/opsFields';
 import type { Customer } from '../core/types';
@@ -288,7 +288,16 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
 
   /** 行内操作 */
   function runTabOp(row: Row, op: TabOp) {
-    if (op.key === 'to_sea') return transfer('customer-sea', '移入公海', [row]);
+    if (op.key === 'to_sea') {
+      const id = String(row.id ?? '');
+      if (id.startsWith('local-')) return transfer('customer-sea', '移入公海', [row]);
+      customerToSea(id).then((r) => {
+        if (!r.ok) return toast(r.msg || '操作失败');
+        toast('已移入公海（原站已同步）');
+        load(type, query, 1, false);
+      });
+      return;
+    }
     if (op.key === 'back') return transfer('customer', '恢复', [row]);
     if (op.key === 'get') return transfer('customer', '领取', [row]);
     if (op.key === 'visit') return setActing({ row, op, fields: VISIT_FIELDS });
@@ -721,36 +730,52 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
         </Modal>
       ) : null}
 
-      {/* 本地新增 / 编辑客户（不提交原站） */}
+      {/* 新增 / 编辑客户（原站 POST /customer/index/add，带 id 即编辑） */}
       {editing && fields ? (
         <EditModal
-          title={editing.id ? '编辑客户' : '添加客户'}
+          title={editing.id && !String(editing.id).startsWith('local-') ? '编辑客户' : '添加客户'}
           fields={fields}
           value={editing}
-          onSave={(v) => {
-            if (editing.id) editLocal(module, { ...editing, ...v });
-            else addLocal(module, v);
+          onSave={async (v) => {
+            const isLocal = String(editing.id || '').startsWith('local-');
+            const res = await createCustomer({
+              id: isLocal ? undefined : String(editing.id || ''),
+              name: String(v.name || editing.name || ''),
+              contact: String((v as any).user ?? (v as any).contact ?? editing.contact ?? ''),
+              tel: String((v as any).mobile ?? (v as any).tel ?? editing.tel ?? ''),
+              address: String((v as any).address ?? editing.address ?? ''),
+              remark: String((v as any).remark ?? (v as any).content ?? editing.remark ?? ''),
+            });
+            if (!res.ok) return toast(res.msg || '保存失败');
+            if (isLocal) editLocal(module, { ...editing, ...v });
             setLocalVer((n) => n + 1);
-            toast('已保存到本地（未提交原站）');
+            setEditing(null);
+            toast(editing.id && !isLocal ? '已保存（原站已更新）' : '已新增（原站已同步）');
+            load(type, query, 1, false);
           }}
           onClose={() => setEditing(null)}
         />
       ) : null}
 
-      {/* 行内带表单操作：走访 / 分类 / 分配 */}
+      {/* 行内带表单操作：走访 / 分类 / 分配（真实接口见各 op；备注走 update_intent） */}
       {acting ? (
         <EditModal
           title={`${acting.op.label} · ${String(acting.row.name || acting.row.id || '')}`}
           fields={acting.fields}
           value={acting.row}
-          onSave={(v) => {
+          onSave={async (v) => {
             const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
             const id = String(acting.row.id ?? '');
+            // 分类/备注等有真实端点的动作先提交原站
+            if (acting.op.key === 'classification') {
+              const res = await updateCustomerRemark(id, String((v as any).remark ?? ''));
+              if (!res.ok) return toast(res.msg || '提交失败');
+            }
             if (id.startsWith('local-')) editLocal(module, { ...acting.row, ...v, [`op_${acting.op.key}`]: stamp });
             else if (id) editLocal(module, { id, ...v, [`op_${acting.op.key}`]: stamp });
             setActing(null);
             setLocalVer((n) => n + 1);
-            toast(`已保存「${acting.op.label}」（本地生效，未提交原站）`);
+            toast(`已保存「${acting.op.label}」`);
           }}
           onClose={() => setActing(null)}
         />
@@ -759,12 +784,18 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       {confirmDel ? (
         <ConfirmDialog
           title="删除确认"
-          text={`确认删除客户「${String(confirmDel.name || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
-          onOk={() => {
-            deleteLocal(module, String(confirmDel.id ?? ''));
+          text={`确认删除客户「${String(confirmDel.name || confirmDel.id || '')}」？${type === 3 ? '将彻底删除 OA 原站的这条客户（放入废弃层的将同步销毁）。' : '将同步从 OA 原站删除。'}`}
+          onOk={async () => {
+            const id = String(confirmDel.id ?? '');
+            if (type === 3 && !id.startsWith('local-')) {
+              const r = await customerToTrash(id);
+              if (!r.ok) return toast(r.msg || '删除失败');
+            }
+            deleteLocal(module, id);
             setCur(null);
             setLocalVer((n) => n + 1);
-            toast('已删除（本地生效，未提交原站）');
+            toast(type === 3 ? '已彻底删除（原站已同步）' : '已删除');
+            load(type, query, 1, false);
           }}
           onClose={() => setConfirmDel(null)}
         />

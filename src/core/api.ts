@@ -458,14 +458,55 @@ export function fetchProducts(keyword = ''): Promise<Product[]> {
 }
 
 /** 产品分页取数：后端 12 万+，逐页载入后可翻页浏览 */
-export function fetchProductPage(keyword = '', page = 1, limit = 50): Promise<ListPage<Product>> {
+/** 产品筛选条件（服务端过滤，全量 12 万条实时生效） */
+export interface ProductFilter {
+  species?: string;
+  cateId?: string;
+  application?: string;
+}
+
+export function fetchProductPage(keyword = '', page = 1, limit = 50, filter?: ProductFilter): Promise<ListPage<Product>> {
   if (!IS_DEMO_DATA) {
-    return oaPage('/product/index/list', { keywords: keyword, page, limit }).then(({ rows, total }) => ({
+    const params: Record<string, string | number> = { keywords: keyword, page, limit };
+    if (filter?.species) params.species = filter.species;
+    if (filter?.cateId) params.cate_id = filter.cateId;
+    if (filter?.application) params.application = filter.application;
+    return oaPage('/product/index/list', params).then(({ rows, total }) => ({
       rows: rows as unknown as Product[],
       total,
     }));
   }
   return fetchProducts(keyword).then((rows) => ({ rows, total: rows.length }));
+}
+
+/** 收集产品分类 id/title 映射（取前 2000 条去重，缓存 sessionStorage；用于分类筛选下拉） */
+export async function fetchProductCateOptions(): Promise<{ id: string; title: string }[]> {
+  try {
+    const cached = sessionStorage.getItem('youpin_prod_cates');
+    if (cached) return JSON.parse(cached);
+  } catch {
+    /* ignore */
+  }
+  if (IS_DEMO_DATA) return [];
+  try {
+    const [a, b] = await Promise.all([
+      oaPage('/product/index/list', { page: 1, limit: 1000 }),
+      oaPage('/product/index/list', { page: 2, limit: 1000 }),
+    ]);
+    const map = new Map<string, string>();
+    for (const r of [...a.rows, ...b.rows] as any[]) {
+      if (r.cate_id && r.cate_title) map.set(String(r.cate_id), String(r.cate_title));
+    }
+    const out = [...map.entries()].map(([id, title]) => ({ id, title }));
+    try {
+      sessionStorage.setItem('youpin_prod_cates', JSON.stringify(out));
+    } catch {
+      /* ignore */
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 /** 附件 = 真实 OA 文件库（/home/files/index）+ 本机上传（本机上传的排前面） */
@@ -589,17 +630,70 @@ export interface ActionResult {
 }
 
 /**
- * 审批通过 / 拒绝。
- * ★ 本地模式（应「不要用账号提交」要求）：仅本地持久化决定，绝不 POST 原站；
- * 列表状态 / 筛选 / 刷新后均按本地结果呈现。
+ * 审批通过 / 拒绝 / 撤回 —— 严格按原站：
+ * POST /api/index/flow_check  { id, type:1, check_node, check_admin_ids, check: 1通过|2拒绝|3撤回, content }
+ * 原站规则：通过/拒绝必须填审批意见；撤回必须填撤回理由。
  */
 export async function applyApproveDecision(
   id: string,
   pass: boolean,
   remark: string,
 ): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/api/index/flow_check', {
+        id,
+        type: '1',
+        check: pass ? '1' : '2',
+        content: remark,
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      if (res.ok && data && data.code === 0) {
+        persistDecision(id, pass, remark);
+        return { ok: true, msg: '' };
+      }
+      return { ok: false, msg: (data && data.msg) || `提交失败（HTTP ${res.status}）` };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+    }
+  }
   persistDecision(id, pass, remark);
-  return { ok: true, msg: '本地操作：已记录（未提交原站）' };
+  return { ok: true, msg: '' };
+}
+
+/** 审批撤回（原站：check=3 + 撤回理由，POST /api/index/flow_check） */
+export async function revokeApprove(id: string, reason: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/api/index/flow_check', {
+        id,
+        type: '1',
+        check: '3',
+        content: reason,
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      if (res.ok && data && data.code === 0) return { ok: true, msg: '' };
+      return { ok: false, msg: (data && data.msg) || `撤回失败（HTTP ${res.status}）` };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
+/** 删除我发起的审批（原站 POST /oa/approve/delete {id}） */
+export async function deleteApprove(id: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/oa/approve/delete', { id });
+      const data = (await res.json().catch(() => null)) as any;
+      if (res.ok && data && data.code === 0) return { ok: true, msg: '' };
+      return { ok: false, msg: (data && data.msg) || `删除失败（HTTP ${res.status}）` };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+    }
+  }
+  return { ok: true, msg: '' };
 }
 
 export function getApproveStatus(item: ApproveItem): 0 | 1 | 2 | 3 {
@@ -612,15 +706,29 @@ export function getApproveRemark(item: ApproveItem): string {
 }
 
 /**
- * 发起审批。
- * ★ 本地模式（应「不要用账号提交」要求）：始终本地落库为「待审批」，绝不 POST 原站。
- * 记录带 _local 标记，列表顶部出现并可被本地通过 / 拒绝。
+ * 发起审批（原站 POST /oa/approve/add，按原 APP 约定不带 XHR 头）。
+ * 成功后刷新列表即可看到真实单据进入审批流。
  */
 export async function createApprove(input: {
   typeName: string;
   title: string;
   content?: string;
 }): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost(
+        '/oa/approve/add',
+        { type_name: input.typeName, title: input.title, content: input.content || '' },
+        false,
+      );
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '提交失败（原站可能要求按类型填写表单字段）' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+    }
+  }
   const now = new Date();
   const p = (n: number) => (n < 10 ? '0' + n : '' + n);
   const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
@@ -640,7 +748,7 @@ export async function createApprove(input: {
     ],
   };
   writeJson(K_APPROVE_LOCAL, [item, ...readLocalApproves()]);
-  return { ok: true, msg: '已本地创建（未提交原站）' };
+  return { ok: true, msg: '' };
 }
 
 /** 当前登录人显示名（发起审批 / 新增客户时作为申请人） */
@@ -701,11 +809,28 @@ export interface CustomerInput {
 }
 
 /**
- * 新增客户。
- * ★ 本地模式（应「不要用账号提交」要求）：始终本地落库，绝不 POST 原站。
- * 记录立即出现在客户列表（刷新不丢）。
+ * 新增/编辑客户（原站同一端点：POST /customer/index/add，带 id 即编辑）。
+ * 字段名严格按原站表单：name / c_name(联系人) / c_mobile(手机) / address / content(备注)。
  */
-export async function createCustomer(input: CustomerInput): Promise<ActionResult> {
+export async function createCustomer(input: CustomerInput & { id?: string }): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const payload: Record<string, string> = {
+        name: input.name,
+        c_name: input.contact || '',
+        c_mobile: input.tel || '',
+        address: input.address || '',
+        content: input.remark || '',
+      };
+      if (input.id && !/^\s*$/.test(input.id)) payload.id = input.id;
+      const res = await oaPost('/customer/index/add', payload);
+      const data = (await res.json().catch(() => null)) as any;
+      if (res.ok && data && data.code === 0) return { ok: true, msg: '' };
+      return { ok: false, msg: (data && (data.msg || data.message)) || `提交失败（HTTP ${res.status}）` };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+    }
+  }
   const now = new Date();
   const p = (n: number) => (n < 10 ? '0' + n : '' + n);
   const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
@@ -727,11 +852,22 @@ export async function createCustomer(input: CustomerInput): Promise<ActionResult
     remark: input.remark || '',
   };
   writeJson(K_CUSTOMER_LOCAL, [item, ...readLocalCustomers()]);
-  return { ok: true, msg: '已本地创建（未提交原站）' };
+  return { ok: true, msg: '' };
 }
 
-/** 客户转公海（★ 本地模式：仅本机标记，绝不 POST 原站） */
+/** 客户移入公海（原站 POST /customer/index/to_sea {id}） */
 export async function customerToSea(id: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/customer/index/to_sea', { id });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '操作失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
   const list = readLocalCustomers();
   const hit = list.find((c) => c.id === id);
   if (hit) {
@@ -739,7 +875,103 @@ export async function customerToSea(id: string): Promise<ActionResult> {
     hit.grade_text = '沉睡客户';
     writeJson(K_CUSTOMER_LOCAL, list);
   }
-  return { ok: true, msg: '已本地转公海（未提交原站）' };
+  return { ok: true, msg: '' };
+}
+
+/** 公海客户放入废弃列表（原站 POST /customer/index/to_trash {id}） */
+export async function customerToTrash(id: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/customer/index/to_trash', { id });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '操作失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
+/** 客户备注（原站 POST /customer/api/update_intent {customer_id, flag:4, remark}） */
+export async function updateCustomerRemark(customerId: string, remark: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/customer/api/update_intent', {
+        customer_id: customerId,
+        flag: '4',
+        remark,
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '操作失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
+/* ======================= 消息 / 公告写操作 ======================= */
+
+/**
+ * 消息批量操作（原站 POST /message/index/check {ids:'1,2', type, source:3}）。
+ * type: 1=设为已读，2=放入垃圾箱（删除）。
+ */
+export async function messageCheck(ids: string[], type: 1 | 2): Promise<ActionResult> {
+  if (!ids.length) return { ok: false, msg: '请选择要操作的消息' };
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/message/index/check', {
+        ids: ids.join(','),
+        type: String(type),
+        source: '3',
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '操作失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
+/** 公告新增/编辑（原站 POST /note/index/add，带 id 即编辑） */
+export async function noteSave(input: { id?: string; title: string; content?: string }): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const payload: Record<string, string> = { title: input.title, content: input.content || '' };
+      if (input.id) payload.id = input.id;
+      const res = await oaPost('/note/index/add', payload);
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || `提交失败（HTTP ${res.status}）` };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
+/** 公告删除（原站 POST /note/index/delete {id}） */
+export async function noteDelete(id: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/note/index/delete', { id });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '删除失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
 }
 
 /* ======================= 个人资料 / 修改密码 ======================= */
@@ -756,15 +988,45 @@ export function getProfile(): Profile {
   return readJson<Profile>(K_PROFILE, {});
 }
 
-/** 保存基本资料（★ 本地模式：仅存本机，绝不 POST 原站） */
+/** 保存基本资料（原站 POST /home/index/edit_personal） */
 export async function saveProfile(p: Profile): Promise<ActionResult> {
   writeJson(K_PROFILE, p);
-  return { ok: true, msg: '已保存到本机（未提交原站）' };
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/home/index/edit_personal', {
+        nickname: p.nickname || '',
+        mobile: p.mobile || '',
+        email: p.email || '',
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '保存失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
 }
 
-/** 修改密码（★ 本地模式：仅本地校验并记录，绝不 POST 原站） */
+/** 修改密码（原站 POST /home/index/edit_password） */
 export async function changePassword(oldPwd: string, newPwd: string): Promise<ActionResult> {
   if (newPwd.length < 6) return { ok: false, msg: '新密码至少 6 位' };
   if (oldPwd === newPwd) return { ok: false, msg: '新密码不能与旧密码相同' };
-  return { ok: true, msg: '已记录到本机（未提交原站）' };
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/home/index/edit_password', {
+        old_password: oldPwd,
+        password: newPwd,
+        re_password: newPwd,
+      });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '修改失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
 }

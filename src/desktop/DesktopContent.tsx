@@ -1,6 +1,6 @@
 /** 桌面端内容类页面：公告 / 问答知识 / 消息中心 / 通讯录 — 统一 PC 后台表格版式 */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchArticles, fetchMails, fetchMessages, fetchNotes } from '../core/api';
+import { fetchArticles, fetchMails, fetchMessages, fetchNotes, messageCheck, noteDelete, noteSave } from '../core/api';
 import { fixContentHtml } from '../core/fileurl';
 import { addLocal, deleteLocal, editLocal, mergeLocal } from '../core/localOps';
 import { localBadge, opsFields } from '../core/opsFields';
@@ -159,18 +159,25 @@ export function DesktopNote() {
         </Modal>
       ) : null}
 
-      {/* 本地新增 / 编辑公告（不提交原站） */}
+      {/* 新增 / 编辑公告（原站 POST /note/index/add，带 id 即编辑） */}
       {editing ? (
         <EditModal
-          title={editing.id ? '编辑公告' : '新增公告'}
+          title={editing.id && !String(editing.id).startsWith('local-') ? '编辑公告' : '新增公告'}
           fields={opsFields('note') || []}
           value={editing}
-          onSave={(v) => {
-            if (editing.id) editLocal('note', { ...editing, ...v });
-            else addLocal('note', v);
+          onSave={async (v) => {
+            const isLocal = String(editing.id || '').startsWith('local-');
+            const res = await noteSave({
+              id: isLocal ? undefined : String(editing.id || ''),
+              title: String(v.title ?? editing.title ?? ''),
+              content: String((v as any).content ?? (editing as any).content ?? ''),
+            });
+            if (!res.ok) return toast(res.msg || '提交失败');
+            if (isLocal) editLocal('note', { ...editing, ...v });
             setLocalVer((n) => n + 1);
             setEditing(null);
-            toast('已保存到本地（未提交原站）');
+            toast(editing.id && !isLocal ? '已保存（原站已更新）' : '已发布（原站已同步）');
+            load();
           }}
           onClose={() => setEditing(null)}
         />
@@ -179,12 +186,15 @@ export function DesktopNote() {
       {confirmDel ? (
         <ConfirmDialog
           title="删除确认"
-          text={`确认删除公告「${String(confirmDel.title || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
-          onOk={() => {
+          text={`确认删除公告「${String(confirmDel.title || confirmDel.id || '')}」？将同步删除 OA 原站的这条公告。`}
+          onOk={async () => {
+            const r = await noteDelete(String(confirmDel.id ?? ''));
+            if (!r.ok) return toast(r.msg || '删除失败');
             deleteLocal('note', String(confirmDel.id ?? ''));
             setCur(null);
             setLocalVer((n) => n + 1);
-            toast('已删除（本地生效，未提交原站）');
+            toast('已删除（原站已同步）');
+            load();
           }}
           onClose={() => setConfirmDel(null)}
         />
@@ -424,6 +434,7 @@ export function DesktopMessage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('');
   const [cur, setCur] = useState<Message | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Message | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -436,6 +447,30 @@ export function DesktopMessage() {
   }, []);
   useEffect(load, [load]);
 
+  /** 标记已读（原站 POST /message/index/check {ids, type:1, source:3}） */
+  function markRead(ids: string[], after?: () => void) {
+    const targets = list.filter((m) => ids.includes(String(m.id)) && !m.read_time);
+    if (!targets.length) {
+      after?.();
+      return;
+    }
+    messageCheck(ids, 1).then((r) => {
+      if (!r.ok) {
+        toast(r.msg || '标记已读失败');
+        return;
+      }
+      // 本地即时更新已读时间（原站下次刷新同样生效）
+      const now = Math.floor(Date.now() / 1000);
+      setList((prev) => prev.map((m) => (ids.includes(String(m.id)) && !m.read_time ? { ...m, read_time: now } : m)));
+      after?.();
+    });
+  }
+
+  function openDetail(m: Message) {
+    setCur(m);
+    markRead([String(m.id)]);
+  }
+
   const rows = useMemo(() => {
     if (tab === 'unread') return list.filter((m) => !m.read_time);
     if (tab === 'read') return list.filter((m) => !!m.read_time);
@@ -443,7 +478,16 @@ export function DesktopMessage() {
   }, [list, tab]);
 
   const cols: Column<Message>[] = [
-    { key: 'title', title: '消息内容', render: (r) => <span className="pc-td-strong">{r.title}</span> },
+    {
+      key: 'title',
+      title: '消息内容',
+      render: (r) => (
+        <span className={r.read_time ? 'pc-td-strong' : 'pc-td-strong'} style={r.read_time ? undefined : { color: 'var(--c-primary)' }}>
+          {!r.read_time ? '• ' : ''}
+          {r.title}
+        </span>
+      ),
+    },
     { key: 'type', title: '类型', width: 120, render: (r) => <StatusTag tone="info">{r.type_title || r.module_name || '系统'}</StatusTag> },
     { key: 'from', title: '来源', width: 120, render: (r) => r.from_name || '系统' },
     { key: 'send', title: '发送时间', width: 160, render: (r) => fmtTime(r.send_time || r.create_time) },
@@ -456,10 +500,26 @@ export function DesktopMessage() {
     {
       key: 'op',
       title: '操作',
-      width: 90,
+      width: 150,
       render: (r) => (
-        <span className="pc-link" onClick={() => setCur(r)}>
-          查看
+        <span className="pc-ops">
+          <span className="gg-xs blue" onClick={(e) => { e.stopPropagation(); openDetail(r); }}>
+            查看
+          </span>
+          {!r.read_time ? (
+            <span
+              className="gg-xs green"
+              onClick={(e) => {
+                e.stopPropagation();
+                markRead([String(r.id)]);
+              }}
+            >
+              已读
+            </span>
+          ) : null}
+          <span className="gg-xs red" onClick={(e) => { e.stopPropagation(); setConfirmDel(r); }}>
+            删除
+          </span>
         </span>
       ),
     },
@@ -472,9 +532,19 @@ export function DesktopMessage() {
         crumb={['消息管理', '我的消息']}
         desc={`共 ${rows.length} 条 · 未读 ${list.filter((m) => !m.read_time).length} 条`}
         actions={
-          <button className="pc-btn pc-btn-ghost" onClick={load}>
-            刷新
-          </button>
+          <>
+            {!list.filter((m) => !m.read_time).length ? null : (
+              <button
+                className="pc-btn pc-btn-ghost"
+                onClick={() => markRead(list.filter((m) => !m.read_time).map((m) => String(m.id)))}
+              >
+                全部已读
+              </button>
+            )}
+            <button className="pc-btn pc-btn-ghost" onClick={load}>
+              刷新
+            </button>
+          </>
         }
       />
       <Panel bodyPad={false}>
@@ -482,7 +552,7 @@ export function DesktopMessage() {
           <FilterTabs tabs={MSG_TABS} value={tab} onChange={(v: string) => setTab(v)} />
         </div>
         <div style={{ padding: '12px 16px' }}>
-          <DataTable columns={cols} rows={rows} rowKey={(r) => String(r.id)} onRowClick={setCur} loading={loading} pageSize={20} />
+          <DataTable columns={cols} rows={rows} rowKey={(r) => String(r.id)} onRowClick={openDetail} loading={loading} pageSize={20} />
         </div>
       </Panel>
 
@@ -502,6 +572,22 @@ export function DesktopMessage() {
           </div>
           <Rich html={cur.content} />
         </Modal>
+      ) : null}
+
+      {confirmDel ? (
+        <ConfirmDialog
+          title="删除消息"
+          text={`确认把「${String(confirmDel.title || '').slice(0, 40)}」放入垃圾箱？原站同步生效。`}
+          onOk={async () => {
+            const r = await messageCheck([String(confirmDel.id ?? '')], 2);
+            if (!r.ok) return toast(r.msg || '删除失败');
+            setConfirmDel(null);
+            setCur(null);
+            toast('已删除（原站已同步）');
+            load();
+          }}
+          onClose={() => setConfirmDel(null)}
+        />
       ) : null}
     </div>
   );

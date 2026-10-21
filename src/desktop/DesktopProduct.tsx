@@ -3,7 +3,7 @@
  * PC 后台统一版式：工具栏 + 数据表格 + 分页 + 详情弹层（说明书 预览/收藏/转发）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchProductPage } from '../core/api';
+import { fetchProductCateOptions, fetchProductPage, type ProductFilter } from '../core/api';
 import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
 import { addLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
@@ -95,9 +95,11 @@ export default function DesktopProduct() {
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
-  const [cate, setCate] = useState('');
+  /** 分类筛选用 cate_id（服务端参数）；种属/应用直接传值 */
+  const [cateId, setCateId] = useState('');
   const [speciesF, setSpeciesF] = useState('');
   const [appF, setAppF] = useState('');
+  const [cateOpts, setCateOpts] = useState<{ id: string; title: string }[]>([]);
   const [cur, setCur] = useState<Product | null>(null);
   const [folders, setFolders] = useState<FavFolder[]>([]);
   const [saving, setSaving] = useState<{ name: string; url: string; productId: string } | null>(null);
@@ -111,51 +113,56 @@ export default function DesktopProduct() {
   /** 本地层版本号（复制/编辑后刷新合并行） */
   const [localVer, setLocalVer] = useState(0);
 
-  /** 逐页载入（后端 12 万+ 条，一次拉完会超时） */
-  const load = useCallback((kw: string, p: number, append: boolean) => {
-    if (!append) setLoading(true);
-    else setLoadingMore(true);
-    fetchProductPage(kw, p)
-      .then(({ rows, total }) => {
-        setList((prev) => (append ? [...prev, ...rows] : rows));
-        setTotal(total);
-        setLoading(false);
-        setLoadingMore(false);
-      })
-      .catch((e: unknown) => {
-        setLoading(false);
-        setLoadingMore(false);
-        toast('产品列表加载失败：' + (e instanceof Error ? e.message : '网络异常'));
-      });
-  }, []);
+  /** 逐页载入（后端 12 万+ 条，一次拉完会超时）；筛选走服务端参数（严格按原站接口） */
+  const load = useCallback(
+    (kw: string, p: number, append: boolean, filter?: ProductFilter) => {
+      if (!append) setLoading(true);
+      else setLoadingMore(true);
+      fetchProductPage(kw, p, 50, filter)
+        .then(({ rows, total }) => {
+          setList((prev) => (append ? [...prev, ...rows] : rows));
+          setTotal(total);
+          setLoading(false);
+          setLoadingMore(false);
+        })
+        .catch((e: unknown) => {
+          setLoading(false);
+          setLoadingMore(false);
+          toast('产品列表加载失败：' + (e instanceof Error ? e.message : '网络异常'));
+        });
+    },
+    [],
+  );
+
+  const activeFilter = useMemo<ProductFilter | undefined>(() => {
+    if (!cateId && !speciesF && !appF) return undefined;
+    return { cateId: cateId || undefined, species: speciesF || undefined, application: appF || undefined };
+  }, [cateId, speciesF, appF]);
 
   useEffect(() => {
     setPage(1);
-    load(query, 1, false);
-  }, [query, load]);
+    load(query, 1, false, activeFilter);
+  }, [query, activeFilter, load]);
   useEffect(() => setFolders(getFolders()), []);
 
-  /** 筛选项取自真实数据（与原站下拉内容一致） */
+  /** 分类映射（cate_id → 分类名，后台拉取并缓存）；种属/应用选项取自当前页数据 */
+  useEffect(() => {
+    fetchProductCateOptions().then((opts) => {
+      if (opts.length) setCateOpts(opts);
+    });
+  }, []);
   const opts = useMemo(() => {
     const uniq = (get: (p: Product) => string | undefined) =>
       [...new Set(list.map(get).filter((v): v is string => !!v))].sort();
     return {
-      cate: uniq((p) => p.cate_title),
+      cate: cateOpts.length ? cateOpts.map((c) => c.title) : uniq((p) => p.cate_title),
       species: uniq((p) => p.species),
       app: uniq((p) => p.application),
     };
-  }, [list]);
+  }, [list, cateOpts]);
 
-  const rows = useMemo(
-    () =>
-      list.filter(
-        (p) =>
-          (!cate || p.cate_title === cate) &&
-          (!speciesF || p.species === speciesF) &&
-          (!appF || p.application === appF),
-      ),
-    [list, cate, speciesF, appF],
-  );
+  /** 载入行即展示行（筛选已由服务端完成；本地复制的产品仍合并显示） */
+  const rows = list;
 
   /** OA 行 + 本地新增/编辑合并（复制出来的产品在本地层） */
   const displayRows = useMemo(
@@ -366,7 +373,7 @@ export default function DesktopProduct() {
                 onClick={() => {
                   const p = page + 1;
                   setPage(p);
-                  load(query, p, true);
+                  load(query, p, true, activeFilter);
                 }}
               >
                 {loadingMore ? '载入中…' : `载入更多（${list.length}/${total}）`}
@@ -391,7 +398,6 @@ export default function DesktopProduct() {
             />
             {(
               [
-                ['全部分类', cate, setCate, opts.cate, 210],
                 ['全部种属', speciesF, setSpeciesF, opts.species, 150],
                 ['全部应用', appF, setAppF, opts.app, 170],
               ] as [string, string, (v: string) => void, string[], number][]
@@ -411,16 +417,32 @@ export default function DesktopProduct() {
                 ))}
               </select>
             ))}
+            <select
+              className="pc-input"
+              style={{ width: 210 }}
+              value={cateId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setCateId(id);
+              }}
+            >
+              <option value="">全部分类</option>
+              {cateOpts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
             <button className="pc-btn" onClick={() => setQuery(keyword)}>
               查询
             </button>
-            {(query || cate) && (
+            {(query || cateId || speciesF || appF) && (
               <button
                 className="pc-btn pc-btn-ghost"
                 onClick={() => {
                   setKeyword('');
                   setQuery('');
-                  setCate('');
+                  setCateId('');
                   setSpeciesF('');
                   setAppF('');
                 }}

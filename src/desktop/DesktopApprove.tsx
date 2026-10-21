@@ -8,7 +8,10 @@
  *   - 行内：审批 / 详情 / 重新申请 / 删除
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { applyApproveDecision, createApprove, fetchApproves, getApproveRemark, getApproveStatus } from '../core/api';
+import {
+  applyApproveDecision, createApprove, deleteApprove, fetchApproves,
+  getApproveRemark, getApproveStatus, revokeApprove,
+} from '../core/api';
 import { addLocal, deleteLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { localBadge, opsFields } from '../core/opsFields';
 import type { ApproveItem } from '../core/types';
@@ -70,10 +73,12 @@ export default function DesktopApprove() {
   const [addTitle, setAddTitle] = useState('');
   const [addContent, setAddContent] = useState('');
   const [localVer, setLocalVer] = useState(0);
-  /** 重新申请 / 删除 */
+  /** 重新申请 / 删除 / 撤回 */
   const [reapply, setReapply] = useState<ApproveItem | null>(null);
   const [reTitle, setReTitle] = useState('');
   const [confirmDel, setConfirmDel] = useState<ApproveItem | null>(null);
+  const [revokeRow, setRevokeRow] = useState<ApproveItem | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
 
   /** 一次取全部，状态筛选在前端做（后端 status 语义与列表字段不一致） */
   const load = useCallback(() => {
@@ -137,40 +142,49 @@ export default function DesktopApprove() {
     load();
   }
 
-  /** 重新申请（对齐原站 reapply）：本地新增一条同类型同内容的新申请 */
-  function doReapply(r: ApproveItem, title: string) {
+  /** 重新申请（对齐原站 reapply）：真实发起一条同类型同内容的新申请 */
+  async function doReapply(r: ApproveItem, title: string) {
     const t = title.trim();
     if (!t) return toast('请填写申请事由');
-    addLocal('approve', {
-      type_name: typeOf(r),
-      flow_type: (r as any).flow_type || typeOf(r),
+    const res = await createApprove({
+      typeName: typeOf(r),
       title: t,
-      content: (r as any).content || '',
-      admin_name: r.admin_name || '',
-      department_name: (r as any).department_name || '',
-      check_status: 1,
-      op_reapply: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      reapply_from: String(r.id ?? ''),
+      content: String((r as any).content || ''),
     });
+    if (!res.ok) return toast(res.msg || '提交失败');
     setReapply(null);
     setReTitle('');
     setLocalVer((n) => n + 1);
     setStatus(1);
-    toast('已重新申请（本地生效，未提交原站）');
+    toast('已重新发起，原站审批流已创建');
+    load();
   }
 
   async function decide(pass: boolean) {
     if (!cur) return;
-    if (!pass && !remark.trim()) {
-      toast('请填写拒绝理由');
+    if (!remark.trim()) {
+      toast(pass ? '请填写审批意见（原站要求必填）' : '请填写拒绝理由');
       return;
     }
     const r = await applyApproveDecision(cur.id, pass, remark);
     if (!r.ok) return toast(r.msg || '提交失败');
-    toast(pass ? '已通过' : '已拒绝');
+    toast(pass ? '已通过（原站审批流已更新）' : '已拒绝（原站审批流已更新）');
     setRemark('');
     setCur(null);
     setLocalVer((n) => n + 1);
+    load();
+  }
+
+  /** 撤回我发起的审批（原站：flow_check check=3 + 撤回理由） */
+  async function doRevoke() {
+    if (!revokeRow) return;
+    if (!revokeReason.trim()) return toast('请填写撤回理由');
+    const r = await revokeApprove(String(revokeRow.id ?? ''), revokeReason.trim());
+    if (!r.ok) return toast(r.msg || '撤回失败');
+    toast('已撤回（原站审批流已更新）');
+    setRevokeRow(null);
+    setRevokeReason('');
+    setCur(null);
     load();
   }
 
@@ -207,6 +221,18 @@ export default function DesktopApprove() {
             <span className="gg-xs blue" onClick={() => setCur(r)}>
               详情
             </span>
+            {s === 1 ? (
+              <span
+                className="gg-xs red"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRevokeRow(r);
+                  setRevokeReason('');
+                }}
+              >
+                撤回
+              </span>
+            ) : null}
             {s === 3 || s === 4 ? (
               <span
                 className="gg-xs purple"
@@ -422,19 +448,51 @@ export default function DesktopApprove() {
         </Modal>
       ) : null}
 
-      {/* 删除审批（本地生效） */}
+      {/* 删除审批（原站 POST /oa/approve/delete） */}
       {confirmDel ? (
         <ConfirmDialog
           title="删除确认"
-          text={`确认删除审批「${String(titleOf(confirmDel) || confirmDel.id || '')}」？删除只在本机生效，OA 原站数据不受影响。`}
-          onOk={() => {
+          text={`确认删除审批「${String(titleOf(confirmDel) || confirmDel.id || '')}」？将同步删除 OA 原站的这条审批。`}
+          onOk={async () => {
+            const r = await deleteApprove(String(confirmDel.id ?? ''));
+            if (!r.ok) return toast(r.msg || '删除失败');
             deleteLocal('approve', String(confirmDel.id ?? ''));
             setCur(null);
             setLocalVer((n) => n + 1);
-            toast('已删除（本地生效，未提交原站）');
+            toast('已删除（原站已同步）');
+            load();
           }}
           onClose={() => setConfirmDel(null)}
         />
+      ) : null}
+
+      {/* 撤回审批（原站 flow_check check=3） */}
+      {revokeRow ? (
+        <Modal
+          title="撤回审批"
+          onClose={() => setRevokeRow(null)}
+          footer={
+            <>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setRevokeRow(null)}>
+                取消
+              </button>
+              <button className="pc-btn pc-btn-danger" onClick={doRevoke}>
+                确认撤回
+              </button>
+            </>
+          }
+        >
+          <div style={{ marginBottom: 10, fontSize: 13.5 }}>
+            撤回「{String(titleOf(revokeRow) || revokeRow.id || '')}」
+          </div>
+          <textarea
+            className="pc-input"
+            style={{ width: '100%', height: 90, padding: 10, resize: 'vertical' }}
+            placeholder="请输入撤回理由（必填）"
+            value={revokeReason}
+            onChange={(e) => setRevokeReason(e.target.value)}
+          />
+        </Modal>
       ) : null}
     </div>
   );
