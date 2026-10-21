@@ -195,7 +195,13 @@ export function DesktopSub({ pageKey }: { pageKey: string }) {
             </span>
           );
         }
-        if (/time$/.test(c.key) && /^\d{4}-\d{2}-\d{2}/.test(v)) return fmtTime(v);
+        if (/time$/.test(c.key) && /^\d{4}-\d{2}-\d{2}/.test(v)) {
+          return (
+            <span className="pc-cell-1" style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>
+              {fmtTime(v) || v}
+            </span>
+          );
+        }
         // 关键列（名称/单号/内容/客户）最多 2 行，其余单行省略——扫读优先
         const long = /title|name|code|remark|content|desc|customer|inquiry|direction/.test(c.key);
         return (

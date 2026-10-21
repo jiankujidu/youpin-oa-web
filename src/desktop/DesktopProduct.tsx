@@ -291,7 +291,7 @@ export default function DesktopProduct() {
     { key: 'price', title: '价格明细', width: 240, render: (r) => <PriceCell desc={r.price_desc} /> },
     { key: 'title', title: '产品标题', width: 340, render: (r) => <span className="pc-td-strong pc-cell-2" title={plain(r.title)}>{plain(r.title)}</span> },
     { key: 'species', title: '种属', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || '—'}</span> },
-    { key: 'app', title: '应用', width: 130, render: (r) => <span className="pc-cell-2 pc-td-sub" title={r.application}>{r.application || '—'}</span> },
+    { key: 'app', title: '应用', width: 140, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || '—'}</span> },
     { key: 'gene', title: '基因名称', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || '—'}</span> },
     { key: 'alias', title: '其他别称', width: 170, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || '—'}</span> },
     { key: 'mw', title: '分子量', width: 90, render: (r) => <span className="pc-cell-1 pc-td-sub">{(r as any).da || '—'}</span> },
@@ -300,7 +300,7 @@ export default function DesktopProduct() {
     { key: 'tag', title: 'Tag', width: 90, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || '—'}</span> },
     { key: 'expr', title: '表达系统', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || '—'}</span> },
     { key: 'dl', title: '下载量', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
-    { key: 'time', title: '更新时间', width: 150, render: (r) => fmtTime((r as any).update_time || (r as any).create_time) },
+    { key: 'time', title: '更新时间', width: 155, render: (r) => <span className="pc-cell-1" style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>{fmtTime((r as any).update_time || (r as any).create_time) || '—'}</span> },
     {
       key: 'op',
       title: '操作',

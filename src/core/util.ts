@@ -24,7 +24,8 @@ export function fmtTime(t: string | number | null | undefined): string {
     const d = new Date(t * 1000);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
-  return String(t);
+  // 字符串时间统一到「分钟」精度（原站常返回带秒的串，表格里换行且秒位无意义）
+  return String(t).replace(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}):\d{2}.*$/, '$1 $2');
 }
 
 export function fmtSize(n: number | string | null | undefined): string {
