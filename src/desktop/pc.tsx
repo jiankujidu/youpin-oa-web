@@ -134,7 +134,7 @@ export function DataTable<T>({
   pageSize = 20,
   empty = '暂无数据',
   loading = false,
-  indexCol = true,
+  indexCol = false, // 原站 layui 表格无序号列，1:1 对齐默认关闭（需要处显式传 true）
   page: pageProp,
   total: totalProp,
   onPageChange,

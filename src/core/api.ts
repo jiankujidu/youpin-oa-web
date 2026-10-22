@@ -525,19 +525,20 @@ export interface ListPage<T> {
   total: number;
 }
 
-/** 客户分页取数：后端总数为 1000+，逐页载入后可翻页浏览全部 */
+/** 客户分页取数：后端总数为 1000+，逐页载入后可翻页浏览全部
+ *  scope：客户列表页页签（原站 hidden input tab：1全部 2我的 3下属 4共享），仅列表页用 */
 export function fetchCustomerPage(
   type: 1 | 2 | 3,
   keyword = '',
   page = 1,
   limit = 100,
+  scope: 1 | 2 | 3 | 4 = 1,
 ): Promise<ListPage<Customer>> {
   const path = type === 2 ? '/customer/index/sea' : type === 3 ? '/customer/index/trash' : '/customer/index/index';
   if (!IS_DEMO_DATA) {
-    return oaPage(path, { keywords: keyword, page, limit }).then(({ rows, total }) => ({
-      rows: rows as unknown as Customer[],
-      total,
-    }));
+    return oaPage(path, { keywords: keyword, page, limit, tab: type === 1 ? scope : undefined }).then(
+      ({ rows, total }) => ({ rows: rows as unknown as Customer[], total }),
+    );
   }
   return fetchCustomers(type, keyword).then((rows) => ({ rows, total: rows.length }));
 }

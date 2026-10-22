@@ -25,6 +25,14 @@ const TABS = [
   { key: 3, label: '废弃客户' },
 ] as { key: 1 | 2 | 3; label: string }[];
 
+/** 客户列表页页签（原站 hidden input tab：全部客户/我的客户/下属客户/共享客户） */
+const SCOPES = [
+  { key: 1, label: '全部客户' },
+  { key: 2, label: '我的客户' },
+  { key: 3, label: '下属客户' },
+  { key: 4, label: '共享客户' },
+] as { key: 1 | 2 | 3 | 4; label: string }[];
+
 const GRADES = ['', 'AA类成交经销商', 'A类成交终端', 'B类意向客户', 'C类潜在客户', 'D类无效客户'];
 
 const CRUMB: Record<number, string[]> = {
@@ -119,6 +127,8 @@ function parseCustomerText(text: string): Row[] {
 
 export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 | 2 | 3 } = {}) {
   const [type, setType] = useState<1 | 2 | 3>(initialType);
+  /** 客户列表页页签（原站 tab：全部/我的/下属/共享客户），仅 type=1 使用 */
+  const [scope, setScope] = useState<1 | 2 | 3 | 4>(1);
   const [grade, setGrade] = useState('');
   const [statusF, setStatusF] = useState('');
   const [intentF, setIntentF] = useState('');
@@ -148,10 +158,10 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   const tabOps = TAB_OPS[type];
 
   /** 逐页载入（后端共 1000+ 家，一次拉完会超时） */
-  const load = useCallback((t: 1 | 2 | 3, kw: string, p: number, append: boolean) => {
+  const load = useCallback((t: 1 | 2 | 3, kw: string, p: number, append: boolean, sc: 1 | 2 | 3 | 4 = 1) => {
     if (!append) setLoading(true);
     else setLoadingMore(true);
-    fetchCustomerPage(t, kw, p)
+    fetchCustomerPage(t, kw, p, 100, sc)
       .then(({ rows, total }) => {
         setList((prev) => (append ? [...prev, ...rows] : rows));
         setTotal(total);
@@ -168,8 +178,8 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   useEffect(() => {
     setPage(1);
     setChecked([]);
-    load(type, query, 1, false);
-  }, [type, query, load]);
+    load(type, query, 1, false, scope);
+  }, [type, query, scope, load]);
 
   /** 左侧菜单切换（客户列表 / 公海 / 废弃）时同步类型 */
   useEffect(() => {
@@ -308,7 +318,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   }
 
   /** 与原站一致的列（编号 / 客户名称 / 联系人 / 手机号 / 是否加微信 / 等级 / 沟通情况 / 部门 / 员工 / QQ / 微信 / 求购内容 / 最后下单 / 最近沟通 / 下次跟进 / 研究方向 / 城市 / 意向 / 状态 / 来源 / 行业 / 创建时间 / 操作） */
-  const cols: Column<Customer>[] = [
+  const allCols: Column<Customer>[] = [
     {
       key: '_check',
       title: '',
@@ -367,8 +377,9 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       width: 160,
       render: (r) => String((r as any).remark || '').slice(0, 22) || '—',
     },
-    { key: 'dept', title: '所属部门', width: 160, render: (r) => (r as any).belong_department || '—' },
-    { key: 'belong', title: '所属员工', width: 100, render: (r) => r.belong_name || r.admin_name || '—' },
+    { key: 'dept', title: '所属部门', width: 160, render: (r) => (r as any).belong_department || (r as any).owner_department || '—' },
+    { key: 'belong', title: '所属员工', width: 100, render: (r) => r.belong_name || (r as any).owner_name || r.admin_name || '—' },
+    { key: 'createDate', title: '创建日期', width: 120, render: (r) => (r as any).create_date || '—' },
     { key: 'qq', title: 'QQ号', width: 110, render: (r) => (r as any).qq || '—' },
     { key: 'wx', title: '微信号', width: 120, render: (r) => (r as any).wechat || '—' },
     {
@@ -389,7 +400,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     { key: 'follow', title: '最近沟通', width: 120, render: (r) => (r.follow_time && r.follow_time !== '-' ? fmtTime(r.follow_time) : '—') },
     {
       key: 'next',
-      title: '下次跟进',
+      title: '下次跟进时间',
       width: 120,
       render: (r) => {
         const v = (r as any).next_time;
@@ -398,7 +409,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     },
     {
       key: 'research',
-      title: '课题组/研究方向',
+      title: '课题组名称/研究方向',
       width: 160,
       render: (r) => String((r as any).research_direction || '').slice(0, 20) || '—',
     },
@@ -408,6 +419,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     { key: 'source', title: '来源渠道', width: 110, render: (r) => r.source || '—' },
     { key: 'industry', title: '客户所属行业', width: 120, render: (r) => r.industry || '—' },
     { key: 'time', title: '创建时间', width: 140, render: (r) => fmtTime(r.create_time) },
+    { key: 'upd', title: '最后编辑时间', width: 140, render: (r) => { const v = (r as any).update_time; return v && v !== '-' ? fmtTime(v) : '—'; } },
     {
       key: 'op',
       title: '操作',
@@ -454,6 +466,21 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       ),
     },
   ];
+
+  /** 与原站各页列 1:1：客户列表 23 列 / 公海 15 列 / 废弃 10 列（不含 checkbox，含操作） */
+  const COLS_BY_TYPE: Record<1 | 2 | 3, string[]> = {
+    1: ['id', 'name', 'user', 'mobile', 'wechat', 'grade', 'remark', 'dept', 'belong', 'createDate', 'qq', 'wx', 'inquiry', 'order_time', 'follow', 'research', 'city', 'intent', 'status', 'source', 'industry', 'time', 'op'],
+    2: ['id', 'dept', 'belong', 'name', 'user', 'mobile', 'qq', 'wx', 'research', 'inquiry', 'city', 'time', 'upd', 'source', 'industry', 'op'],
+    3: ['id', 'name', 'user', 'mobile', 'qq', 'wx', 'time', 'upd', 'source', 'industry', 'op'],
+  };
+  /** 公海/废弃页的原站列标题与客户列表略异（联系方式/QQ号码/部门/归属人） */
+  const TITLE_FIX: Record<number, Record<string, string>> = {
+    2: { mobile: '联系方式', qq: 'QQ号码', dept: '部门', belong: '归属人' },
+    3: { mobile: '联系方式', qq: 'QQ号码' },
+  };
+  const cols = allCols
+    .filter((c) => COLS_BY_TYPE[type].includes(String(c.key)))
+    .map((c) => ({ ...c, title: TITLE_FIX[type]?.[String(c.key)] || c.title }));
 
   const detail: [string, string | undefined][] = cur
     ? [
@@ -554,7 +581,9 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
 
       <Panel bodyPad={false}>
         <div style={{ padding: '12px 16px 0' }}>
-          <FilterTabs tabs={TABS} value={type} onChange={(v: 1 | 2 | 3) => setType(v)} />
+          {type === 1 ? (
+            <FilterTabs tabs={SCOPES} value={scope} onChange={(v: 1 | 2 | 3 | 4) => setScope(v)} />
+          ) : null}
           <div className="pc-toolbar">
             <input
               className="pc-input"

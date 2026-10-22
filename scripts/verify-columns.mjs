@@ -10,64 +10,56 @@ const BASE = process.env.BASE || 'http://127.0.0.1:5199/';
 const WAIT = Number(process.env.WAIT || 5000);
 const SNAP = path.join(process.cwd(), 'origin-snapshot');
 
-/** 原站页面文件 → 菜单点击索引（导航第 0 项是「工作台」，业务页从 1 开始；末两项 AI问答/通讯录无快照页） */
+/**
+ * 菜单 key → 原站快照文件（侧栏已改三级折叠树，索引会随展开状态漂移，改用稳定 key）。
+ * key 取自 DesktopApp MENU 的 node.key；无原站快照的页不列（通讯录/AI问答）。
+ */
 const PAGE_MAP = {
-  1: 'files.html',
-  2: 'note.html',
-  3: 'approve.html',
-  4: 'advancedeposit.html',
-  5: 'deduction.html',
-  6: 'deduction-checked.html',
-  7: 'margindeposit.html',
-  8: 'invoice-apply.html',
-  9: 'invoice-handle.html',
-  10: 'income-invoice.html',
-  11: 'orderapply-apply.html',
-  12: 'orderapply-handle.html',
-  13: 'customer.html',
-  14: 'customer-sea.html',
-  15: 'customer-trash.html',
-  16: 'contact.html',
-  17: 'chance.html',
-  18: 'trace.html',
-  19: 'order-apply.html',
-  20: 'order-handle.html',
-  21: 'sample.html',
-  22: 'schoolexhibition.html',
-  23: 'schoolexhibition-handle.html',
-  24: 'article.html',
-  25: 'aftersale.html',
-  27: 'product.html',
+  files: 'files.html',
+  note: 'note.html',
+  approve: 'approve.html',
+  'finance-advance': 'advancedeposit.html',
+  deduction: 'deduction.html',
+  'deduction-checked': 'deduction-checked.html',
+  margin: 'margindeposit.html',
+  'invoice-my': 'invoice-apply.html',
+  'invoice-handle': 'invoice-handle.html',
+  'finance-income': 'income-invoice.html',
+  'finance-order': 'orderapply-apply.html',
+  'orderapply-handle': 'orderapply-handle.html',
+  customer: 'customer.html',
+  'customer-sea': 'customer-sea.html',
+  'customer-trash': 'customer-trash.html',
+  contact: 'contact.html',
+  chance: 'chance.html',
+  trace: 'trace.html',
+  'order-my': 'order-apply.html',
+  'order-handle': 'order-handle.html',
+  sample: 'sample.html',
+  school: 'schoolexhibition.html',
+  'school-handle': 'schoolexhibition-handle.html',
+  article: 'article.html',
+  after: 'aftersale.html',
+  product: 'product.html',
 };
 
-/** 从原站 HTML 提取主表格列：定位第一个 cols: [[ ... ]] 块（括号配对），解析其中的 field/title 对 */
-function originColumns(file) {
-  const html = fs.readFileSync(path.join(SNAP, file), 'utf8');
-  const m = /cols:\s*\[\[/.exec(html);
-  if (!m) return [];
+/** 从 src/core/pageSpecs.ts（gen-page-specs 产物，已过滤注释列）读取原站列 —— 与渲染同源，避免双解析器漂移 */
+function originColumns(key) {
+  const specs = fs.readFileSync(path.join(process.cwd(), 'src', 'core', 'pageSpecs.ts'), 'utf8');
+  const a = specs.indexOf(`"${key}":`);
+  if (a < 0) return [];
+  const from = specs.indexOf('{', a);
   let depth = 0;
-  let i = html.indexOf('[', m.index);
-  const from = i;
-  for (; i < html.length; i++) {
-    const c = html[i];
-    if (c === '[') depth++;
-    else if (c === ']') {
+  let i = from;
+  for (; i < specs.length; i++) {
+    if (specs[i] === '{') depth++;
+    else if (specs[i] === '}') {
       depth--;
       if (depth === 0) break;
     }
   }
-  const block = html.slice(from, i + 1);
-  const cols = [];
-  // 跳过被注释的列（//{ field: 'id', ... }）
-  const re = /field\s*:\s*['"]([\w]+)['"]\s*,\s*(?:[^{};]*?title\s*:\s*['"]([^'"]+)['"])/g;
-  let mm;
-  while ((mm = re.exec(block))) {
-    const lineStart = block.lastIndexOf('\n', mm.index) + 1;
-    const prefix = block.slice(lineStart, mm.index);
-    if (prefix.includes('//')) continue; // 注释掉的列
-    cols.push({ field: mm[1], title: mm[2] });
-  }
-  return cols;
+  const obj = JSON.parse(specs.slice(from, i + 1));
+  return (obj.cols || []).filter((c) => c.field !== '__ops').map((c) => c.title);
 }
 
 const edge = spawn(EDGE, [
@@ -83,39 +75,51 @@ page.on('pageerror', (e) => errs.push(String(e).slice(0, 160)));
 await page.goto(BASE, { waitUntil: 'networkidle2', timeout: 60000 });
 await new Promise((r) => setTimeout(r, 5000));
 
+// 折叠树：先把所有一级/二级分组展开，子项才会进 DOM
+for (let round = 0; round < 4; round++) {
+  await page.evaluate(() => {
+    document.querySelectorAll('.d-nav-parent').forEach((p) => {
+      if (p.querySelector('.d-nav-arrow')?.textContent?.includes('▸')) p.click();
+    });
+  });
+  await new Promise((r) => setTimeout(r, 600));
+}
+
 const navItems = await page.evaluate(() =>
-  [...document.querySelectorAll('.d-nav-item')]
-    .filter((e) => !e.classList.contains('d-nav-parent'))
-    .map((e, i) => ({ i, label: e.textContent.trim() })),
+  [...document.querySelectorAll('.d-nav-item[data-key]')].map((e) => ({
+    key: e.getAttribute('data-key'),
+    label: e.textContent.trim(),
+  })),
 );
 
 const out = [];
 for (const it of navItems) {
-  await page.evaluate((idx) => {
-    const list = [...document.querySelectorAll('.d-nav-item')].filter((e) => !e.classList.contains('d-nav-parent'));
-    list[idx]?.click();
-  }, it.i);
+  await page.evaluate((k) => {
+    document.querySelector(`.d-nav-item[data-key="${k}"]`)?.click();
+  }, it.key);
   await new Promise((r) => setTimeout(r, WAIT));
   const live = await page.evaluate(() => {
     const wrap = [...document.querySelectorAll('.d-wrap > div')].find((d) => !/display:\s*none/.test(d.getAttribute('style') || ''));
     return [...(wrap?.querySelectorAll('.pc-table thead th') || [])].map((t) => t.textContent.trim());
   });
-  // 按菜单点击索引找对应原站页面
-  const snapFile = PAGE_MAP[it.i];
-  const oc = snapFile ? originColumns(snapFile) : [];
-  out.push({ label: it.label, snap: snapFile, origin: oc.map((c) => c.title), live });
+  // 按菜单 key 读原站列（pageSpecs 与渲染同源）
+  const oc = originColumns(it.key);
+  out.push({ label: it.label, snap: PAGE_MAP[it.key], origin: oc, live });
 }
 
-// 对比输出
+// 对比输出（「操作」列双方都规整掉：原站 __ops 已过滤、我们固定渲染一列操作）
+const stripOps = (arr) => arr.filter((t) => t && t !== '操作');
 console.log('页签'.padEnd(12), '原站列数', '我们列数', '差异');
 for (const r of out) {
-  const missing = r.origin.filter((t) => t && !r.live.some((l) => l.includes(t) || t.includes(l)));
-  const extra = r.live.filter((l) => l && !r.origin.some((t) => t.includes(l) || l.includes(t)) && l !== '操作');
+  const origin = stripOps(r.origin);
+  const live = stripOps(r.live);
+  const missing = origin.filter((t) => t && !live.some((l) => l.includes(t) || t.includes(l)));
+  const extra = live.filter((l) => l && !origin.some((t) => t.includes(l) || l.includes(t)));
   const flag = missing.length || extra.length ? '⚠️' : '✅';
   console.log(
     `${flag} ${r.label}`.padEnd(16),
-    String(r.origin.length).padStart(4),
-    String(r.live.length).padStart(6),
+    String(origin.length).padStart(4),
+    String(live.length).padStart(6),
     missing.length ? ` 原站有我们没有: ${missing.join(',')}` : '',
     extra.length ? ` 我们有原站没有: ${extra.join(',')}` : '',
   );

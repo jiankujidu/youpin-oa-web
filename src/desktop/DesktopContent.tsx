@@ -49,7 +49,10 @@ export function DesktopNote() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, kw, localVer]);
 
+  /** 与原站一致：ID号 / 公告分类 / 公告标题 / 排序 / 公告展示期间 / 状态 / 操作 */
   const cols: Column<Note>[] = [
+    { key: 'id', title: 'ID号', width: 80, align: 'center', render: (r) => String(r.id ?? '—') },
+    { key: 'cate', title: '公告分类', width: 110, align: 'center', render: (r) => r.cate_title || '—' },
     {
       key: 'title',
       title: '公告标题',
@@ -62,10 +65,14 @@ export function DesktopNote() {
         </span>
       ),
     },
-    { key: 'cate', title: '分类', width: 130, render: (r) => <StatusTag tone="info">{r.cate_title || '—'}</StatusTag> },
-    { key: 'start', title: '生效时间', width: 130, render: (r) => r.start_time || '—' },
-    { key: 'end', title: '结束时间', width: 130, render: (r) => r.end_time || '—' },
-    { key: 'time', title: '发布时间', width: 150, render: (r) => fmtTime(r.create_time) },
+    { key: 'sort', title: '排序', width: 70, align: 'center', render: (r) => String((r as any).sort ?? '—') },
+    {
+      key: 'period',
+      title: '公告展示期间',
+      width: 220,
+      render: (r) => (r.start_time || r.end_time ? `${r.start_time || '—'} ~ ${r.end_time || '—'}` : '—'),
+    },
+    { key: 'status', title: '状态', width: 80, align: 'center', render: (r) => (Number((r as any).status) === 1 ? '显示' : '隐藏') },
     {
       key: 'op',
       title: '操作',
@@ -241,8 +248,10 @@ export function DesktopArticle() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, kw, cate, localVer]);
 
+  /** 与原站一致：编号 / 排序 / 分类 / 问题 / 回答 / 阅读量 / 发布人 / 部门 / 操作 */
   const cols: Column<Article>[] = [
-    { key: 'id', title: '编号', width: 80, render: (r) => String(r.id ?? '—') },
+    { key: 'id', title: '编号', width: 80, align: 'center', render: (r) => String(r.id ?? '—') },
+    { key: 'sort', title: '排序', width: 70, align: 'center', render: (r) => String((r as any).sort ?? '—') },
     {
       key: 'title',
       title: '问题',
@@ -259,12 +268,11 @@ export function DesktopArticle() {
         );
       },
     },
-    { key: 'cate', title: '分类', width: 130, render: (r) => <StatusTag tone="ok">{r.cate_title || '—'}</StatusTag> },
+    { key: 'cate', title: '分类', width: 130, align: 'center', render: (r) => <StatusTag tone="ok">{r.cate_title || '—'}</StatusTag> },
     { key: 'desc', title: '回答', width: 320, render: (r) => plain(r.desc || '').slice(0, 60) || '—' },
     { key: 'read', title: '阅读量', width: 90, align: 'center', render: (r) => String((r as any).read ?? '—') },
     { key: 'user', title: '发布人', width: 110, render: (r) => (r as any).user || '—' },
     { key: 'dept', title: '部门', width: 150, render: (r) => (r as any).department || '—' },
-    { key: 'time', title: '创建时间', width: 150, render: (r) => fmtTime(r.create_time) },
     {
       key: 'op',
       title: '操作',

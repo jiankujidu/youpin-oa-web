@@ -22,6 +22,8 @@ import DesktopFiles from './DesktopFiles';
 import DesktopProduct from './DesktopProduct';
 import { DesktopArticle, DesktopMail, DesktopMessage, DesktopNote } from './DesktopContent';
 import { DesktopPassword, DesktopProfile, DesktopSub } from './DesktopSub';
+import DesktopTable from './DesktopTable';
+import { pageSpec } from '../core/pageSpecs';
 import { DesktopAccounts } from './DesktopAccounts';
 import {
   getCurrentAccount,
@@ -412,6 +414,7 @@ export default function DesktopApp({
     return (
       <div
         key={node.key}
+        data-key={node.key}
         className={`d-nav-item${depth > 0 ? ' d-nav-sub' : ''}${active === node.key ? ' active' : ''}`}
         onClick={() => openTab(node.key as string)}
         title={mini ? node.label : undefined}
@@ -462,7 +465,8 @@ export default function DesktopApp({
       case 'accounts':
         return <DesktopAccounts />;
       default:
-        return <DesktopSub pageKey={page} />;
+        // 有原站表格规格的页签 → 通用真实表格（列/接口/行操作 1:1 对齐原站）
+        return pageSpec(page) ? <DesktopTable specKey={page} /> : <DesktopSub pageKey={page} />;
     }
   };
 

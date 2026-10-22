@@ -1515,3 +1515,43 @@
 @media (max-width: 1180px) {
   .home-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ================= DesktopTable（原站真实表格通用页） ================= */
+.dt-wrap { padding: 0; }
+.dt-table th { background: #f8f8f8; font-weight: 500; white-space: nowrap; }
+.dt-table td { padding: 8px 10px; }
+.dt-ops { display: inline-flex; gap: 10px; white-space: nowrap; }
+.dt-op { color: #1a75ff; cursor: pointer; font-size: 12.5px; }
+.dt-op:hover { text-decoration: underline; }
+.dt-op.danger { color: #ff5722; }
+.dt-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #646464;
+}
+.dt-pager button {
+  padding: 4px 12px;
+  border: 1px solid #dcdcdc;
+  background: #fff;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: #323232;
+}
+.dt-pager button:hover:not(:disabled) { color: #1a75ff; border-color: #1a75ff; }
+.dt-pager button:disabled { color: #c2c2c2; cursor: not-allowed; }
+.dt-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+.dt-detail-row {
+  display: flex;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px dashed #f1f1f1;
+  font-size: 13px;
+  min-width: 0;
+}
+.dt-detail-row label { width: 110px; flex: none; color: #999; text-align: right; }
+.dt-detail-row span { color: #323232; word-break: break-all; min-width: 0; }
