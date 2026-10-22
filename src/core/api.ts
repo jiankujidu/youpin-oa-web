@@ -399,9 +399,14 @@ export async function login(
 
 /* ======================= 列表接口 ======================= */
 
+/** 我处理的审批（原站工作台「待审审批」口径：/oa/approve/list；无权限时安全回落空列表=0） */
+export function fetchApproveHandle(): Promise<ApproveItem[]> {
+  if (!IS_DEMO_DATA) return oaList<ApproveItem>('/oa/approve/list', {}).catch(() => []);
+  return Promise.resolve([]);
+}
+
 export function fetchApproves(status: 0 | 1 | 2 | 3): Promise<ApproveItem[]> {
-  if (!IS_DEMO_DATA) return oaList<ApproveItem>('/oa/approve/index', { status });
-  // 本机发起的审批合并进列表（新发起的排前面），再按状态筛选
+  if (!IS_DEMO_DATA) return oaList<ApproveItem>('/oa/approve/index', { status });  // 本机发起的审批合并进列表（新发起的排前面），再按状态筛选
   const all = [...readLocalApproves(), ...S().approves];
   return delay(status === 0 ? all : all.filter((a) => getApproveStatus(a) === status));
 }
