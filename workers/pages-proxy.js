@@ -27,18 +27,26 @@ export async function onRequestPost(ctx) {
   return handle(ctx);
 }
 
-/** 跨域预检：GitHub Pages 等其它源也会调这个同源代理（前端会带 X-Requested-With / x-oa-session） */
+/** 跨域预检：GitHub Pages 等其它源也会调这个同源代理（前端会带 X-Requested-With / x-oa-session / x-oa-sid / x-oa-no-xhr） */
 export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session',
+      'Access-Control-Allow-Headers':
+        'Content-Type,X-Requested-With,x-oa-session,x-oa-sid,x-oa-no-xhr',
       'Access-Control-Max-Age': '86400',
     },
   });
 }
+
+/**
+ * 完整浏览器 UA：原站 nginx 对 UA 做校验，非浏览器 UA（如 YoupinOA-Web/1.0）
+ * 请求 /home/api/* 会被 403 拒掉（实测结论）。
+ */
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36';
 
 async function handle({ request, params }) {
   const url = new URL(request.url);
@@ -56,8 +64,13 @@ async function handle({ request, params }) {
   const target = `${OA_ORIGIN}/${seg}${url.search || ''}`;
   const headers = new Headers();
   headers.set('Referer', OA_ORIGIN + '/');
-  headers.set('User-Agent', 'Mozilla/5.0 (YoupinOA-Web/1.0)');
-  headers.set('X-Requested-With', 'XMLHttpRequest'); // 缺了会回整页 HTML 而非 JSON
+  headers.set('User-Agent', BROWSER_UA);
+  // 后端以此判定 ajax 请求：缺失会回整页 HTML 而非 JSON。
+  // 但页面型端点（如 /home/index/edit_personal、/home/index/main.html）带 XHR 头会被
+  // 原站 nginx 403 —— 客户端用 x-oa-no-xhr 头（或 ?__noxhr=1）显式标记这类请求。
+  const noXhr = request.headers.get('x-oa-no-xhr') === '1' || url.searchParams.get('__noxhr') === '1';
+  if (noXhr) headers.delete('X-Requested-With');
+  else headers.set('X-Requested-With', 'XMLHttpRequest');
   headers.set('Accept-Encoding', 'identity');
   if (cookie) headers.set('Cookie', cookie);
   const ct = request.headers.get('content-type');

@@ -41,18 +41,9 @@
   overflow: hidden;
   white-space: nowrap;
 }
-.d-brand-logo {
-  font-size: 16px;
-  font-weight: 600;
-  color: #323232;
-  letter-spacing: 1px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.d-brand-logo img { height: 28px; display: block; }
-.d-root.mini .d-brand-logo span,
-.d-root.mini .d-brand-logo em { display: none; }
+/* 原站 layui-logo：syslogo.png 高 40px 居中 */
+.d-brand-logo-img { height: 40px; display: block; }
+.d-root.mini .d-brand-logo-img { height: 30px; }
 .d-brand-sub {
   font-size: 11px;
   color: var(--c-text-4);
@@ -98,7 +89,8 @@
   left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 17px;
+  font-size: 18px;
+  font-weight: 600;
   width: 18px;
   text-align: center;
   flex: none;
@@ -109,7 +101,7 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 11px;
-  color: #999;
+  color: #677c91;
 }
 .d-nav-badge {
   margin-left: auto;
@@ -216,7 +208,7 @@
   display: flex;
   align-items: stretch;
 }
-/* 顶栏图标键（原站 gg-head-item：0 16px 满高；右区之间 1px #eee 分隔线） */
+/* 顶栏图标键（原站 gg-head-item：0 16px 满高；右区之间 1px #eee 分隔线；图标 20px/600） */
 .d-icon-btn {
   position: relative;
   padding: 0 16px;
@@ -225,7 +217,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 19px;
+  font-size: 20px;
   color: #323232;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
@@ -274,6 +266,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: none;
+}
+/* 原站 gg-head-avatar img：28px 圆形 */
+.d-avatar-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin-right: 3px;
+  object-fit: cover;
   flex: none;
 }
 .d-user-name {
@@ -1386,6 +1387,12 @@
   align-items: start;
 }
 .home-col { min-width: 0; }
+/* 原站 layui-col-md6/md6：快捷申请与待办事项左右并排（列间距 16px，行距沿用卡片 16px） */
+.home-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
 
 /* 原站 layui-card：白底、阴影 0 1px 3px rgb(5 32 96/10%)、圆角 2px、下距 16px */
 .gg-card {
@@ -1428,6 +1435,7 @@
   color: #969696;
   transition: all 0.3s;
 }
+.gg-quick-item .hqi-ico .iconfont { font-size: 28px; }
 .gg-quick-item cite { font-style: normal; color: #646464; font-size: 14px; }
 .gg-quick-item:hover .hqi-ico { color: #1a75ff; background: #f2f8ff; }
 .gg-quick-item:hover cite { color: #1a75ff; }
@@ -1470,8 +1478,23 @@
   transition: all 0.3s;
 }
 .gg-rightbar-item .hqi-ico { font-size: 22px; line-height: 1.4; }
+.gg-rightbar-item .hqi-ico .iconfont { font-size: 24px; }
 .gg-rightbar-item cite { font-style: normal; font-size: 13px; }
 .gg-rightbar-item:hover { color: #1a75ff; background: #f2f8ff; }
+
+/* 公告未读（原站 templet：is_read===0 → #ff5722 加粗 + 「新」标记） */
+.gg-note-new { display: inline-flex; align-items: center; gap: 5px; color: #ff5722; font-weight: bold; }
+.gg-note-link { color: #ff5722; }
+.gg-note-badge {
+  display: inline-block;
+  background: #ff5722;
+  color: #fff;
+  font-size: 12px;
+  font-weight: normal;
+  padding: 0 5px;
+  border-radius: 2px;
+  line-height: 18px;
+}
 
 /* 系统信息表（info-td：90px 右对齐 #fafafa 底 #999 字） */
 .gg-sysinfo { width: 100%; border-collapse: collapse; font-size: 13px; color: #323232; }

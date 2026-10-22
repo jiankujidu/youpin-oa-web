@@ -174,15 +174,25 @@ function delay<T>(value: T, ms = 220): Promise<T> {
  *
  * 多账号：选中了账号且该账号有 sid 时，附带 x-oa-sid（原始 PHPSESSID）覆盖代理会话；
  *   sidOverride 供「添加账号前的校验」使用（用候选 sid 试一次，不影响当前账号）。
+ *
+ * opts.noXhr：页面型端点专用。原站 nginx 对 /home/index/edit_personal、/home/index/main.html
+ *   这类**整页 HTML** 端点，带 X-Requested-With 头会 403（实测）；标记后代理改为**不下发**
+ *   XHR 头（普通 /home/api/* 列表接口仍必须带，否则返回整页 HTML 而非 JSON）。
  */
-async function oaFetch(path: string, init: RequestInit = {}, sidOverride?: string): Promise<Response> {
+async function oaFetch(
+  path: string,
+  init: RequestInit = {},
+  sidOverride?: string,
+  opts: { noXhr?: boolean } = {},
+): Promise<Response> {
   const sid = getOaSid();
   const headers = new Headers(init.headers);
   if (sid) headers.set('x-oa-session', sid);
   const accSid = sidOverride ?? currentAccountSid();
   if (accSid) headers.set('x-oa-sid', accSid);
   // 后端以此判定 ajax：缺失会返回整页 HTML 而不是 JSON 列表
-  if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
+  if (opts.noXhr) headers.set('x-oa-no-xhr', '1');
+  else if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
   const res = await fetch(`${CONFIG.oaProxy}${path}`, { ...init, headers });
   const newSid = res.headers.get('x-oa-session');
   if (newSid) setOaSid(newSid);
@@ -196,24 +206,58 @@ function oaPost(path: string, data: Record<string, string>, withXhr = true): Pro
   return oaFetch(path, { method: 'POST', headers, body: new URLSearchParams(data).toString() });
 }
 
+/** 当前登录人资料（解析后台「基本资料」页 /home/index/edit_personal）。
+ *  ★ 必须 noXhr：该端点带 X-Requested-With 会被原站 nginx 403（实测）。
+ * 免登录模式下仍显示后端会话的真实用户，而不是写死的游客名。
+ * sid 参数：多账号校验时用候选会话取该账号的登录人名。 */
+export interface MyProfile {
+  name: string;
+  avatar: string;
+  mobile: string;
+  email: string;
+  department: string;
+  position: string;
+}
+
+export async function fetchMyProfile(sidOverride?: string): Promise<MyProfile> {
+  const empty: MyProfile = { name: '', avatar: '', mobile: '', email: '', department: '', position: '' };
+  if (IS_DEMO_DATA) return empty;
+  try {
+    const res = await oaFetch('/home/index/edit_personal', {}, sidOverride, { noXhr: true });
+    if (!res.ok) return empty;
+    const html = await res.text();
+    const td = (label: string): string => {
+      const m = html.match(new RegExp(`${label}</td>\\s*<td[^>]*>([\\s\\S]{0,80}?)</td>`));
+      return m ? m[1].replace(/<[^>]+>/g, '').trim() : '';
+    };
+    const byTd = html.match(/姓名<\/td>[\s\S]{0,120}?>\s*([^<>\s]{1,20})\s*</);
+    const byInput = html.match(/name="nickname"[^>]*value="([^"]{1,20})"/);
+    const byCite = html.match(/<cite>([^<]{1,20})<\/cite>/);
+    const avatar =
+      html.match(/name="thumb"[^>]*value="([^"]+)"/)?.[1] ||
+      html.match(/src="(\/storage\/avatars\/[^"]+)"/)?.[1] ||
+      html.match(/name="avatar"[^>]*value="([^"]+)"/)?.[1] ||
+      '';
+    return {
+      name: (byTd && byTd[1]) || (byInput && byInput[1]) || (byCite && byCite[1]) || '',
+      avatar,
+      mobile: td('手机') || td('手机号'),
+      email: td('邮箱'),
+      department: td('部门'),
+      position: td('职位') || td('岗位'),
+    };
+  } catch {
+    return empty;
+  }
+}
+
 /**
  * 取当前真实登录人姓名（解析后台「基本资料」页）。
- * 免登录模式下仍显示后端会话的真实用户，而不是写死的游客名。
  * sid 参数：多账号校验时用候选会话取该账号的登录人名。
  */
 export async function fetchMyName(sidOverride?: string): Promise<string> {
-  if (IS_DEMO_DATA) return '';
-  try {
-    const res = await oaFetch('/home/index/edit_personal.html', {}, sidOverride);
-    if (!res.ok) return '';
-    const html = await res.text();
-    const byTd = html.match(/姓名<\/td>[\s\S]{0,120}?>\s*([^<>\s]{1,20})\s*</);
-    if (byTd && byTd[1]) return byTd[1].trim();
-    const byInput = html.match(/name="nickname"[^>]*value="([^"]{1,20})"/);
-    return byInput ? byInput[1].trim() : '';
-  } catch {
-    return '';
-  }
+  const p = await fetchMyProfile(sidOverride);
+  return p.name;
 }
 
 /** 取真实服务端验证码图片（blob），用于代理模式的登录页。sidOverride：新增账号时用全新会话走验证码链 */
@@ -626,6 +670,99 @@ export function fetchMails(keyword = ''): Promise<MailContact[]> {
     list = list.filter((m) => m.name.includes(k) || (m.department || '').includes(k));
   }
   return delay(list);
+}
+
+/* ======================= 工作台首页（1:1 原站 /home/index/main.html） ======================= */
+
+/**
+ * 工作台「待办事项」6 项计数。
+ * 原站为服务端渲染进 main.html 的整页数值（待审审批/待审报销/待审发票/待回款/待审合同/待完成任务），
+ * 逐账号会话不同而不同 —— 直接解析 main.html 拿到的就是原站此刻展示的同一组数字。
+ * ★ noXhr：main.html 是整页 HTML 端点，带 XHR 头会被原站 nginx 403。
+ */
+export interface HomeBoard {
+  todoApprove: number;
+  todoExpense: number;
+  todoInvoice: number;
+  todoIncome: number;
+  todoContract: number;
+  todoTask: number;
+}
+
+export async function fetchHomeBoard(): Promise<HomeBoard> {
+  const zero: HomeBoard = {
+    todoApprove: 0, todoExpense: 0, todoInvoice: 0,
+    todoIncome: 0, todoContract: 0, todoTask: 0,
+  };
+  if (IS_DEMO_DATA) return zero;
+  try {
+    const res = await oaFetch('/home/index/main.html', {}, undefined, { noXhr: true });
+    if (!res.ok) return zero;
+    const html = await res.text();
+    // 待办区：6 个 <li>，每个含 <p>标签</p><p><cite>数字</cite></p>，按顺序解析
+    const block = html.match(/待办事项[\s\S]*?<\/ul>/);
+    if (!block) return zero;
+    const nums = [...block[0].matchAll(/<cite>\s*(\d+)\s*<\/cite>/g)].map((m) => Number(m[1]));
+    if (nums.length < 6) return zero;
+    return {
+      todoApprove: nums[0], todoExpense: nums[1], todoInvoice: nums[2],
+      todoIncome: nums[3], todoContract: nums[4], todoTask: nums[5],
+    };
+  } catch {
+    return zero;
+  }
+}
+
+/** 工作台「公告列表」（原站 /home/api/get_note_list，layui table 数据接口） */
+export function fetchHomeNotes(): Promise<Note[]> {
+  if (!IS_DEMO_DATA) return oaList<Note>('/home/api/get_note_list', {}).catch(() => []);
+  return Promise.resolve([]);
+}
+
+/** 工作台「知识列表」（原站 /home/api/get_article_list） */
+export function fetchHomeArticles(): Promise<Article[]> {
+  if (!IS_DEMO_DATA) return oaList<Article>('/home/api/get_article_list', {}).catch(() => []);
+  return Promise.resolve([]);
+}
+
+/** 员工活跃度数据（原站 /home/api/get_view_data）：
+ *  data_first=今日 24 小时、data_second=昨日 24 小时、data_three=近一年 {日期: 活跃度} */
+export interface ViewData {
+  dataFirst: number[];
+  dataSecond: number[];
+  dataThree: Record<string, number>;
+}
+
+export async function fetchViewData(): Promise<ViewData | null> {
+  if (IS_DEMO_DATA) return null;
+  try {
+    const res = await oaFetch('/home/api/get_view_data', {});
+    if (!res.ok) return null;
+    const r = (await res.json()) as any;
+    if (!r || r.code !== 0 || !r.data) return null;
+    return {
+      dataFirst: Array.isArray(r.data.data_first) ? r.data.data_first.map(Number) : [],
+      dataSecond: Array.isArray(r.data.data_second) ? r.data.data_second.map(Number) : [],
+      dataThree: r.data.data_three && typeof r.data.data_three === 'object' ? r.data.data_three : {},
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 最活跃员工（原站 /home/api/get_view_log）：最近 30 天前十 {name, count} */
+export async function fetchViewLog(): Promise<{ name: string; count: number }[]> {
+  if (IS_DEMO_DATA) return [];
+  try {
+    const res = await oaFetch('/home/api/get_view_log', {});
+    if (!res.ok) return [];
+    const r = (await res.json()) as any;
+    const logs = r?.data?.data_logs;
+    if (!Array.isArray(logs)) return [];
+    return logs.map((x: any) => ({ name: String(x.name || ''), count: Number(x.count || 0) }));
+  } catch {
+    return [];
+  }
 }
 
 export function fetchHomeStats(): Promise<typeof DEMO.HOME_STATS> {

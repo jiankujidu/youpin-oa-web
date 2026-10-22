@@ -53,7 +53,7 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session,x-oa-sid',
+    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session,x-oa-sid,x-oa-no-xhr',
     'Access-Control-Expose-Headers': 'x-oa-session,x-oa-login-sid',
     'Access-Control-Max-Age': '86400',
   };
@@ -176,10 +176,19 @@ export default {
     headers.delete('origin');
     headers.delete('x-oa-session'); // 不下发到 OA
     headers.delete('x-oa-sid'); // 账号会话标记绝不下发到 OA
+    headers.delete('x-oa-no-xhr'); // 页面型标记绝不下发到 OA
     headers.set('Referer', OA_ORIGIN + '/');
-    headers.set('User-Agent', 'Mozilla/5.0 (YoupinOA-Web/1.0)');
-    // 后端以此判定 ajax：缺失会回整页 HTML 而不是 JSON 列表
-    if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
+    // 完整浏览器 UA：原站 nginx 对 UA 做校验，非浏览器 UA 请求 /home/api/* 会被 403
+    headers.set(
+      'User-Agent',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36',
+    );
+    // 后端以此判定 ajax：缺失会回整页 HTML 而不是 JSON 列表。
+    // 页面型端点（/home/index/edit_personal、/home/index/main.html）带 XHR 头会被原站 nginx 403，
+    // 客户端用 x-oa-no-xhr 头（或 ?__noxhr=1）标记后这里改为删除该头。
+    const noXhr = request.headers.get('x-oa-no-xhr') === '1' || url.searchParams.get('__noxhr') === '1';
+    if (noXhr) headers.delete('X-Requested-With');
+    else headers.set('X-Requested-With', 'XMLHttpRequest');
     headers.set('Accept-Encoding', 'identity');
     if (cookie) headers.set('Cookie', cookie);
 

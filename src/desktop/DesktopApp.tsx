@@ -13,7 +13,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import '../desktop/desktop.css';
 import './pc.css';
 import { clearSession, getDisplayName, getSession, setDisplayName, setSession } from '../core/session';
-import { clearOaSession, fetchHomeStats, fetchMyName } from '../core/api';
+import { clearOaSession, fetchHomeStats, fetchMyProfile } from '../core/api';
+import { CONFIG } from '../core/config';
 import DesktopHome from './DesktopHome';
 import DesktopApprove from './DesktopApprove';
 import DesktopCustomer from './DesktopCustomer';
@@ -36,7 +37,8 @@ import { ToastHost } from './ui';
 
 type PageKey = string;
 
-/** 菜单节点：与原站一致地嵌套二级/三级（如「财务管理 › 发票管理 › 我申请的」） */
+/** 菜单节点：与原站一致地嵌套二级/三级（如「财务管理 › 发票管理 › 我处理的」）。
+ *  icon 存原站 iconfont 类名（public/oa/iconfont/iconfont.css，与原站同一字体文件）。 */
 interface MenuNode {
   key?: string;
   label: string;
@@ -44,36 +46,36 @@ interface MenuNode {
   children?: MenuNode[];
 }
 
-/** ★ 与原站侧栏完全一致的菜单树（含二级父节点与顺序、三级嵌套） */
+/** ★ 与原站侧栏完全一致的菜单树（含二级父节点与顺序、三级嵌套；图标类名同原站） */
 const MENU: { group: string; icon: string; items: MenuNode[] }[] = [
   {
     group: '工作台',
-    icon: 'home',
-    items: [{ key: 'home', label: '工作台', icon: 'home' }],
+    icon: 'icon-xueshuguanli',
+    items: [{ key: 'home', label: '工作台', icon: 'icon-xueshuguanli' }],
   },
   {
     group: '基础数据',
-    icon: 'file',
-    items: [{ key: 'files', label: '附件管理', icon: 'file' }],
+    icon: 'icon-hetongshezhi',
+    items: [{ key: 'files', label: '附件管理', icon: 'icon-hetongshezhi' }],
   },
   {
     group: '企业公告',
-    icon: 'note',
-    items: [{ key: 'note', label: '公告列表', icon: 'note' }],
+    icon: 'icon-zhaoshengbaobiao',
+    items: [{ key: 'note', label: '公告列表', icon: 'icon-zhaoshengbaobiao' }],
   },
   {
     group: '办公审批',
-    icon: 'approve',
-    items: [{ key: 'approve', label: '我发起的', icon: 'approve' }],
+    icon: 'icon-shenpishezhi',
+    items: [{ key: 'approve', label: '我发起的', icon: 'icon-shenpishezhi' }],
   },
   {
     group: '财务管理',
-    icon: 'finance',
+    icon: 'icon-yuangongtidian',
     items: [
-      { key: 'finance-advance', label: '预存款管理', icon: 'wallet' },
+      { key: 'finance-advance', label: '预存款管理', icon: 'icon-yuangongtidian' },
       {
         label: '抵扣券管理',
-        icon: 'deduction',
+        icon: 'icon-yuangongtidian',
         children: [
           { key: 'deduction', label: '我申请的' },
           { key: 'deduction-checked', label: '抵扣(管理专用)' },
@@ -81,21 +83,21 @@ const MENU: { group: string; icon: string; items: MenuNode[] }[] = [
       },
       {
         label: '保证金管理',
-        icon: 'margin',
+        icon: 'icon-yuangongtidian',
         children: [{ key: 'margin', label: '我申请的' }],
       },
       {
         label: '发票管理',
-        icon: 'invoice',
+        icon: 'icon-yuangongtidian',
         children: [
           { key: 'invoice-my', label: '我申请的' },
           { key: 'invoice-handle', label: '我处理的' },
         ],
       },
-      { key: 'finance-income', label: '到账管理(发票)', icon: 'receipt' },
+      { key: 'finance-income', label: '到账管理(发票)', icon: 'icon-yuangongtidian' },
       {
         label: '到账管理(订单)',
-        icon: 'receipt',
+        icon: 'icon-yuangongtidian',
         children: [
           { key: 'finance-order', label: '我申请的' },
           { key: 'orderapply-handle', label: '我处理的' },
@@ -105,53 +107,55 @@ const MENU: { group: string; icon: string; items: MenuNode[] }[] = [
   },
   {
     group: '客户管理',
-    icon: 'customer',
+    icon: 'icon-kehuguanli',
     items: [
-      { key: 'customer', label: '客户列表', icon: 'customer' },
-      { key: 'customer-sea', label: '公海客户', icon: 'customer' },
-      { key: 'customer-trash', label: '废弃客户', icon: 'customer' },
-      { key: 'contact', label: '客户联系人', icon: 'contact' },
-      { key: 'chance', label: '销售机会', icon: 'chance' },
-      { key: 'trace', label: '跟进记录', icon: 'trace' },
+      { key: 'customer', label: '客户列表', icon: 'icon-kehuguanli' },
+      { key: 'customer-sea', label: '公海客户', icon: 'icon-kehuguanli' },
+      { key: 'customer-trash', label: '废弃客户', icon: 'icon-kehuguanli' },
+      { key: 'contact', label: '客户联系人', icon: 'icon-kehuguanli' },
+      { key: 'chance', label: '销售机会', icon: 'icon-kehuguanli' },
+      { key: 'trace', label: '跟进记录', icon: 'icon-kehuguanli' },
       {
         label: '订单管理',
-        icon: 'order',
+        icon: 'icon-kehuguanli',
         children: [
           { key: 'order-my', label: '我申请的' },
           { key: 'order-handle', label: '我处理的' },
+          { key: 'sample', label: '样本管理' },
         ],
       },
-      { key: 'sample', label: '样本管理', icon: 'sample' },
       {
         label: '校展管理',
-        icon: 'school',
+        icon: 'icon-kehuguanli',
         children: [
           { key: 'school', label: '校展预名单' },
           { key: 'school-handle', label: '我处理的' },
         ],
       },
-      { key: 'article', label: '售前售后查询', icon: 'article' },
-      {
-        label: '售后管理',
-        icon: 'after',
-        children: [{ key: 'after', label: '我申请的' }],
-      },
     ],
   },
   {
     group: '售前售后问答',
-    icon: 'article',
-    items: [{ key: 'ai', label: 'AI问答', icon: 'robot' }],
+    icon: 'icon-kecheng',
+    items: [
+      { key: 'article', label: '售前售后查询', icon: 'icon-kecheng' },
+      {
+        label: '售后管理',
+        icon: 'icon-kecheng',
+        children: [{ key: 'after', label: '我申请的' }],
+      },
+      { key: 'ai', label: 'AI问答', icon: 'icon-kecheng' },
+    ],
   },
   {
     group: '产品管理',
-    icon: 'product',
-    items: [{ key: 'product', label: '产品列表', icon: 'product' }],
+    icon: 'icon-chanpinshezhi',
+    items: [{ key: 'product', label: '产品列表', icon: 'icon-chanpinshezhi' }],
   },
 ];
 
 /** 顶栏固定入口（原站顶栏：消息中心 / 通讯录） */
-const EXTRA_PAGES: MenuNode[] = [{ key: 'mail', label: '通讯录', icon: 'mail' }];
+const EXTRA_PAGES: MenuNode[] = [{ key: 'mail', label: '通讯录', icon: 'icon-huamingce' }];
 
 /** 免登录：默认会话（后端会话由代理维持，界面无需账号密码）。
  *  多账号体系：displayName 取当前选中账号标签；无账号时为固定会话模式（旧行为）。 */
@@ -214,8 +218,23 @@ export default function DesktopApp({
     // 无账号（固定会话旧模式）：沿用持久化的登录人名
     () => getCurrentAccount()?.label || getDisplayName() || 'OA用户',
   );
-  /** 侧栏分组折叠（默认全部展开，与原站一致） */
+  /** 当前登录人头像（原站 /storage/avatars/...，经代理访问） */
+  const [avatar, setAvatar] = useState('');
+  /** 侧栏分组折叠：与原站 layui-nav-tree 行为一致 —— 默认全部收起，
+   *   仅当前页所在链路自动展开（等价原站 layui-nav-itemed）；用户点过之后以点击态为准。 */
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  /** 节点（含子孙）是否命中当前页 */
+  const hasActiveDescendant = useCallback(
+    (node: MenuNode): boolean =>
+      !!node.children?.some((c) => c.key === active || hasActiveDescendant(c)),
+    [active],
+  );
+  /** 节点是否展开：未点击过 → 仅当前页链路自动展开；点击过 → 用户态 */
+  const isGroupOpen = (node: MenuNode): boolean => {
+    const explicit = collapsed[node.label];
+    if (explicit !== undefined) return explicit;
+    return hasActiveDescendant(node);
+  };
   /** 侧边伸缩（原站顶栏第一个按钮） */
   const [mini, setMini] = useState(false);
   /** 页签右键菜单 */
@@ -239,15 +258,15 @@ export default function DesktopApp({
   }, []);
 
   useEffect(() => {
-    // 真实后端登录人姓名（解析后台资料页，随当前账号会话取该账号的登录人）。
-    // 多账号模式下顶栏 chip 以账号标签为准（避免把登录人名盖掉自定义备注）；
-    // 仅无选中账号（固定会话旧模式）时用登录人名填充。
-    if (getCurrentAccount()) return;
-    fetchMyName().then((n) => {
-      if (n) {
-        setName(n);
-        setDisplayName(n);
+    // 真实后端登录人资料（解析后台资料页，随当前账号会话取该账号的登录人头像与姓名）。
+    // 多账号模式下顶栏 chip 仍以账号标签优先显示；取到真实姓名/头像后补充展示
+    //（原站顶栏就是真实登录人「陈美龙」+ 头像，不是账号备注）。
+    fetchMyProfile().then((p) => {
+      if (p.name) {
+        setName(p.name);
+        setDisplayName(p.name);
       }
+      if (p.avatar) setAvatar(p.avatar);
     });
     const tick = () => fetchHomeStats().then((s) => setUnread(s.unreadMsg));
     tick();
@@ -361,29 +380,30 @@ export default function DesktopApp({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  /** 渲染单个菜单节点（可展开二级/三级） */
+  /** 渲染单个菜单节点（可展开二级/三级；与原站一致：仅一级项带 iconfont 图标） */
   const renderNode = (node: MenuNode, depth = 0) => {
     if (node.children) {
-      const open = !collapsed[node.label];
-      const activeGroup =
-        node.children.some((c) => c.key === active) || node.children.some((c) => c.children?.some((x) => x.key === active));
+      const open = isGroupOpen(node);
+      const activeGroup = hasActiveDescendant(node);
       return (
         <div key={'g-' + node.label}>
           <div
             className={`d-nav-item d-nav-parent${activeGroup ? ' on' : ''}`}
-            onClick={() => setCollapsed((c) => ({ ...c, [node.label]: !c[node.label] }))}
+            onClick={() => setCollapsed((c) => ({ ...c, [node.label]: !open }))}
             title={mini ? node.label : undefined}
-            {...keyProps(() => setCollapsed((c) => ({ ...c, [node.label]: !c[node.label] })))}
+            {...keyProps(() => setCollapsed((c) => ({ ...c, [node.label]: !open })))}
           >
-            <span className="d-nav-ico">
-              <Icon name={node.icon || 'grid'} size={16} />
-            </span>
+            {depth === 0 ? (
+              <span className="d-nav-ico">
+                <i className={`iconfont ${node.icon || ''}`} />
+              </span>
+            ) : null}
             <span>{node.label}</span>
             <span className="d-nav-arrow">{open ? '▾' : '▸'}</span>
           </div>
           {open ? (
             <div className="d-nav-child">
-              {node.children.map((c) => (c.children ? renderNode(c, depth + 1) : renderNode(c, depth + 1)))}
+              {node.children.map((c) => renderNode(c, depth + 1))}
             </div>
           ) : null}
         </div>
@@ -399,7 +419,7 @@ export default function DesktopApp({
       >
         {depth === 0 ? (
           <span className="d-nav-ico">
-            <Icon name={node.icon || 'grid'} size={16} />
+            <i className={`iconfont ${node.icon || ''}`} />
           </span>
         ) : null}
         <span>{node.label}</span>
@@ -451,10 +471,16 @@ export default function DesktopApp({
       {/* ===== 侧边栏（原站 layui-side-white：白底 180px）===== */}
       <aside className="d-sidebar">
         <div className="d-brand" onClick={() => openTab('home')} title="优品OA">
-          <span className="d-brand-logo">
-            <img src="/oa/login_logo.png" alt="优品OA" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            <span>优品OA</span>
-          </span>
+          {/* 原站 layui-logo：syslogo.png 高 40px 居中（白底）。
+              用相对路径：三入口部署（根路径 / 子路径 / Pages 函数同源）都能正确解析 */}
+          <img
+            src="oa/syslogo.png"
+            alt="优品OA"
+            className="d-brand-logo-img"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
         </div>
         <nav className="d-nav">
           {MENU.map((g) => {
@@ -502,7 +528,19 @@ export default function DesktopApp({
               {unread > 0 ? <span className="d-badge">{unread}</span> : null}
             </span>
             <div className="d-user" onClick={() => setMenuOpen((v) => !v)} title="当前账号（点击切换/管理）">
-              <span className="d-avatar">{(name || 'U').slice(0, 1)}</span>
+              {avatar ? (
+                <img
+                  className="d-avatar-img"
+                  src={avatar.startsWith('/') ? `${CONFIG.oaProxy}${avatar}` : avatar}
+                  alt={name || '头像'}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : null}
+              <span className="d-avatar" style={avatar ? { display: 'none' } : undefined}>
+                {(name || 'U').slice(0, 1)}
+              </span>
               <cite className="d-user-name">{name || '未选择账号'}</cite>
               {accounts.length > 1 ? <i className="d-user-caret">▾</i> : null}
             </div>

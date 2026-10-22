@@ -149,6 +149,8 @@ export interface Note {
   admin_id?: string | number;
   start_time?: string;
   end_time?: string;
+  /** 工作台公告列表用：0=未读（原站渲染红色 + 「新」标记） */
+  is_read?: string | number;
 }
 
 /** 问答知识（/article/index/index） */
