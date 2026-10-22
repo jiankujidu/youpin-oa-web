@@ -1485,6 +1485,9 @@
 /* 公告未读（原站 templet：is_read===0 → #ff5722 加粗 + 「新」标记） */
 .gg-note-new { display: inline-flex; align-items: center; gap: 5px; color: #ff5722; font-weight: bold; }
 .gg-note-link { color: #ff5722; }
+/* 已读标题：原站为蓝色链接样式 */
+.gg-note-title { color: #1a75ff; cursor: pointer; }
+.gg-note-title:hover { text-decoration: underline; }
 .gg-note-badge {
   display: inline-block;
   background: #ff5722;

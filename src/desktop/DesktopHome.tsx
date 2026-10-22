@@ -147,7 +147,7 @@ const NOTE_COLS: Column<Note>[] = [
           <span className="gg-note-badge">新</span>
         </span>
       ) : (
-        <span className="pc-td-strong pc-cell-1" title={r.title}>
+        <span className="gg-note-title pc-cell-1" title={r.title}>
           {r.title}
         </span>
       ),
