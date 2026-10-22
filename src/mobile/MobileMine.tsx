@@ -90,6 +90,10 @@ export default function MobileMine({
       </div>
 
       <div className="m-section-title">账号</div>
+      <div className="m-menu-item" onClick={() => onOpenSub('accounts')}>
+        <span className="m-mi-left">账号管理（多账号切换）</span>
+        <span className="m-mi-right">›</span>
+      </div>
       <div className="m-menu-item" onClick={() => setConfirmLogout(true)}>
         <span className="m-mi-left" style={{ color: '#ff4d4f' }}>
           退出登录

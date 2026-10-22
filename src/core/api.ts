@@ -10,6 +10,7 @@
 import { CONFIG, IS_DEMO_DATA } from './config';
 import * as DEMO from './demoData';
 import { getDisplayName } from './session';
+import { currentAccountSid } from './accounts';
 import { SUB_PAGES, mapRemoteRow } from './biz';
 import type { BizRow } from './biz';
 import type {
@@ -170,11 +171,16 @@ function delay<T>(value: T, ms = 220): Promise<T> {
  *   /oa/approve/check        → https://oa.upingbio.cn/oa/approve/check
  *   /home/login/login_submit → https://oa.upingbio.cn/home/login/login_submit
  * 浏览器仅持 x-oa-session；OA 会话 Cookie 由代理在 KV 中维护。
+ *
+ * 多账号：选中了账号且该账号有 sid 时，附带 x-oa-sid（原始 PHPSESSID）覆盖代理会话；
+ *   sidOverride 供「添加账号前的校验」使用（用候选 sid 试一次，不影响当前账号）。
  */
-async function oaFetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function oaFetch(path: string, init: RequestInit = {}, sidOverride?: string): Promise<Response> {
   const sid = getOaSid();
   const headers = new Headers(init.headers);
   if (sid) headers.set('x-oa-session', sid);
+  const accSid = sidOverride ?? currentAccountSid();
+  if (accSid) headers.set('x-oa-sid', accSid);
   // 后端以此判定 ajax：缺失会返回整页 HTML 而不是 JSON 列表
   if (!headers.has('X-Requested-With')) headers.set('X-Requested-With', 'XMLHttpRequest');
   const res = await fetch(`${CONFIG.oaProxy}${path}`, { ...init, headers });
@@ -193,11 +199,12 @@ function oaPost(path: string, data: Record<string, string>, withXhr = true): Pro
 /**
  * 取当前真实登录人姓名（解析后台「基本资料」页）。
  * 免登录模式下仍显示后端会话的真实用户，而不是写死的游客名。
+ * sid 参数：多账号校验时用候选会话取该账号的登录人名。
  */
-export async function fetchMyName(): Promise<string> {
+export async function fetchMyName(sidOverride?: string): Promise<string> {
   if (IS_DEMO_DATA) return '';
   try {
-    const res = await oaFetch('/home/index/edit_personal.html');
+    const res = await oaFetch('/home/index/edit_personal.html', {}, sidOverride);
     if (!res.ok) return '';
     const html = await res.text();
     const byTd = html.match(/姓名<\/td>[\s\S]{0,120}?>\s*([^<>\s]{1,20})\s*</);
@@ -209,9 +216,9 @@ export async function fetchMyName(): Promise<string> {
   }
 }
 
-/** 取真实服务端验证码图片（blob），用于代理模式的登录页 */
-export async function fetchCaptchaUrl(): Promise<string> {
-  const res = await oaFetch('/captcha.html');
+/** 取真实服务端验证码图片（blob），用于代理模式的登录页。sidOverride：新增账号时用全新会话走验证码链 */
+export async function fetchCaptchaUrl(sidOverride?: string): Promise<string> {
+  const res = await oaFetch('/captcha.html', {}, sidOverride);
   if (!res.ok) throw new Error(`验证码获取失败 HTTP ${res.status}`);
   const blob = await res.blob();
   return URL.createObjectURL(blob);
@@ -335,6 +342,8 @@ export interface LoginResult {
   ok: boolean;
   msg: string;
   displayName?: string;
+  /** 登录成功后代理回传的新 PHPSESSID（x-oa-login-sid 头），用于沉淀为账号会话 */
+  sid?: string;
 }
 
 /**
@@ -352,29 +361,38 @@ export const DEMO_ACCOUNT_HINT = `演示模式可用账号：${DEMO_USERNAMES.jo
  * - 演示模式（未配置代理）：本地校验算式验证码（界面明确标注「演示模式」）。
  * - 真实模式（配置了代理）：POST 到 /home/login/login_submit，由后端校验验证码与会话。
  *   expectedCaptcha 仅演示模式使用。
+ *   sidOverride：新增账号时传入全新随机会话，使「验证码→登录」绑定到该会话，
+ *     登录成功后由代理回传的 x-oa-login-sid 即为新账号可用的 PHPSESSID。
  */
 export async function login(
   username: string,
   password: string,
   captcha: string,
   expectedCaptcha?: number,
+  sidOverride?: string,
 ): Promise<LoginResult> {
   if (!IS_DEMO_DATA) {
     try {
-      const res = await oaFetch('/home/login/login_submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ username, password, captcha }).toString(),
-      });
+      const res = await oaFetch(
+        '/home/login/login_submit',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ username, password, captcha }).toString(),
+        },
+        sidOverride,
+      );
       let data: any = null;
       try {
         data = await res.json();
       } catch {
         /* 非 JSON（如直接返回 HTML） */
       }
+      // 代理在登录成功时回传新会话的 PHPSESSID（x-oa-login-sid），沉淀为账号会话
+      const loginSid = res.headers.get('x-oa-login-sid') || '';
       if (res.ok && data && data.code === 0) {
         const dn = data?.data?.nickname || data?.data?.admin_name || data?.data?.name || username;
-        return { ok: true, msg: '', displayName: dn };
+        return { ok: true, msg: '', displayName: dn, sid: loginSid || undefined };
       }
       return { ok: false, msg: (data && data.msg) || `登录失败（HTTP ${res.status}）` };
     } catch (e) {
@@ -395,6 +413,34 @@ export async function login(
     };
   if (password.length < 4) return { ok: false, msg: '密码至少 4 位' };
   return { ok: true, msg: '', displayName: username };
+}
+
+/* ======================= 多账号：会话校验 ======================= */
+
+/**
+ * 用候选 PHPSESSID 探一次真实接口，验证账号会话是否可用。
+ * 不影响当前选中账号（sidOverride 只作用于本次请求）。
+ * 返回 ok + 该会话下解析出的登录人名（顺带作为账号默认标签）。
+ */
+export async function validateAccountSid(
+  sid: string,
+): Promise<{ ok: boolean; msg: string; name?: string }> {
+  if (!IS_DEMO_DATA) {
+    if (!sid.trim()) return { ok: false, msg: '请填写 PHPSESSID' };
+    try {
+      const res = await oaFetch('/customer/index/index?limit=1', {}, sid.trim());
+      if (!res.ok) return { ok: false, msg: `HTTP ${res.status}` };
+      const r = (await res.json()) as any;
+      if (r && r.code === 0) {
+        const nm = await fetchMyName(sid.trim());
+        return { ok: true, msg: '', name: nm || '' };
+      }
+      return { ok: false, msg: (r && r.msg) || '会话无效（OA 未接受该 PHPSESSID）' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+    }
+  }
+  return { ok: false, msg: '演示模式未接 OA 后端，无法校验会话' };
 }
 
 /* ======================= 列表接口 ======================= */

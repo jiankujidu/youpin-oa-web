@@ -39,8 +39,8 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session,x-test-mode',
-    'Access-Control-Expose-Headers': 'x-oa-session',
+    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session,x-oa-sid,x-test-mode',
+    'Access-Control-Expose-Headers': 'x-oa-session,x-oa-login-sid',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -86,10 +86,18 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ ok: true, oaBase: OA_BASE, sessions: kv.size }));
   }
 
-  // 1) 会话（免登录模式：没有自带会话时固定使用后端已登录的 PHPSESSID）
+  // 1) 会话优先级（多账号体系）：
+  //    x-oa-sid 头 / ?__sid= 查询参数 = 原始 PHPSESSID（账号自带会话，最高优先级）
+  //      > x-oa-session（KV 会话 id，验证码→登录链用）
+  //      > OA_FIXED_SID 固定会话（旧部署免登录形态）
+  //      > 新建空会话
+  const rawSid = (req.headers['x-oa-sid'] || url.searchParams.get('__sid') || '').toString().trim();
   let sid = req.headers['x-oa-session'];
   let storedCookie = sid ? kv.get(sid) : undefined;
-  if (!sid || storedCookie === undefined) {
+  if (rawSid) {
+    sid = 'raw';
+    storedCookie = `PHPSESSID=${rawSid}`;
+  } else if (!sid || storedCookie === undefined) {
     if (FIXED_SID) {
       sid = 'fixed';
       storedCookie = `PHPSESSID=${FIXED_SID}`;
@@ -99,6 +107,8 @@ const server = http.createServer(async (req, res) => {
       kv.set(sid, storedCookie);
     }
   }
+  /** 登录提交路径（成功后回传 x-oa-login-sid，供前端沉淀为账号会话） */
+  const isLoginSubmit = url.pathname.replace(/\/+$/, '').endsWith('/home/login/login_submit');
 
   // 2) 组装转发（完整路径透传）
   const headers = { ...req.headers };
@@ -106,6 +116,7 @@ const server = http.createServer(async (req, res) => {
   delete headers.referer;
   delete headers.host;
   delete headers['x-oa-session'];
+  delete headers['x-oa-sid']; // 账号会话标记绝不下发到 OA
   headers.referer = OA_BASE + '/';
   headers['user-agent'] = 'Mozilla/5.0 (YoupinOA-Web/1.0)';
   // 后端以此判定 ajax 请求：缺失会直接回整页 HTML（而非 JSON 列表）
@@ -170,6 +181,23 @@ const server = http.createServer(async (req, res) => {
   out['x-oa-session'] = sid;
 
   const buf = Buffer.from(await upstream.arrayBuffer());
+
+  // 登录成功：回传本次登录会话的 PHPSESSID（前端沉淀为账号会话，实现多账号切换）
+  if (isLoginSubmit && upstream.status === 200) {
+    try {
+      const j = JSON.parse(buf.toString('utf8'));
+      if (j && j.code === 0) {
+        // OA 可能在登录时重写会话 id（Set-Cookie 新 PHPSESSID，已合入 KV）；
+        // 取最新 cookie 里的 PHPSESSID 回传，客户端以此作为账号会话
+        const cookieNow = kv.get(sid) || storedCookie || '';
+        const m = /PHPSESSID=([^;]+)/i.exec(cookieNow);
+        if (m && m[1]) out['x-oa-login-sid'] = m[1];
+      }
+    } catch {
+      /* 非 JSON 响应，忽略 */
+    }
+  }
+
   res.writeHead(upstream.status, out);
   res.end(buf);
 });

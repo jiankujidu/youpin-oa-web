@@ -53,8 +53,8 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session',
-    'Access-Control-Expose-Headers': 'x-oa-session',
+    'Access-Control-Allow-Headers': 'Content-Type,X-Requested-With,x-oa-session,x-oa-sid',
+    'Access-Control-Expose-Headers': 'x-oa-session,x-oa-login-sid',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -151,19 +151,31 @@ export default {
 
     let sid = request.headers.get('x-oa-session');
     let storedCookie = sid ? await env.OA_SESSIONS.get(sid) : null;
-    // 免登录：无自带会话时改用固定会话（不要再建空会话，否则线上全部页面取不到数据）
-    const cookie = resolveSid(env, request, storedCookie);
-    if (!sid) {
-      sid = 'fixed';
-      storedCookie = cookie;
-      if (cookie) await env.OA_SESSIONS.put(sid, cookie, { expirationTtl: SESSION_TTL });
+    // 多账号：x-oa-sid 头 / ?__sid= 查询参数 = 账号自带会话（原始 PHPSESSID），最高优先级，不经 KV
+    const rawSid = (request.headers.get('x-oa-sid') || url.searchParams.get('__sid') || '').trim();
+    let cookie;
+    if (rawSid) {
+      sid = 'raw';
+      storedCookie = `PHPSESSID=${rawSid}`;
+      cookie = storedCookie;
+    } else {
+      // 免登录：无自带会话时改用固定会话（不要再建空会话，否则线上全部页面取不到数据）
+      cookie = resolveSid(env, request, storedCookie);
+      if (!sid) {
+        sid = 'fixed';
+        storedCookie = cookie;
+        if (cookie) await env.OA_SESSIONS.put(sid, cookie, { expirationTtl: SESSION_TTL });
+      }
     }
+    /** 登录提交路径（成功后回传 x-oa-login-sid，供前端沉淀为账号会话） */
+    const isLoginSubmit = url.pathname.replace(/\/+$/, '').endsWith('/home/login/login_submit');
 
     // 组装转发请求
     const target = OA_ORIGIN + url.pathname + (url.search || '');
     const headers = new Headers(request.headers);
     headers.delete('origin');
     headers.delete('x-oa-session'); // 不下发到 OA
+    headers.delete('x-oa-sid'); // 账号会话标记绝不下发到 OA
     headers.set('Referer', OA_ORIGIN + '/');
     headers.set('User-Agent', 'Mozilla/5.0 (YoupinOA-Web/1.0)');
     // 后端以此判定 ajax：缺失会回整页 HTML 而不是 JSON 列表
@@ -197,9 +209,11 @@ export default {
         ? upstream.headers.getSetCookie()
         : [upstream.headers.get('set-cookie')].filter(Boolean);
     // 免登录固定会话不写回 KV（否则一次后端换 session 就会把整站打回未登录态）
+    let cookieForEcho = storedCookie || '';
     if (setCookies.length && sid !== 'fixed') {
       const merged = mergeCookies(storedCookie || '', setCookies);
       await env.OA_SESSIONS.put(sid, merged, { expirationTtl: SESSION_TTL });
+      cookieForEcho = merged;
     }
 
     // 回传给浏览器：剥离 Set-Cookie / hop-by-hop 头 / 上游自带的 CORS 头，
@@ -224,6 +238,30 @@ export default {
     });
     for (const [k, v] of Object.entries(corsHeaders(origin))) out.set(k, v);
     out.set('x-oa-session', sid);
+
+    // 登录成功：回传本次登录会话的 PHPSESSID（前端沉淀为账号会话，实现多账号切换）
+    if (isLoginSubmit && upstream.status === 200) {
+      try {
+        const j = JSON.parse(await upstream.clone().text());
+        if (j && j.code === 0) {
+          let loginSid = '';
+          for (const sc of setCookies) {
+            const m = /PHPSESSID=([^;]+)/i.exec(sc);
+            if (m && m[1]) {
+              loginSid = m[1];
+              break;
+            }
+          }
+          if (!loginSid) {
+            const m = /PHPSESSID=([^;]+)/i.exec(cookieForEcho);
+            if (m) loginSid = m[1];
+          }
+          if (loginSid) out.set('x-oa-login-sid', loginSid);
+        }
+      } catch {
+        /* 非 JSON 响应，忽略 */
+      }
+    }
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,

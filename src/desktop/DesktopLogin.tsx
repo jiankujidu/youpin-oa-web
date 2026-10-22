@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEMO_ACCOUNT_HINT, fetchCaptchaUrl, initRealSnapshot, login, realSnapshotInfo } from '../core/api';
 import { IS_DEMO_DATA } from '../core/config';
 import { getRemembered, setRemembered } from '../core/session';
+import { addAccount, setCurrentAccount } from '../core/accounts';
 import type { Session } from '../core/types';
 
 interface MathCaptcha {
@@ -146,6 +147,18 @@ export default function DesktopLogin({ onSuccess }: { onSuccess: (s: Session) =>
     try {
       const r = await login(username.trim(), password, captchaInput.trim(), proxyMode ? undefined : math.answer);
       if (r.ok) {
+        // 多账号：登录成功即沉淀为账号（带回传的 PHPSESSID）并设为当前，之后可在顶栏切换
+        if (r.sid) {
+          const acc = addAccount({
+            label: r.displayName || username.trim(),
+            username: username.trim(),
+            password,
+            sid: r.sid,
+            source: 'login',
+            status: 'valid',
+          });
+          setCurrentAccount(acc.id);
+        }
         if (remember) setRemembered(username.trim(), password);
         onSuccess({
           username: username.trim(),

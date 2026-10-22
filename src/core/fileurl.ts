@@ -11,12 +11,27 @@
  *  - 三者经同源代理（CONFIG.oaProxy，注入固定会话）均返回 200 + 正确 Content-Type。
  */
 import { CONFIG } from './config';
+import { currentAccountSid } from './accounts';
 
-/** OA 文件稳定预览地址（经代理注入会话，公网可直接访问，转发链接有效） */
+/** 代理路径附加当前账号会话参数（img/a 等无法自定义头的场景用） */
+function withAccountSid(path: string): string {
+  const sid = currentAccountSid();
+  if (!sid) return path;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${path}${sep}__sid=${encodeURIComponent(sid)}`;
+}
+
+/**
+ * OA 文件稳定预览地址（经代理注入会话，公网可直接访问，转发链接有效）。
+ * 多账号：选中账号有自带会话时附 __sid 查询参数（img/a 标签无法带头，只能走参数），
+ *  代理优先用它作为本次请求的 PHPSESSID；无账号时不附加（回落代理固定会话，旧行为不变）。
+ */
 export function oaFileUrl(id: string | number, rename?: string): string {
   if (!CONFIG.oaProxy || id === undefined || id === null || id === '') return '';
   let u = `${CONFIG.oaProxy}/api/index/get_oss_file.html?id=${encodeURIComponent(String(id))}`;
   if (rename) u += `&rename=${encodeURIComponent(rename)}`;
+  const sid = currentAccountSid();
+  if (sid) u += `&__sid=${encodeURIComponent(sid)}`;
   return u;
 }
 
@@ -30,7 +45,9 @@ export function absOaUrl(path: string): string {
   if (!path) return '';
   if (path.startsWith('//')) return 'https:' + path;
   if (/^\/(api|oss)\//.test(path)) {
-    return CONFIG.oaProxy ? CONFIG.oaProxy + path : 'https://oa.upingbio.com' + path;
+    return CONFIG.oaProxy
+      ? withAccountSid(CONFIG.oaProxy + path)
+      : 'https://oa.upingbio.com' + path;
   }
   return path;
 }
@@ -44,7 +61,9 @@ export function signedOssToProxy(url: string): string {
   if (!url) return '';
   const m = url.match(/^(?:https?:)?\/\/static\.upingbio\.cn\/oa\/([^?#]+)/i);
   if (!m) return '';
-  return CONFIG.oaProxy ? `${CONFIG.oaProxy}/oss/${m[1]}` : `https://oa.upingbio.com/oss/${m[1]}`;
+  return CONFIG.oaProxy
+    ? withAccountSid(`${CONFIG.oaProxy}/oss/${m[1]}`)
+    : `https://oa.upingbio.com/oss/${m[1]}`;
 }
 
 /**
@@ -58,18 +77,18 @@ export function fixContentHtml(html: string): string {
       // 协议相对 / https 的 static.upingbio.cn/oa/ 资源 → 代理 /oss/
       .replace(
         /(src|href)\s*=\s*(["'])\s*(?:https?:)?\/\/static\.upingbio\.cn\/oa\/([^"']+)\2/gi,
-        (_m, attr: string, q: string, p: string) => `${attr}=${q}${CONFIG.oaProxy}/oss/${p}${q}`,
+        (_m, attr: string, q: string, p: string) => `${attr}=${q}${withAccountSid(`${CONFIG.oaProxy}/oss/${p}`)}${q}`,
       )
       // oa.upingbio.com 域内资源 → 代理
       .replace(
         /(src|href)\s*=\s*(["'])\s*https?:\/\/oa\.upingbio\.com\/(?!oss\/)([^"']+)\2/gi,
-        (_m, attr: string, q: string, p: string) => `${attr}=${q}${CONFIG.oaProxy}/${p}${q}`,
+        (_m, attr: string, q: string, p: string) => `${attr}=${q}${withAccountSid(`${CONFIG.oaProxy}/${p}`)}${q}`,
       )
       // 原站相对路径 → 前缀代理（避免把已代理地址二次加前缀）
       .replace(
         /(src|href)\s*=\s*(["'])\s*\/(api|oss)\/([^"']+)\2/gi,
         (_m, attr: string, q: string, a: string, p: string) =>
-          `${attr}=${q}${CONFIG.oaProxy}/${a}/${p}${q}`,
+          `${attr}=${q}${withAccountSid(`${CONFIG.oaProxy}/${a}/${p}`)}${q}`,
       )
   );
 }

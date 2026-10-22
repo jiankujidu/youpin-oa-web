@@ -23,6 +23,17 @@ export const CONFIG = {
   /** 真实 OA 后端的 CORS 代理地址。留空 = 使用内置演示数据集（见 ARCHITECTURE A2） */
   oaProxy: resolveOaProxy(),
 
+  /**
+   * 构建期预置账号（多账号体系的「可配置」入口）。
+   * VITE_OA_ACCOUNTS = JSON 数组，如：
+   *   [{"id":"main","label":"陈美龙（主账号）","username":"chenmeilong","password":"...","sid":"..."}]
+   * 留空 = 无预置账号（旧部署形态：客户端不注入账号会话，代理用固定会话）。
+   */
+  presetAccounts: ((env.VITE_OA_ACCOUNTS as string) || '').trim(),
+
+  /** 预置账号里的默认账号 id（缺省取第一个） */
+  defaultAccountId: ((env.VITE_OA_DEFAULT_ACCOUNT as string) || '').trim(),
+
   /** 上传服务凭证（三选一，按优先级尝试） */
   upload: {
     cloudinary: {

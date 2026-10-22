@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import '../mobile/mobile.css';
 import { setSession, setDisplayName, getDisplayName } from '../core/session';
+import { getCurrentAccount, setCurrentAccount } from '../core/accounts';
 import { fetchHomeStats } from '../core/api';
 import type { Session } from '../core/types';
 import MobileHome from './MobileHome';
@@ -16,6 +17,7 @@ import MobileFiles from './MobileFiles';
 import MobileProduct from './MobileProduct';
 import MobileAi from './MobileAi';
 import MobileWorkbench from './MobileWorkbench';
+import MobileAccounts from './MobileAccounts';
 import { MobileArticle, MobileMail, MobileMessage, MobileNote } from './MobileContent';
 import { MobileApproveAdd, MobileCustomerAdd, MobilePassword, MobileProfile, MobileSub } from './MobileSub';
 import { Icon } from '../core/icons';
@@ -36,6 +38,7 @@ const SUB_TITLES: Record<string, string> = {
   workbench: '工作台',
   profile: '基本资料',
   password: '修改密码',
+  accounts: '账号管理',
   'approve-add': '发起审批',
   'finance-advance': '预存款',
   'finance-income': '到账（发票）',
@@ -59,10 +62,11 @@ const SUB_TITLES: Record<string, string> = {
 };
 
 export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }) {
-  /** 免登录：固定会话直接生效（后端会话由代理以固定 PHPSESSID 维持），初始化即带出，无需登录 */
+  /** 免登录：固定会话直接生效（后端会话由代理以固定 PHPSESSID 维持），初始化即带出，无需登录。
+   *  多账号：有选中账号时显示该账号标签 */
   const [session, setSessionState] = useState<Session>(() => ({
     username: 'auto',
-    displayName: '陈美龙',
+    displayName: getCurrentAccount()?.label || '',
     loginAt: Date.now(),
   }));
   const [tab, setTab] = useState<Tab>('home');
@@ -71,9 +75,10 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
 
   // 仅挂载时执行一次：同步会话 + 未读轮询。绝不可依赖 [session]，否则每次渲染都重新 set 新对象 → 无限重渲染
   useEffect(() => {
-    const auto: Session = { username: 'auto', displayName: '陈美龙', loginAt: Date.now() };
+    const acc = getCurrentAccount();
+    const auto: Session = { username: 'auto', displayName: acc?.label || '', loginAt: Date.now() };
     setSession(auto);
-    setDisplayName(auto.displayName);
+    if (acc?.label) setDisplayName(acc.label);
     const tick = () => {
       fetchHomeStats()
         .then((s) => setUnread(s.unreadMsg))
@@ -91,12 +96,15 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
     };
   }, []);
 
-  /** 免登录模式：退出仅重置为固定会话，不退回登录页（遵循「不要账号」要求） */
+  /** 免登录模式：退出仅重置为固定会话，不退回登录页（遵循「不要账号」要求）。
+   *  多账号：同时清除当前账号选择，回落固定会话模式 */
   const handleLogout = useCallback(() => {
-    const auto: Session = { username: 'auto', displayName: '陈美龙', loginAt: Date.now() };
+    const acc = getCurrentAccount();
+    const auto: Session = { username: 'auto', displayName: acc?.label || '', loginAt: Date.now() };
     setSession(auto);
     setDisplayName(auto.displayName);
     setSessionState(auto);
+    setCurrentAccount('');
     setSub(null);
     setTab('home');
   }, []);
@@ -109,7 +117,8 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
   const openSub = useCallback((key: string) => setSub(key), []);
 
   const title = sub ? SUB_TITLES[sub] || '功能' : TITLES[tab];
-  const displayName = getDisplayName() || session.displayName;
+  // 多账号：当前账号标签优先；无账号时沿用持久化显示名（固定会话旧模式）
+  const displayName = getCurrentAccount()?.label || getDisplayName() || session.displayName;
 
   return (
     <div className="m-root">
@@ -144,13 +153,14 @@ export default function MobileApp({ onSwitchView }: { onSwitchView: () => void }
         {sub === 'workbench' ? <MobileWorkbench onOpenSub={openSub} /> : null}
         {sub === 'profile' ? <MobileProfile /> : null}
         {sub === 'password' ? <MobilePassword /> : null}
+        {sub === 'accounts' ? <MobileAccounts /> : null}
         {sub === 'customer-add' ? (
           <MobileCustomerAdd onDone={() => { setSub(null); switchTab('customer'); }} />
         ) : null}
         {sub === 'approve-add' ? (
           <MobileApproveAdd onDone={() => { setSub(null); switchTab('approve'); }} />
         ) : null}
-        {sub && !['note', 'article', 'product', 'files', 'message', 'mail', 'ai', 'workbench', 'profile', 'password', 'customer-add', 'approve-add'].includes(sub) ? (
+        {sub && !['note', 'article', 'product', 'files', 'message', 'mail', 'ai', 'workbench', 'profile', 'password', 'accounts', 'customer-add', 'approve-add'].includes(sub) ? (
           <MobileSub pageKey={sub} />
         ) : null}
 

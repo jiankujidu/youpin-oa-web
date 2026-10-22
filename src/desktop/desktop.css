@@ -312,6 +312,33 @@
   background: var(--c-danger-bg);
   color: var(--c-danger);
 }
+/* 多账号：切换列表标题 / 分隔线 / 选中项 */
+.d-user-menu-title {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  color: var(--c-text-4);
+  text-align: left;
+}
+.d-user-menu-split {
+  height: 1px;
+  background: var(--c-border);
+  margin: 4px 0;
+}
+.d-user-menu-item.on {
+  background: #ebf3ff;
+  color: #1a75ff;
+}
+.d-user-caret {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--c-text-4);
+}
+.d-user-menu {
+  min-width: 168px;
+}
+.d-user-menu-item {
+  justify-content: flex-start;
+}
 
 /* ============================ 内容区（原站 page-tabs 42px + layui-body 白底 + .p-page 18px 15px） ============================ */
 

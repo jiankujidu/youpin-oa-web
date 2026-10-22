@@ -13,9 +13,29 @@ createServer(async (req, res) => {
   if (url.pathname.startsWith('/oa-proxy/')) {
     const target = UP + url.pathname + url.search;
     try {
-      const r = await fetch(target, { method: req.method, headers: { cookie: req.headers.cookie || '' } });
+      // 必须原样转发多账号会话头，否则本地验证走的还是线上固定会话，测不出账号隔离
+      const fwd = {};
+      for (const k of ['cookie', 'x-oa-sid', 'x-oa-session', 'x-requested-with', 'content-type']) {
+        if (req.headers[k]) fwd[k] = req.headers[k];
+      }
+      const init = { method: req.method, headers: fwd };
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        const chunks = [];
+        for await (const c of req) chunks.push(c);
+        init.body = Buffer.concat(chunks);
+      }
+      const r = await fetch(target, init);
       const body = Buffer.from(await r.arrayBuffer());
-      res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json', 'access-control-allow-origin': '*' });
+      const respHeaders = {
+        'content-type': r.headers.get('content-type') || 'application/json',
+        'access-control-allow-origin': '*',
+      };
+      // 代理层回传的登录 sid / 会话 sid 要透传给页面
+      for (const k of ['x-oa-login-sid', 'x-oa-session']) {
+        const v = r.headers.get(k);
+        if (v) respHeaders[k] = v;
+      }
+      res.writeHead(r.status, respHeaders);
       res.end(body);
     } catch (e) {
       res.writeHead(502); res.end('proxy error');

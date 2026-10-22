@@ -39,21 +39,24 @@ for (const it of items) {
     list[idx]?.click();
   }, it.i);
   await new Promise((r) => setTimeout(r, WAIT));
-  const info = await page.evaluate(() => ({
-    title: document.querySelector('.pc-title')?.textContent?.trim()
-      || document.querySelector('.d-page-tab.on')?.textContent?.trim(),
-    ths: [...document.querySelectorAll('.pc-table thead th')].map((t) => t.textContent.trim()),
-    dataRows: [...document.querySelectorAll('.pc-table tbody tr')].filter(
-      (tr) => !/暂无数据|没有数据|无数据/.test(tr.textContent),
-    ).length,
-    empty: !!document.querySelector('.pc-empty, .pc-table-empty'),
-    pager: document.querySelector('.pc-pager-info')?.textContent?.trim() || '',
-    loading: !!document.querySelector('.pc-loading, .pc-spin'),
-    first: [...(document.querySelectorAll('.pc-table tbody tr')[0]?.querySelectorAll('td') || [])]
-      .slice(0, 4)
-      .map((td) => td.textContent.trim().slice(0, 20))
-      .join(' | '),
-  }));
+  const info = await page.evaluate(() => {
+    // 多页签保活：所有已开页签都挂在 DOM 里（隐藏的 display:none），必须限定统计范围到「可见」的那个页签包裹层
+    const wrap = [...document.querySelectorAll('.d-wrap > div')].find((d) => !/display:\s*none/.test(d.getAttribute('style') || ''));
+    const q = (sel) => (wrap ? wrap.querySelectorAll(sel) : []);
+    const first3 = [...q('.pc-table tbody tr')][0]?.querySelectorAll('td') || [];
+    return {
+      title: (wrap?.querySelector('.pc-title')?.textContent || '').trim()
+        || document.querySelector('.d-page-tab.on')?.textContent?.trim(),
+      ths: [...q('.pc-table thead th')].map((t) => t.textContent.trim()),
+      dataRows: [...q('.pc-table tbody tr')].filter(
+        (tr) => !/暂无数据|没有数据|无数据/.test(tr.textContent),
+      ).length,
+      empty: !!wrap?.querySelector('.pc-empty, .pc-table-empty'),
+      pager: (wrap?.querySelector('.pc-pager-info')?.textContent || '').trim(),
+      loading: !!wrap?.querySelector('.pc-loading, .pc-spin'),
+      first: [...first3].slice(0, 4).map((td) => td.textContent.trim().slice(0, 20)).join(' | '),
+    };
+  });
   rows.push({ label: it.label, ...info });
   const flag = info.dataRows === 0 ? '❌0行' : '✅';
   console.log(

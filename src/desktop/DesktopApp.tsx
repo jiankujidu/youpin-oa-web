@@ -21,6 +21,14 @@ import DesktopFiles from './DesktopFiles';
 import DesktopProduct from './DesktopProduct';
 import { DesktopArticle, DesktopMail, DesktopMessage, DesktopNote } from './DesktopContent';
 import { DesktopPassword, DesktopProfile, DesktopSub } from './DesktopSub';
+import { DesktopAccounts } from './DesktopAccounts';
+import {
+  getCurrentAccount,
+  listAccounts,
+  setCurrentAccount,
+  subscribeAccounts,
+  type OaAccount,
+} from '../core/accounts';
 import { DesktopAi } from './DesktopAi';
 import { Icon } from '../core/icons';
 import { toast } from '../core/util';
@@ -145,13 +153,14 @@ const MENU: { group: string; icon: string; items: MenuNode[] }[] = [
 /** 顶栏固定入口（原站顶栏：消息中心 / 通讯录） */
 const EXTRA_PAGES: MenuNode[] = [{ key: 'mail', label: '通讯录', icon: 'mail' }];
 
-/** 免登录：默认会话（后端会话由代理维持，界面无需账号密码） */
-const AUTO_SESSION = { username: 'auto', displayName: '陈美龙', loginAt: Date.now() };
+/** 免登录：默认会话（后端会话由代理维持，界面无需账号密码）。
+ *  多账号体系：displayName 取当前选中账号标签；无账号时为固定会话模式（旧行为）。 */
+const AUTO_SESSION = { username: 'auto', displayName: '', loginAt: Date.now() };
 
 /** 是否为「内置固定页面」（非按 SUB_PAGES 注册表渲染的通用列表页） */
 const BUILTIN = new Set([
   'home', 'approve', 'customer', 'customer-sea', 'customer-trash', 'product', 'files',
-  'note', 'article', 'message', 'mail', 'profile', 'password', 'ai',
+  'note', 'article', 'message', 'mail', 'profile', 'password', 'ai', 'accounts',
 ]);
 
 /** 页面 key → 标题（遍历菜单树 + 顶栏入口 + 固定页） */
@@ -170,6 +179,7 @@ function resolveTitle(page: PageKey): string {
   if (page === 'profile') return '基本资料';
   if (page === 'password') return '修改密码';
   if (page === 'message') return '消息中心';
+  if (page === 'accounts') return '账号管理';
   return '工作台';
 }
 
@@ -196,7 +206,14 @@ export default function DesktopApp({
   const [active, setActive] = useState<PageKey>('home');
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [name, setName] = useState<string>(() => getDisplayName() || AUTO_SESSION.displayName);
+  /** 多账号：当前账号 + 账号列表（顶栏账号 chip 与切换下拉用） */
+  const [accounts, setAccounts] = useState<OaAccount[]>(() => listAccounts());
+  const [currentAcc, setCurrentAcc] = useState<OaAccount | null>(() => getCurrentAccount());
+  const [name, setName] = useState<string>(
+    // 多账号模式：当前账号标签优先（可能是用户自定义备注）；
+    // 无账号（固定会话旧模式）：沿用持久化的登录人名
+    () => getCurrentAccount()?.label || getDisplayName() || 'OA用户',
+  );
   /** 侧栏分组折叠（默认全部展开，与原站一致） */
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   /** 侧边伸缩（原站顶栏第一个按钮） */
@@ -206,12 +223,26 @@ export default function DesktopApp({
   const tabMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setSession({ ...AUTO_SESSION, loginAt: Date.now() });
-    setDisplayName(AUTO_SESSION.displayName);
+    const acc = getCurrentAccount();
+    setSession({ ...AUTO_SESSION, displayName: acc?.label || '', loginAt: Date.now() });
+    if (acc?.label) {
+      setDisplayName(acc.label);
+      setName(acc.label);
+    }
+    // 账号增删/切换时同步顶栏
+    return subscribeAccounts(() => {
+      setAccounts(listAccounts());
+      const cur = getCurrentAccount();
+      setCurrentAcc(cur);
+      if (cur?.label) setName(cur.label);
+    });
   }, []);
 
   useEffect(() => {
-    // 真实后端登录人姓名（解析后台资料页）
+    // 真实后端登录人姓名（解析后台资料页，随当前账号会话取该账号的登录人）。
+    // 多账号模式下顶栏 chip 以账号标签为准（避免把登录人名盖掉自定义备注）；
+    // 仅无选中账号（固定会话旧模式）时用登录人名填充。
+    if (getCurrentAccount()) return;
     fetchMyName().then((n) => {
       if (n) {
         setName(n);
@@ -253,9 +284,23 @@ export default function DesktopApp({
   const handleLogout = useCallback(() => {
     clearSession();
     clearOaSession();
+    // 多账号：退出 = 清除当前账号选择，回落「固定会话」免登录模式（旧行为）
+    setCurrentAccount('');
     setMenuOpen(false);
     closeAll();
   }, [closeAll]);
+
+  /** 切换账号（顶栏下拉）：写入选择后整页刷新，全站数据按新账号会话重取 */
+  const switchAccount = useCallback((acc: OaAccount) => {
+    if (acc.id === currentAcc?.id) {
+      setMenuOpen(false);
+      return;
+    }
+    setCurrentAccount(acc.id);
+    setMenuOpen(false);
+    toast(`已切换到账号「${acc.label}」，正在刷新数据…`);
+    window.setTimeout(() => window.location.reload(), 600);
+  }, [currentAcc]);
 
   /** 清空缓存（原站 gg-event=cache 调 /api/index/cache_clear；前端清界面缓存即可） */
   const handleCache = useCallback(() => {
@@ -394,6 +439,8 @@ export default function DesktopApp({
         return <DesktopProfile />;
       case 'password':
         return <DesktopPassword />;
+      case 'accounts':
+        return <DesktopAccounts />;
       default:
         return <DesktopSub pageKey={page} />;
     }
@@ -454,13 +501,36 @@ export default function DesktopApp({
               <Icon name="bell" size={18} />
               {unread > 0 ? <span className="d-badge">{unread}</span> : null}
             </span>
-            <div className="d-user" onClick={() => setMenuOpen((v) => !v)}>
-              <span className="d-avatar">{name.slice(0, 1)}</span>
-              <cite className="d-user-name">{name}</cite>
+            <div className="d-user" onClick={() => setMenuOpen((v) => !v)} title="当前账号（点击切换/管理）">
+              <span className="d-avatar">{(name || 'U').slice(0, 1)}</span>
+              <cite className="d-user-name">{name || '未选择账号'}</cite>
+              {accounts.length > 1 ? <i className="d-user-caret">▾</i> : null}
             </div>
           </div>
           {menuOpen ? (
             <div className="d-user-menu" onMouseLeave={() => setMenuOpen(false)}>
+              {accounts.length > 1 ? (
+                <>
+                  <div className="d-user-menu-title">切换账号</div>
+                  {accounts.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`d-user-menu-item${a.id === currentAcc?.id ? ' on' : ''}`}
+                      onClick={() => switchAccount(a)}
+                    >
+                      <span className="d-avatar" style={{ width: 18, height: 18, fontSize: 10, marginRight: 8 }}>
+                        {(a.label || 'U').slice(0, 1)}
+                      </span>
+                      {a.label}
+                      {a.id === currentAcc?.id ? <i style={{ marginLeft: 'auto', color: 'var(--c-primary)' }}>✓</i> : null}
+                    </div>
+                  ))}
+                  <div className="d-user-menu-split" />
+                </>
+              ) : null}
+              <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); openTab('accounts'); }}>
+                账号管理
+              </div>
               <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); openTab('profile'); }}>
                 基本资料
               </div>
