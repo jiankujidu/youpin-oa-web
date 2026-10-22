@@ -56,11 +56,9 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
-          # 若仓库尚未启用 Pages，自动启用并设为 GitHub Actions 构建源，避免首次部署失败
+          # 启用 GitHub Pages，默认以 jiankujidu.github.io/youpin-oa-web/ 提供服务；
+          # web.jk93.qzz.io 由本机 nginx 单独承载，不在此占用自定义域名
           enablement: true
-          # 自定义域名：每次部署自动把 Pages 自定义域名设回 web.jk93.qzz.io（根路径服务）
-          # 注意：GitHub Pages 一个站点只支持一个自定义域名；换域名必须同时改 public/CNAME
-          cname: web.jk93.qzz.io
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
