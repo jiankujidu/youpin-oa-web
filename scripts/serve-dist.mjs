@@ -38,6 +38,7 @@ createServer(async (req, res) => {
       res.writeHead(r.status, respHeaders);
       res.end(body);
     } catch (e) {
+      console.error('PROXY ERR', url.pathname, (e && e.message) || e);
       res.writeHead(502); res.end('proxy error');
     }
     return;

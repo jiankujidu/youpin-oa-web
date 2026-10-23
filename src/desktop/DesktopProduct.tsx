@@ -3,15 +3,29 @@
  * PC 后台统一版式：工具栏 + 数据表格 + 分页 + 详情弹层（说明书 预览/收藏/转发）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchProductCateOptions, fetchProductPage, type ProductFilter } from '../core/api';
+import { fetchProductCateOptions, fetchProductPage, productDelete, productSave, type ProductFilter } from '../core/api';
 import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
-import { addLocal, editLocal, localAdded, mergeLocal } from '../core/localOps';
+import { editLocal, localAdded, mergeLocal } from '../core/localOps';
+import { type EditField } from '../core/opsFields';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { downloadCsv, fmtTime, plain, sanitizeName, toast } from '../core/util';
-import { Modal } from './ui';
+import { ConfirmDialog, EditModal, Modal } from './ui';
 import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
+
+/** 产品编辑 / 复制 表单字段（对齐原站 /product/index/add 主要可填项） */
+const PRODUCT_FIELDS: EditField[] = [
+  { key: 'title', label: '产品标题', type: 'text' },
+  { key: 'species', label: '种属', type: 'text' },
+  { key: 'application', label: '应用', type: 'text' },
+  { key: 'cate_title', label: '产品分类', type: 'text' },
+  { key: 'gene_name', label: '基因名称', type: 'text' },
+  { key: 'methodology', label: '方法学', type: 'text' },
+  { key: 'expression_system', label: '表达系统', type: 'text' },
+  { key: 'brand', label: '品牌', type: 'text' },
+  { key: 'content', label: '备注/说明', type: 'textarea' },
+];
 
 /** 价格明细展示行 */
 type PriceLine = { spec: string; price: string };
@@ -110,6 +124,10 @@ export default function DesktopProduct() {
   const [fuzzy, setFuzzy] = useState(false);
   /** 批量说明书结果弹窗 */
   const [batch, setBatch] = useState(false);
+  /** 新增 / 编辑产品弹窗（真实提交 POST /product/index/add） */
+  const [editing, setEditing] = useState<Product | null>(null);
+  /** 删除确认 */
+  const [confirmDel, setConfirmDel] = useState<Product | null>(null);
   /** 本地层版本号（复制/编辑后刷新合并行） */
   const [localVer, setLocalVer] = useState(0);
 
@@ -199,12 +217,10 @@ export default function DesktopProduct() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkedRows, displayRows, localVer]);
 
-  /** 复制产品（本地新增一条同字段记录，不提交原站） */
+  /** 复制产品（打开编辑弹窗，去掉 id 即「另存为新品」真实提交原站） */
   function copyProduct(p: Product) {
     const { id: _drop, ...rest } = p as any;
-    addLocal('product', { ...rest, title: `${plain(p.title || '')}（副本）`, op_copy: new Date().toISOString().slice(0, 10) });
-    setLocalVer((n) => n + 1);
-    toast('已复制到本地（未提交原站）');
+    setEditing({ ...rest, title: `${plain(p.title || '')}（副本）` } as Product);
   }
 
   /** 导出当前产品为 CSV（对齐原站「导出」） */
@@ -314,27 +330,52 @@ export default function DesktopProduct() {
       title: '操作',
       width: 190,
       fixed: true,
-      render: (r) => (
-        <span className="pc-ops">
-          <span className="gg-xs blue" onClick={() => setCur(r)}>
-            说明书
-          </span>
-          <span
-            className="gg-xs purple"
-            onClick={(e) => {
-              e.stopPropagation();
-              copyProduct(r);
-            }}
-          >
-            复制
-          </span>
-          {String((r as any).id ?? '').startsWith('local-') ? (
-            <span className="gg-xs green" onClick={() => setCur(r)}>
-              本地
+      render: (r) => {
+        const isLocal = String((r as any).id ?? '').startsWith('local-');
+        return (
+          <span className="pc-ops">
+            <span className="gg-xs blue" onClick={() => setCur(r)}>
+              说明书
             </span>
-          ) : null}
-        </span>
-      ),
+            {!isLocal ? (
+              <span
+                className="gg-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditing(r as Product);
+                }}
+              >
+                编辑
+              </span>
+            ) : null}
+            <span
+              className="gg-xs purple"
+              onClick={(e) => {
+                e.stopPropagation();
+                copyProduct(r);
+              }}
+            >
+              复制
+            </span>
+            {!isLocal ? (
+              <span
+                className="gg-xs red"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmDel(r as Product);
+                }}
+              >
+                删除
+              </span>
+            ) : null}
+            {isLocal ? (
+              <span className="gg-xs green" onClick={() => setCur(r)}>
+                本地
+              </span>
+            ) : null}
+          </span>
+        );
+      },
     },
   ];
 
@@ -701,6 +742,52 @@ export default function DesktopProduct() {
             onChange={(e) => setNewName(e.target.value)}
           />
         </Modal>
+      ) : null}
+
+      {/* 新增 / 编辑 / 复制 产品（原站 POST /product/index/add，带 id 即编辑，无 id 即新建/复制） */}
+      {editing ? (
+        <EditModal
+          title={editing.id ? '编辑产品' : '复制为新品'}
+          fields={PRODUCT_FIELDS}
+          value={editing}
+          onSave={async (v) => {
+            const id = String((editing as any).id || '');
+            const res = await productSave({
+              id,
+              title: String((v as any).title || editing.title || ''),
+              species: String((v as any).species ?? ''),
+              application: String((v as any).application ?? ''),
+              cate_title: String((v as any).cate_title ?? ''),
+              gene_name: String((v as any).gene_name ?? ''),
+              methodology: String((v as any).methodology ?? ''),
+              expression_system: String((v as any).expression_system ?? ''),
+              brand: String((v as any).brand ?? ''),
+              content: String((v as any).content ?? ''),
+            });
+            if (!res.ok) return toast(res.msg || '保存失败');
+            if (id) editLocal('product', { ...editing, ...v });
+            setLocalVer((n) => n + 1);
+            setEditing(null);
+            toast(id ? '已保存（原站已更新）' : '已复制为新品（原站已同步）');
+            load(query, 1, false, activeFilter);
+          }}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+
+      {confirmDel ? (
+        <ConfirmDialog
+          title="删除确认"
+          text={`确认删除产品「${plain(String((confirmDel as any).title || (confirmDel as any).id || ''))}」？将同步从 OA 原站删除。`}
+          onOk={async () => {
+            const res = await productDelete(String((confirmDel as any).id));
+            if (!res.ok) return toast(res.msg || '删除失败');
+            setConfirmDel(null);
+            toast('已删除（原站已同步）');
+            load(query, 1, false, activeFilter);
+          }}
+          onClose={() => setConfirmDel(null)}
+        />
       ) : null}
     </div>
   );

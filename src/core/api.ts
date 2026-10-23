@@ -206,6 +206,38 @@ function oaPost(path: string, data: Record<string, string>, withXhr = true): Pro
   return oaFetch(path, { method: 'POST', headers, body: new URLSearchParams(data).toString() });
 }
 
+/**
+ * 通用真实写操作（供表格行操作 / 工具栏调用）。
+ * 直接 POST 到原站端点并返回 {ok, msg}；演示模式（无代理）一律 ok:true 仅本地提示。
+ * 这是「功能要都能用」的落地：删除 / 移库 / 分配 / 审批流 / 新增编辑 等都走这里真实提交。
+ */
+export async function oaAction(
+  path: string,
+  data: Record<string, string>,
+  opts: { noXhr?: boolean } = {},
+): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '（演示模式）已提交' };
+  try {
+    const res = await oaPost(path, data, !opts.noXhr);
+    const txt = await res.text();
+    let code = 0;
+    let msg = '';
+    try {
+      const j = JSON.parse(txt);
+      code = j.code ?? j.status ?? (j.success ? 0 : -1);
+      msg = j.msg || j.message || j.info || '';
+    } catch {
+      // 非 JSON（原站有时返回纯文本）按成功判定
+      code = res.ok ? 0 : -1;
+      msg = txt.slice(0, 80);
+    }
+    if (res.ok && (code === 0 || code === 200 || code === 1)) return { ok: true, msg: msg || '操作成功' };
+    return { ok: false, msg: msg || `操作失败（HTTP ${res.status}）` };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+  }
+}
+
 /** 当前登录人资料（解析后台「基本资料」页 /home/index/edit_personal）。
  *  ★ 必须 noXhr：该端点带 X-Requested-With 会被原站 nginx 403（实测）。
  * 免登录模式下仍显示后端会话的真实用户，而不是写死的游客名。
@@ -1083,6 +1115,22 @@ export async function customerToTrash(id: string): Promise<ActionResult> {
   return { ok: true, msg: '' };
 }
 
+/** 废弃客户彻底删除（原站 POST /customer/index/delete {id}） */
+export async function customerDeleteHard(id: string): Promise<ActionResult> {
+  if (!IS_DEMO_DATA) {
+    try {
+      const res = await oaPost('/customer/index/delete', { id });
+      const data = (await res.json().catch(() => null)) as any;
+      return res.ok && data && data.code === 0
+        ? { ok: true, msg: '' }
+        : { ok: false, msg: (data && (data.msg || data.message)) || '删除失败' };
+    } catch (e) {
+      return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+    }
+  }
+  return { ok: true, msg: '' };
+}
+
 /** 客户备注（原站 POST /customer/api/update_intent {customer_id, flag:4, remark}） */
 export async function updateCustomerRemark(customerId: string, remark: string): Promise<ActionResult> {
   if (!IS_DEMO_DATA) {
@@ -1101,6 +1149,167 @@ export async function updateCustomerRemark(customerId: string, remark: string): 
     }
   }
   return { ok: true, msg: '' };
+}
+
+/** GET 原站 JSON 接口（如员工/部门树），失败返回 null */
+async function oaGetJson<T = any>(path: string, params?: Record<string, string>): Promise<T | null> {
+  try {
+    const qs = params && Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : '';
+    const res = await oaFetch(`${path}${qs}`);
+    if (!res.ok) return null;
+    const txt = await res.text();
+    try {
+      return JSON.parse(txt) as T;
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/** 公海客户领取（原站 POST /customer/index/get {id}） */
+export async function customerGet(id: string): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '' };
+  try {
+    const res = await oaPost('/customer/index/get', { id });
+    const data = (await res.json().catch(() => null)) as any;
+    if (res.ok && data && data.code === 0) return { ok: true, msg: data.msg || '' };
+    return { ok: false, msg: (data && (data.msg || data.message)) || '领取失败' };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+  }
+}
+
+/** 废弃客户恢复（原站 POST /customer/index/revert {id}） */
+export async function customerRevert(id: string): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '' };
+  try {
+    const res = await oaPost('/customer/index/revert', { id });
+    const data = (await res.json().catch(() => null)) as any;
+    if (res.ok && data && data.code === 0) return { ok: true, msg: data.msg || '' };
+    return { ok: false, msg: (data && (data.msg || data.message)) || '恢复失败' };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+  }
+}
+
+/** 公海客户分配（原站 POST /customer/api/distribute {id, uid, did}） */
+export async function customerDistribute(id: string, uid: string, did = ''): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '' };
+  try {
+    const res = await oaPost('/customer/api/distribute', { id, uid, did });
+    const data = (await res.json().catch(() => null)) as any;
+    if (res.ok && data && data.code === 0) return { ok: true, msg: data.msg || '' };
+    return { ok: false, msg: (data && (data.msg || data.message)) || '分配失败' };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+  }
+}
+
+/** 客户走访记录（原站 POST /customer/api/visit_record {customer_id, visitor, visit_date}） */
+export async function customerVisit(customerId: string, visitor: string, visitDate: string): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '' };
+  try {
+    const res = await oaPost('/customer/api/visit_record', {
+      customer_id: customerId,
+      visitor,
+      visit_date: visitDate,
+    });
+    const data = (await res.json().catch(() => null)) as any;
+    if (res.ok && data && data.code === 0) return { ok: true, msg: data.msg || '' };
+    return { ok: false, msg: (data && (data.msg || data.message)) || '提交失败' };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+  }
+}
+
+/** 客户分类（原站 POST /customer/api/set_customer_classification {customer_id, customer_name, classification}） */
+export async function customerClassification(
+  customerId: string,
+  customerName: string,
+  classification: string,
+): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '' };
+  try {
+    const res = await oaPost('/customer/api/set_customer_classification', {
+      customer_id: customerId,
+      customer_name: customerName,
+      classification,
+    });
+    const data = (await res.json().catch(() => null)) as any;
+    if (res.ok && data && data.code === 0) return { ok: true, msg: data.msg || '' };
+    return { ok: false, msg: (data && (data.msg || data.message)) || '提交失败' };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+  }
+}
+
+/** 部门树（原站 GET /api/index/get_department_tree） */
+export async function getDepartmentTree(): Promise<any[] | null> {
+  return oaGetJson<any[]>('/api/index/get_department_tree');
+}
+
+/** 员工列表（原站 GET /api/index/get_employee，可选 dept 过滤） */
+export async function getEmployees(deptId?: string): Promise<{ id: string; name: string }[]> {
+  const data = await oaGetJson<{ data?: { id?: string; name?: string; username?: string }[] } | any[]>(
+    '/api/index/get_employee',
+    deptId ? { dept: deptId } : undefined,
+  );
+  if (!data) return [];
+  const arr = Array.isArray(data) ? data : (data.data as any[]) || [];
+  return arr
+    .map((e) => ({ id: String(e.id ?? ''), name: String(e.name || e.username || '') }))
+    .filter((e) => e.id && e.name);
+}
+
+/* ======================= 产品写操作 ======================= */
+
+export interface ProductInput {
+  title: string;
+  species?: string;
+  application?: string;
+  cate?: string;
+  cate_title?: string;
+  gene_name?: string;
+  methodology?: string;
+  expression_system?: string;
+  brand?: string;
+  content?: string;
+}
+
+/** 新增/编辑/复制产品（原站同一端点：POST /product/index/add，带 id 即编辑，带 old_id 即复制） */
+export async function productSave(
+  input: ProductInput & { id?: string; old_id?: string },
+): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '' };
+  try {
+    const payload: Record<string, string> = {};
+    for (const [k, v] of Object.entries(input)) {
+      if (v != null && v !== '') payload[k] = String(v);
+    }
+    if (input.id) payload.id = input.id;
+    if (input.old_id) payload.old_id = input.old_id;
+    const res = await oaPost('/product/index/add', payload);
+    const data = (await res.json().catch(() => null)) as any;
+    if (res.ok && data && data.code === 0) return { ok: true, msg: data.msg || '' };
+    return { ok: false, msg: (data && (data.msg || data.message)) || '提交失败' };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+  }
+}
+
+/** 删除产品（原站 POST /product/index/delete {id}） */
+export async function productDelete(id: string): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '' };
+  try {
+    const res = await oaPost('/product/index/delete', { id });
+    const data = (await res.json().catch(() => null)) as any;
+    if (res.ok && data && data.code === 0) return { ok: true, msg: data.msg || '' };
+    return { ok: false, msg: (data && (data.msg || data.message)) || '删除失败' };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
+  }
 }
 
 /* ======================= 消息 / 公告写操作 ======================= */

@@ -7,10 +7,23 @@
  *   行内（我的客户）：查看 / 编辑 / 移入公海 / 走访 / 分类
  *   行内（公海客户）：查看 / 获取（领取）/ 分配 / 编辑 / 删除
  *   行内（废弃客户）：查看 / 恢复 / 彻底删除
- * 所有写操作只落 localStorage，绝不提交原站。
+ * 所有写操作（移入公海 / 领取 / 分配 / 恢复 / 走访 / 分类 / 删除 / 编辑）均真实提交原站。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createCustomer, customerToSea, customerToTrash, fetchCustomerPage, updateCustomerRemark } from '../core/api';
+import {
+  createCustomer,
+  customerToSea,
+  customerToTrash,
+  customerDeleteHard,
+  customerGet,
+  customerRevert,
+  customerDistribute,
+  customerVisit,
+  customerClassification,
+  fetchCustomerPage,
+  getEmployees,
+  type ActionResult,
+} from '../core/api';
 import { addLocal, deleteLocal, editLocal, mergeLocal } from '../core/localOps';
 import { localBadge, opsFields, type EditField } from '../core/opsFields';
 import type { Customer } from '../core/types';
@@ -61,25 +74,19 @@ const TAB_OPS: Record<1 | 2 | 3, TabOp[]> = {
   ],
 };
 
-/** 走访 / 分类 / 分配 表单（照原站弹窗字段） */
+/** 走访表单（照原站 visit_record 字段：visitor / visit_date） */
 const VISIT_FIELDS: EditField[] = [
-  { key: 'visit_time', label: '走访时间', type: 'date' },
-  { key: 'visit_way', label: '走访方式', type: 'select', options: ['上门走访', '电话沟通', '视频会议', '其他'] },
-  { key: 'visit_content', label: '走访内容', type: 'textarea' },
-  { key: 'next_visit', label: '下次走访', type: 'date' },
+  { key: 'visitor', label: '走访人', type: 'text', placeholder: '请输入走访人姓名' },
+  { key: 'visit_date', label: '走访/代理时间', type: 'date' },
 ];
+/** 客户分类选项（照原站 set_customer_classification 下拉） */
 const CLASS_FIELDS: EditField[] = [
   {
-    key: 'grade_text',
+    key: 'classification',
     label: '客户分类',
     type: 'select',
-    options: ['AA类成交经销商', 'A类成交终端', 'B类意向客户', 'C类潜在客户', 'D类无效客户'],
+    options: ['优品代理', '睿信代理', '仑昌硕代理', '走访客户', '客户上门拜访'],
   },
-  { key: 'class_remark', label: '分类说明', type: 'textarea' },
-];
-const DISTRIBUTE_FIELDS: EditField[] = [
-  { key: 'belong_name', label: '分配给', placeholder: '如：张三' },
-  { key: 'distribute_remark', label: '分配说明', type: 'textarea' },
 ];
 
 function gradeText(c: Customer): string {
@@ -151,6 +158,11 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
   const [checked, setChecked] = useState<string[]>([]);
   /** 预览名单弹窗 */
   const [preview, setPreview] = useState(false);
+  /** 分配面板（真实员工列表多选） */
+  const [distributing, setDistributing] = useState<Row | null>(null);
+  const [empList, setEmpList] = useState<{ id: string; name: string }[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [distBusy, setDistBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const module = MODULE_OF[type];
@@ -227,13 +239,25 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     return checked.length ? all.filter((r) => checked.includes(String(r.id ?? ''))) : all;
   }, [displayRows, checked]);
 
-  /** 转移全部 / 移入公海 / 获取（领取）/ 恢复：本地层搬迁行 */
-  function transfer(targetModule: string, label: string, rowsToMove: Row[]) {
+  /** 批量移入公海（真实提交原站 /customer/index/to_sea；本地模拟行在本地层搬迁） */
+  async function transfer(rowsToMove: Row[]) {
     if (!rowsToMove.length) return toast('没有可操作的客户');
-    rowsToMove.forEach((r) => moveRow(module, targetModule, r));
+    const real = rowsToMove.filter((r) => !String(r.id ?? '').startsWith('local-'));
+    if (real.length) {
+      let okN = 0;
+      let fail = '';
+      for (const r of real) {
+        const res = await customerToSea(String(r.id));
+        if (res.ok) okN++;
+        else fail = res.msg;
+      }
+      if (okN) toast(`已移入公海 ${okN} 家（原站已同步）${fail ? `；${fail}` : ''}`);
+      else toast(fail || '操作失败');
+    }
+    rowsToMove.filter((r) => String(r.id ?? '').startsWith('local-')).forEach((r) => moveRow(module, 'customer-sea', r));
     setChecked([]);
     setLocalVer((n) => n + 1);
-    toast(`已${label} ${rowsToMove.length} 家（本地生效，未提交原站）`);
+    load(type, query, 1, false);
   }
 
   /** 导出 CSV（对齐原站「导出」） */
@@ -283,25 +307,39 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
     toast(`已标记 ${targetRows.length} 家为避开名单（本地生效）`);
   }
 
-  /** 导入 CSV / 文本名单（本地新增，不提交原站） */
+  /** 导入 CSV / 文本名单（逐行真实创建客户 POST /customer/index/add） */
   async function importFile(file: File) {
     try {
       const text = await file.text();
       const parsed = parseCustomerText(text);
       if (!parsed.length) return toast('未解析到有效行（格式：客户名称,联系人,电话,来源,状态,地址,备注）');
-      parsed.forEach((r) => addLocal(module, r));
-      setLocalVer((n) => n + 1);
-      toast(`已导入 ${parsed.length} 家到本地（未提交原站）`);
+      let ok = 0;
+      let fail = '';
+      for (const r of parsed) {
+        const res = await createCustomer({
+          name: String(r.name || ''),
+          contact: String(r.contact || ''),
+          tel: String(r.mobile || ''),
+          address: String(r.address || ''),
+          remark: String(r.remark || ''),
+          source: String(r.source || '其他'),
+        });
+        if (res.ok) ok++;
+        else fail = res.msg;
+      }
+      toast(`已导入 ${ok} 家（原站已同步）${fail ? `；${fail}` : ''}`);
+      load(type, query, 1, false);
     } catch {
       toast('文件读取失败');
     }
   }
 
-  /** 行内操作 */
+  /** 行内操作（领取 / 分配 / 恢复 / 走访 / 分类 均真实提交原站） */
   function runTabOp(row: Row, op: TabOp) {
+    const id = String(row.id ?? '');
+    const isLocal = id.startsWith('local-');
     if (op.key === 'to_sea') {
-      const id = String(row.id ?? '');
-      if (id.startsWith('local-')) return transfer('customer-sea', '移入公海', [row]);
+      if (isLocal) return transfer([row]);
       customerToSea(id).then((r) => {
         if (!r.ok) return toast(r.msg || '操作失败');
         toast('已移入公海（原站已同步）');
@@ -309,11 +347,32 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
       });
       return;
     }
-    if (op.key === 'back') return transfer('customer', '恢复', [row]);
-    if (op.key === 'get') return transfer('customer', '领取', [row]);
+    if (op.key === 'back') {
+      if (isLocal) return toast('本地模拟客户无需恢复');
+      customerRevert(id).then((r) => {
+        if (!r.ok) return toast(r.msg || '恢复失败');
+        toast('已恢复到客户库（原站已同步）');
+        load(type, query, 1, false);
+      });
+      return;
+    }
+    if (op.key === 'get') {
+      if (isLocal) return toast('本地模拟客户无法领取');
+      customerGet(id).then((r) => {
+        if (!r.ok) return toast(r.msg || '领取失败');
+        toast('已领取（原站已同步）');
+        load(type, query, 1, false);
+      });
+      return;
+    }
     if (op.key === 'visit') return setActing({ row, op, fields: VISIT_FIELDS });
     if (op.key === 'classification') return setActing({ row, op, fields: CLASS_FIELDS });
-    if (op.key === 'distribute') return setActing({ row, op, fields: DISTRIBUTE_FIELDS });
+    if (op.key === 'distribute') {
+      setDistributing(row);
+      setPicked([]);
+      getEmployees().then((list) => setEmpList(list || []));
+      return;
+    }
     toast(`已执行「${op.label}」（本地生效）`);
   }
 
@@ -535,7 +594,7 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
             {type === 1 ? (
               <button
                 className="pc-btn pc-btn-danger"
-                onClick={() => transfer('customer-sea', '转移全部到公海', targetRows)}
+                onClick={() => transfer(targetRows)}
               >
                 转移全部
               </button>
@@ -769,6 +828,58 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
         </Modal>
       ) : null}
 
+      {/* 分配客户（真实员工列表多选，POST /customer/api/distribute {id, uid, did}） */}
+      {distributing ? (
+        <Modal
+          title={`分配客户 · ${String(distributing.name || distributing.id || '')}`}
+          onClose={() => setDistributing(null)}
+          footer={
+            <>
+              <button className="pc-btn pc-btn-ghost" onClick={() => setDistributing(null)}>
+                取消
+              </button>
+              <button
+                className="pc-btn"
+                disabled={!picked.length || distBusy}
+                onClick={async () => {
+                  setDistBusy(true);
+                  const res = await customerDistribute(String(distributing.id), picked.join(','), '');
+                  setDistBusy(false);
+                  if (!res.ok) return toast(res.msg || '分配失败');
+                  toast('已分配（原站已同步）');
+                  setDistributing(null);
+                  load(type, query, 1, false);
+                }}
+              >
+                {distBusy ? '提交中…' : `确认分配${picked.length ? `（${picked.length}人）` : ''}`}
+              </button>
+            </>
+          }
+        >
+          <p style={{ fontSize: 12.5, color: 'var(--c-text-3)', margin: '0 0 8px' }}>选择要分配给的员工（可多选）：</p>
+          <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid var(--c-border)', borderRadius: 6 }}>
+            {empList.length ? (
+              empList.map((e) => (
+                <label
+                  key={e.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderBottom: '1px solid var(--c-border)', fontSize: 13 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(e.id)}
+                    onChange={(ev) => setPicked((p) => (ev.target.checked ? [...p, e.id] : p.filter((x) => x !== e.id)))}
+                  />
+                  {e.name}
+                </label>
+              ))
+            ) : (
+              <div style={{ padding: 12, color: 'var(--c-text-4)' }}>加载员工列表中…（若为空则当前账号无分配权限）</div>
+            )}
+          </div>
+          {picked.length ? <div style={{ marginTop: 8, fontSize: 12.5 }}>已选 {picked.length} 人</div> : null}
+        </Modal>
+      ) : null}
+
       {/* 新增 / 编辑客户（原站 POST /customer/index/add，带 id 即编辑） */}
       {editing && fields ? (
         <EditModal
@@ -805,16 +916,26 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
           onSave={async (v) => {
             const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
             const id = String(acting.row.id ?? '');
-            // 分类/备注等有真实端点的动作先提交原站
-            if (acting.op.key === 'classification') {
-              const res = await updateCustomerRemark(id, String((v as any).remark ?? ''));
-              if (!res.ok) return toast(res.msg || '提交失败');
+            if (id.startsWith('local-')) {
+              // 本地模拟客户：仅在本地层记录，未提交原站
+              editLocal(module, { ...acting.row, ...v, [`op_${acting.op.key}`]: stamp });
+              setActing(null);
+              setLocalVer((n) => n + 1);
+              toast(`已记录「${acting.op.label}」（本地模拟，未提交原站）`);
+              return;
             }
-            if (id.startsWith('local-')) editLocal(module, { ...acting.row, ...v, [`op_${acting.op.key}`]: stamp });
-            else if (id) editLocal(module, { id, ...v, [`op_${acting.op.key}`]: stamp });
+            let res = { ok: true, msg: '' } as ActionResult;
+            if (acting.op.key === 'classification') {
+              res = await customerClassification(id, String(acting.row.name || ''), String((v as any).classification ?? ''));
+            } else if (acting.op.key === 'visit') {
+              res = await customerVisit(id, String((v as any).visitor ?? ''), String((v as any).visit_date ?? ''));
+            }
+            if (!res.ok) return toast(res.msg || '提交失败');
+            editLocal(module, { id, ...v, [`op_${acting.op.key}`]: stamp });
             setActing(null);
             setLocalVer((n) => n + 1);
-            toast(`已保存「${acting.op.label}」`);
+            toast(`已保存「${acting.op.label}」（原站已同步）`);
+            load(type, query, 1, false);
           }}
           onClose={() => setActing(null)}
         />
@@ -826,14 +947,18 @@ export default function DesktopCustomer({ initialType = 1 }: { initialType?: 1 |
           text={`确认删除客户「${String(confirmDel.name || confirmDel.id || '')}」？${type === 3 ? '将彻底删除 OA 原站的这条客户（放入废弃层的将同步销毁）。' : '将同步从 OA 原站删除。'}`}
           onOk={async () => {
             const id = String(confirmDel.id ?? '');
-            if (type === 3 && !id.startsWith('local-')) {
-              const r = await customerToTrash(id);
+            const isLocal = id.startsWith('local-');
+            if (!isLocal) {
+              let r = { ok: true, msg: '' } as ActionResult;
+              if (type === 2) r = await customerToTrash(id); // 公海 → 废弃池
+              else if (type === 3) r = await customerDeleteHard(id); // 废弃 → 彻底删除
+              else r = await customerToTrash(id); // 我的客户 → 软删到废弃池
               if (!r.ok) return toast(r.msg || '删除失败');
             }
             deleteLocal(module, id);
             setCur(null);
             setLocalVer((n) => n + 1);
-            toast(type === 3 ? '已彻底删除（原站已同步）' : '已删除');
+            toast(type === 3 ? '已彻底删除（原站已同步）' : '已删除（原站已同步）');
             load(type, query, 1, false);
           }}
           onClose={() => setConfirmDel(null)}

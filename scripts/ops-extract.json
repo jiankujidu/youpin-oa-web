@@ -1,0 +1,482 @@
+{
+ "advancedeposit.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/advancedepositlog/add?id="
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "aftersale.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/customer/aftersalesservice/view?id="
+    }
+   ],
+   "edit": [
+    {
+     "method": "side",
+     "url": "/customer/aftersalesservice/add?id="
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "approve.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/oa/approve/view?id="
+    }
+   ],
+   "reapply": [
+    {
+     "method": "side",
+     "url": "/oa/approve/add?type="
+    }
+   ],
+   "del": [
+    {
+     "method": "delete",
+     "url": "/oa/approve/delete"
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "article.html": {
+  "tool": {
+   "edit": [
+    {
+     "method": "side",
+     "url": "/article/index/listadd?id="
+    }
+   ],
+   "del": [
+    {
+     "method": "delete",
+     "url": "/article/index/listdelete"
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "contact.html": {
+  "tool": {
+   "del": [
+    {
+     "method": "delete",
+     "url": "/customer/contact/contact_del"
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "customer-sea.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/customer/index/view?id="
+    }
+   ],
+   "edit": [
+    {
+     "method": "side",
+     "url": "/customer/index/add?sea=1&id="
+    }
+   ],
+   "distribute": [
+    {
+     "method": "post",
+     "url": "/customer/api/distribute"
+    }
+   ],
+   "get": [
+    {
+     "method": "post",
+     "url": "/customer/index/get"
+    }
+   ],
+   "del": [
+    {
+     "method": "delete",
+     "url": "/customer/index/to_trash"
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/customer/index/add?sea=1"
+    }
+   ]
+  }
+ },
+ "customer-trash.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/customer/index/view?id="
+    }
+   ],
+   "back": [
+    {
+     "method": "post",
+     "url": "/customer/index/revert"
+    }
+   ],
+   "del": [
+    {
+     "method": "delete",
+     "url": "/customer/index/delete"
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "customer.html": {
+  "tool": {
+   "edit": [
+    {
+     "method": "side",
+     "url": "/customer/index/add?id="
+    }
+   ],
+   "view": [
+    {
+     "method": "side",
+     "url": "/customer/index/view?id="
+    }
+   ],
+   "remove": [
+    {
+     "method": "post",
+     "url": "/customer/index/to_sea"
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/customer/index/add"
+    }
+   ],
+   "getCheckData": [
+    {
+     "method": "post",
+     "url": "/customer/index/transfer"
+    }
+   ],
+   "getAllData": [
+    {
+     "method": "post",
+     "url": "/customer/index/transfer"
+    }
+   ]
+  }
+ },
+ "deduction-checked.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/deductionlog/view?id="
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "deduction.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/deductionlog/view?id="
+    }
+   ],
+   "edit": [
+    {
+     "method": "side",
+     "url": "/finance/deductionlog/add?id="
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/finance/deductionlog/add"
+    }
+   ]
+  }
+ },
+ "income-invoice.html": {
+  "tool": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/finance/income/add?id="
+    }
+   ],
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/income/view?id="
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "invoice-handle.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/invoice/view?id="
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "margindeposit.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/margindepositlog/view?id="
+    }
+   ],
+   "edit": [
+    {
+     "method": "side",
+     "url": "/finance/margindepositlog/add?id="
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/finance/margindepositlog/add"
+    }
+   ]
+  }
+ },
+ "message.html": {
+  "tool": {
+   "del": [
+    {
+     "method": "delete",
+     "url": "/message/index/check"
+    }
+   ],
+   "view": [
+    {
+     "method": "side",
+     "url": "/message/index/read?id="
+    }
+   ],
+   "reply": [
+    {
+     "method": "side",
+     "url": "/message/index/reply?id="
+    }
+   ],
+   "resend": [
+    {
+     "method": "side",
+     "url": "/message/index/reply?id="
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/message/index/add"
+    }
+   ]
+  }
+ },
+ "note.html": {
+  "tool": {
+   "edit": [
+    {
+     "method": "side",
+     "url": "/note/index/add?id="
+    }
+   ],
+   "del": [
+    {
+     "method": "delete",
+     "url": "/note/index/delete"
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/note/index/add"
+    }
+   ]
+  }
+ },
+ "order-apply.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/customer/order/view?id="
+    }
+   ],
+   "edit": [
+    {
+     "method": "side",
+     "url": "/customer/order/add?id="
+    }
+   ],
+   "pay_record": [
+    {
+     "method": "side",
+     "url": "/customer/order/payrecord?id="
+    }
+   ],
+   "repurchase": [
+    {
+     "method": "side",
+     "url": "/customer/order/add?old_id="
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/customer/order/add"
+    }
+   ]
+  }
+ },
+ "order-handle.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/customer/order/view?id="
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "orderapply-apply.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/orderapply/view?id="
+    }
+   ],
+   "edit": [
+    {
+     "method": "side",
+     "url": "/finance/orderapply/add?id="
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/finance/orderapply/add"
+    }
+   ]
+  }
+ },
+ "orderapply-handle.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/finance/orderapply/view?id="
+    }
+   ]
+  },
+  "toolbar": {}
+ },
+ "product.html": {
+  "tool": {
+   "edit": [
+    {
+     "method": "side",
+     "url": "/product/index/add?id="
+    }
+   ],
+   "del": [
+    {
+     "method": "delete",
+     "url": "/product/index/delete"
+    }
+   ],
+   "copy": [
+    {
+     "method": "side",
+     "url": "/product/index/add?old_id="
+    }
+   ]
+  },
+  "toolbar": {
+   "add": [
+    {
+     "method": "side",
+     "url": "/product/index/add"
+    }
+   ]
+  }
+ },
+ "sample.html": {
+  "tool": {
+   "del": [
+    {
+     "method": "delete",
+     "url": "/customer/sample/delete"
+    }
+   ]
+  },
+  "toolbar": {
+   "getCheckData": [
+    {
+     "method": "side",
+     "url": "/customer/sample/business_deal?flag=1&"
+    }
+   ],
+   "getReturnData": [
+    {
+     "method": "side",
+     "url": "/customer/sample/business_deal?flag=2&"
+    }
+   ]
+  }
+ },
+ "schoolexhibition-handle.html": {
+  "tool": {
+   "view": [
+    {
+     "method": "side",
+     "url": "/customer/schoolexhibition/view?operate_type="
+    }
+   ]
+  },
+  "toolbar": {}
+ }
+}
