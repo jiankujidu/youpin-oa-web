@@ -101,6 +101,57 @@ function docUrl(g: { goods_no_url?: string; pc_goods_no_url?: string }): string 
   return absOaUrl(g.pc_goods_no_url || '') || signedOssToProxy(g.goods_no_url || '');
 }
 
+/** CSV 导出列（与表格列一致，属性/阅读权限导出中文标签） */
+const CSV_COLS = [
+  { key: 'no', title: '产品货号' },
+  { key: 'title', title: '产品标题' },
+  { key: 'cate', title: '分类' },
+  { key: 'price', title: '价格明细' },
+  { key: 'species', title: '种属' },
+  { key: 'app', title: '应用' },
+  { key: 'gene', title: '基因名称' },
+  { key: 'alias', title: '其他别称' },
+  { key: 'mw', title: '分子量' },
+  { key: 'source', title: '来源' },
+  { key: 'scope', title: '定量/定性' },
+  { key: 'speciesEng', title: '种属英文名称' },
+  { key: 'method', title: '方法学' },
+  { key: 'concentration', title: '浓度点' },
+  { key: 'eng', title: '英文名称' },
+  { key: 'tag', title: 'Tag' },
+  { key: 'expr', title: '表达系统' },
+  { key: 'productCode', title: '产品代码' },
+  { key: 'attr', title: '属性' },
+  { key: 'dl', title: '下载量' },
+  { key: 'share', title: '阅读权限范围' },
+];
+
+function csvRow(r: any) {
+  return {
+    no: String(r.goods_no || '').split(';')[0] || '',
+    title: plain(r.title || ''),
+    cate: r.cate_title || '',
+    price: fmtPrice(r.price_desc),
+    species: r.species || '',
+    app: r.application || '',
+    gene: r.gene_name || '',
+    alias: r.other_name || '',
+    mw: r.da || '',
+    source: r.source || '',
+    scope: r.scope || '',
+    speciesEng: r.species_eng_name || '',
+    method: r.methodology || '',
+    concentration: r.concentration || '',
+    eng: r.eng_name || '',
+    tag: r.tag || '',
+    expr: r.expression_system || '',
+    productCode: r.product_code || '',
+    attr: (() => { const t = String(r.type ?? ''); return t === '1' ? '精华' : t === '2' ? '热门' : t === '3' ? '推荐' : '暂无'; })(),
+    dl: r.down_load_num ?? 0,
+    share: (() => { const v = String(r.is_share ?? ''); return v === '1' ? '所有人' : v === '2' ? '部门' : v === '3' ? '部分人员' : '私有'; })(),
+  };
+}
+
 export default function DesktopProduct() {
   const [list, setList] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -126,6 +177,8 @@ export default function DesktopProduct() {
   const [batch, setBatch] = useState(false);
   /** 新增 / 编辑产品弹窗（真实提交 POST /product/index/add） */
   const [editing, setEditing] = useState<Product | null>(null);
+  /** 编辑弹窗形态：edit=编辑既有 / copy=复制为新品 / new=添加产品 */
+  const [editKind, setEditKind] = useState<'edit' | 'copy' | 'new'>('edit');
   /** 删除确认 */
   const [confirmDel, setConfirmDel] = useState<Product | null>(null);
   /** 本地层版本号（复制/编辑后刷新合并行） */
@@ -220,62 +273,29 @@ export default function DesktopProduct() {
   /** 复制产品（打开编辑弹窗，去掉 id 即「另存为新品」真实提交原站） */
   function copyProduct(p: Product) {
     const { id: _drop, ...rest } = p as any;
+    setEditKind('copy');
     setEditing({ ...rest, title: `${plain(p.title || '')}（副本）` } as Product);
+  }
+
+  /** 添加产品（原站「+ 添加产品」，真实 POST /product/index/add） */
+  function addProduct() {
+    setEditKind('new');
+    setEditing({ id: '', title: '', goods_no: '', species: '', application: '', cate_title: '', create_time: '' } as Product);
+  }
+
+  /** 导出勾选行（对齐原站「导出选中行数据(N)」） */
+  function exportCheckedCsv() {
+    if (!checkedRows.length) return toast('请先勾选要导出的产品');
+    const cols = CSV_COLS;
+    const rows = checkedRows.slice(0, 5000).map((r) => csvRow(r));
+    downloadCsv(`产品列表-选中-${new Date().toISOString().slice(0, 10)}`, cols, rows);
+    toast(`已导出 ${rows.length} 个选中产品为 CSV`);
   }
 
   /** 导出当前产品为 CSV（对齐原站「导出」） */
   function exportCsv() {
-    const cols = [
-      { key: 'id', title: '编号' },
-      { key: 'no', title: '产品货号' },
-      { key: 'title', title: '产品标题' },
-      { key: 'cate', title: '产品分类' },
-      { key: 'price', title: '价格明细' },
-      { key: 'species', title: '种属' },
-      { key: 'app', title: '应用' },
-      { key: 'gene', title: '基因名称' },
-      { key: 'alias', title: '其他别称' },
-      { key: 'mw', title: '分子量' },
-      { key: 'source', title: '来源' },
-      { key: 'scope', title: '定量/定性' },
-      { key: 'speciesEng', title: '种属英文名' },
-      { key: 'method', title: '方法学' },
-      { key: 'concentration', title: '浓度点' },
-      { key: 'eng', title: '英文名称' },
-      { key: 'tag', title: 'Tag' },
-      { key: 'expr', title: '表达系统' },
-      { key: 'productCode', title: '产品代码' },
-      { key: 'attr', title: '属性' },
-      { key: 'dl', title: '下载量' },
-      { key: 'share', title: '阅读权限范围' },
-      { key: 'time', title: '更新时间' },
-    ];
-    const csvRows = (checkedRows.length ? checkedRows : (displayRows as any[])).slice(0, 5000).map((r) => ({
-      id: r.id,
-      no: String(r.goods_no || '').split(';')[0] || '',
-      title: plain(r.title || ''),
-      cate: r.cate_title || '',
-      price: fmtPrice(r.price_desc),
-      species: r.species || '',
-      app: r.application || '',
-      gene: (r as any).gene_name || '',
-      alias: (r as any).other_name || '',
-      mw: (r as any).da || '',
-      source: (r as any).source || '',
-      scope: (r as any).scope || '',
-      speciesEng: (r as any).species_eng_name || '',
-      method: (r as any).methodology || '',
-      concentration: (r as any).concentration || '',
-      eng: (r as any).eng_name || '',
-      tag: (r as any).tag || '',
-      expr: (r as any).expression_system || '',
-      productCode: (r as any).product_code || '',
-      attr: (() => { const t = String((r as any).type ?? ''); return t === '1' ? '精华' : t === '2' ? '热门' : t === '3' ? '推荐' : '暂无'; })(),
-      dl: r.down_load_num ?? 0,
-      share: (() => { const v = String((r as any).is_share ?? ''); return v === '1' ? '所有人' : v === '2' ? '部门' : v === '3' ? '部分人员' : '私有'; })(),
-      time: fmtTime(r.update_time || r.create_time),
-    }));
-    downloadCsv(`产品列表-${new Date().toISOString().slice(0, 10)}`, cols, csvRows);
+    const csvRows = (checkedRows.length ? checkedRows : (displayRows as any[])).slice(0, 5000).map(csvRow);
+    downloadCsv(`产品列表-${new Date().toISOString().slice(0, 10)}`, CSV_COLS, csvRows);
     toast(`已导出 ${csvRows.length} 个产品为 CSV`);
   }
 
@@ -289,12 +309,13 @@ export default function DesktopProduct() {
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
-  /** 与原站一致：编号 / 货号 / 状态 / 分类 / 价格 / 标题 / 种属 / 应用 / 基因名 / 别称 / 分子量 / 来源 / 定量定性 / 种属英文名 / 方法学 / 浓度点 / 英文名 / Tag / 表达系统 / 产品代码 / 属性 / 下载量 / 阅读权限范围 / 更新时间 */
+  /** 与原站一致：货号/说明书(左冻结) / 状态 / 分类 / 价格 / 标题 / 种属 / 应用 / 基因名 / 别称 / 分子量 / 来源 / 定量定性 / 种属英文名 / 方法学 / 浓度点 / 英文名 / Tag / 表达系统 / 产品代码 / 属性 / 下载量 / 阅读权限范围 / 更新时间 / 操作(右冻结) */
   const cols: Column<Product>[] = [
     {
       key: '_check',
       title: '',
       width: 40,
+      freeze: 'left',
       head: (
         <input
           type="checkbox"
@@ -318,40 +339,103 @@ export default function DesktopProduct() {
         />
       ),
     },
-    { key: 'id', title: '编号', width: 80, render: (r) => <span className="pc-td-sub">{String(r.id ?? '—')}</span> },
-    { key: 'no', title: '产品货号', width: 150, render: (r) => <span className="pc-td-strong">{String(r.goods_no || '').split(';')[0] || '—'}</span> },
+    {
+      key: 'no',
+      title: '产品货号/说明书',
+      width: 300,
+      freeze: 'left',
+      render: (r) => {
+        // 原站 templet：逐行列出 goods_no_list 每个变体——
+        // 有说明书 → 蓝色货号 + 预览(红) + 下载；无 → 红色货号 + 两个「暂无说明书」提示
+        const list = ((r as any).goods_no_list || []) as { goods_no?: string; goods_no_url?: string; pc_goods_no_url?: string }[];
+        if (!list.length) {
+          return <span className="pc-td-strong">{String(r.goods_no || '').split(';')[0] || '—'}</span>;
+        }
+        return (
+          <span className="pc-goods-cell">
+            {list.map((g, i) => {
+              const no = g.goods_no || '';
+              const has = !!(g.goods_no_url || g.pc_goods_no_url);
+              const url = docUrl(g as any);
+              return (
+                <span className="pc-goods-row" key={i}>
+                  <span className={has ? 'pc-c-blue' : 'pc-c-red'}>{no}</span>
+                  {has && url ? (
+                    <>
+                      <span
+                        className="gg-xs red"
+                        title="在线查看"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(url, '_blank', 'noopener');
+                        }}
+                      >
+                        预览
+                      </span>
+                      <span
+                        className="gg-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void shareDoc(`${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`, url);
+                        }}
+                      >
+                        下载
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="gg-xs red" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
+                        预览
+                      </span>
+                      <span className="gg-xs" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
+                        下载
+                      </span>
+                    </>
+                  )}
+                </span>
+              );
+            })}
+          </span>
+        );
+      },
+    },
     {
       key: 'status',
       title: '状态',
       width: 66,
       render: (r) => {
-        // 原站 #status 模板：status==1 → 绿色「有货」，否则红色「下架」（纯色文字，非徽标）
+        // 原站 #status 模板：status==1 → 绿色「有货」，否则红色「下架」
+        // 计算样式：纯色文字无底色无边框，字号 16px（.layui-icon 默认字号）
         const s = String((r as any).status ?? '');
         const on = s === '1' || s === '已上架' || s === '在售';
-        return on ? <span className="pc-c-green">有货</span> : <span className="pc-c-red">下架</span>;
+        return on ? (
+          <span className="pc-c-green" style={{ fontSize: 16 }}>有货</span>
+        ) : (
+          <span className="pc-c-red" style={{ fontSize: 16 }}>下架</span>
+        );
       },
     },
-    { key: 'cate', title: '产品分类', width: 130, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || '—'}</span> },
-    { key: 'price', title: '价格明细', width: 240, render: (r) => <PriceCell desc={r.price_desc} /> },
-    { key: 'title', title: '产品标题', width: 340, render: (r) => <span className="pc-td-strong pc-cell-2" title={plain(r.title)}>{plain(r.title)}</span> },
-    { key: 'species', title: '种属', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || '—'}</span> },
-    { key: 'app', title: '应用', width: 140, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || '—'}</span> },
-    { key: 'gene', title: '基因名称', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || '—'}</span> },
-    { key: 'alias', title: '其他别称', width: 170, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || '—'}</span> },
-    { key: 'mw', title: '分子量', width: 90, render: (r) => (
+    { key: 'cate', title: '分类', width: 150, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || '—'}</span> },
+    { key: 'price', title: '价格明细', width: 200, render: (r) => <PriceCell desc={r.price_desc} /> },
+    { key: 'title', title: '产品标题', width: 250, render: (r) => <span className="pc-td-strong pc-cell-2" title={plain(r.title)}>{plain(r.title)}</span> },
+    { key: 'species', title: '种属', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || '—'}</span> },
+    { key: 'app', title: '应用', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || '—'}</span> },
+    { key: 'gene', title: '基因名称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || '—'}</span> },
+    { key: 'alias', title: '其他别称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || '—'}</span> },
+    { key: 'mw', title: '分子量', width: 100, render: (r) => (
         <span className="pc-cell-1 pc-td-sub" title={(r as any).da}>
           {(r as any).da || '—'}
         </span>
       ) },
     { key: 'source', title: '来源', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || '—'}</span> },
-    { key: 'scope', title: '定量/定性', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || '—'}</span> },
-    { key: 'speciesEng', title: '种属英文名', width: 120, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).species_eng_name}>{(r as any).species_eng_name || '—'}</span> },
+    { key: 'scope', title: '定量/定性', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || '—'}</span> },
+    { key: 'speciesEng', title: '种属英文名称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).species_eng_name}>{(r as any).species_eng_name || '—'}</span> },
     { key: 'method', title: '方法学', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || '—'}</span> },
     { key: 'concentration', title: '浓度点', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).concentration}>{(r as any).concentration || '—'}</span> },
-    { key: 'eng', title: '英文名称', width: 150, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || '—'}</span> },
-    { key: 'tag', title: 'Tag', width: 90, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || '—'}</span> },
-    { key: 'expr', title: '表达系统', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || '—'}</span> },
-    { key: 'productCode', title: '产品代码', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).product_code}>{(r as any).product_code || '—'}</span> },
+    { key: 'eng', title: '英文名称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || '—'}</span> },
+    { key: 'tag', title: 'Tag', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || '—'}</span> },
+    { key: 'expr', title: '表达系统', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || '—'}</span> },
+    { key: 'productCode', title: '产品代码', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).product_code}>{(r as any).product_code || '—'}</span> },
     { key: 'attr', title: '属性', width: 80, render: (r) => {
         // 原站 templet：0/其它→暂无(绿)、1→精华(蓝)、2→热门(黄)、3→推荐(红)
         const t = String((r as any).type ?? '');
@@ -369,36 +453,19 @@ export default function DesktopProduct() {
         if (v === '3') return <span className="pc-c-red">部分人员</span>;
         return <span className="pc-c-green">私有</span>;
       } },
-    { key: 'time', title: '更新时间', width: 155, render: (r) => (
-        <span className="pc-cell-1" title={fmtTime((r as any).update_time || (r as any).create_time)} style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>
-          {fmtTime((r as any).update_time || (r as any).create_time) || '—'}
-        </span>
-      ) },
     {
       key: 'op',
       title: '操作',
-      width: 190,
+      width: 150,
       fixed: true,
+      freeze: 'right',
       render: (r) => {
         const isLocal = String((r as any).id ?? '').startsWith('local-');
         return (
           <span className="pc-ops">
-            <span className="gg-xs blue" onClick={() => setCur(r)}>
-              说明书
-            </span>
-            {!isLocal ? (
-              <span
-                className="gg-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditing(r as Product);
-                }}
-              >
-                编辑
-              </span>
-            ) : null}
+            {/* 原站 #barDemo：复制 / 编辑 / 删除（layui-btn-group，说明书入口在货号列的预览/下载里） */}
             <span
-              className="gg-xs purple"
+              className="gg-xs"
               onClick={(e) => {
                 e.stopPropagation();
                 copyProduct(r);
@@ -406,6 +473,18 @@ export default function DesktopProduct() {
             >
               复制
             </span>
+            {!isLocal ? (
+              <span
+                className="gg-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditKind('edit');
+                  setEditing(r as Product);
+                }}
+              >
+                编辑
+              </span>
+            ) : null}
             {!isLocal ? (
               <span
                 className="gg-xs red"
@@ -442,14 +521,28 @@ export default function DesktopProduct() {
         desc={`共 ${total || rows.length} 个产品 · 已载入 ${list.length} 个${localCount ? ` · 本地新增 ${localCount} 个` : ''}${checked.length ? ` · 已勾选 ${checked.length} 个` : ''}`}
         actions={
           <>
-            <button className="pc-btn pc-btn-ghost" onClick={() => load(query, 1, false)}>
-              刷新
+            {/* 原站 #toolbarDemo 顺序：添加产品 / 批量导入… / 批量下架 / 批量上架 / 导出产品(csv) /
+                导出选中行数据(N) / 清空选中 / 批量生成UP说明书 / 导入(异步)&UP说明书…
+                批量导入系需文件上传通道，暂未接；其余按原站标签与顺序复刻。 */}
+            <button className="pc-btn" onClick={addProduct}>
+              + 添加产品
             </button>
             <button className="pc-btn pc-btn-ghost" onClick={exportCsv}>
-              导出
+              导出产品(csv)
             </button>
+            <button className="pc-btn pc-btn-ghost" onClick={exportCheckedCsv}>
+              导出选中行数据({checkedRows.length})
+            </button>
+            {checked.length ? (
+              <button className="pc-btn pc-btn-ghost" onClick={() => setChecked([])}>
+                清空选中
+              </button>
+            ) : null}
             <button className="pc-btn" onClick={() => setBatch(true)}>
-              批量说明书
+              批量生成UP说明书
+            </button>
+            <button className="pc-btn pc-btn-ghost" onClick={() => load(query, 1, false)}>
+              刷新
             </button>
             <button
               className="pc-btn pc-btn-ghost"
@@ -460,11 +553,6 @@ export default function DesktopProduct() {
             >
               模糊：{fuzzy ? '开' : '关'}
             </button>
-            {checked.length ? (
-              <button className="pc-btn pc-btn-ghost" onClick={() => setChecked([])}>
-                清空选中
-              </button>
-            ) : null}
             {list.length < total ? (
               <button
                 className="pc-btn"
@@ -796,7 +884,7 @@ export default function DesktopProduct() {
       {/* 新增 / 编辑 / 复制 产品（原站 POST /product/index/add，带 id 即编辑，无 id 即新建/复制） */}
       {editing ? (
         <EditModal
-          title={editing.id ? '编辑产品' : '复制为新品'}
+          title={editKind === 'edit' ? '编辑产品' : editKind === 'copy' ? '复制为新品' : '添加产品'}
           fields={PRODUCT_FIELDS}
           value={editing}
           onSave={async (v) => {
@@ -817,7 +905,13 @@ export default function DesktopProduct() {
             if (id) editLocal('product', { ...editing, ...v });
             setLocalVer((n) => n + 1);
             setEditing(null);
-            toast(id ? '已保存（原站已更新）' : '已复制为新品（原站已同步）');
+            toast(
+              editKind === 'edit'
+                ? '已保存（原站已更新）'
+                : editKind === 'copy'
+                  ? '已复制为新品（原站已同步）'
+                  : '已添加（原站已同步）',
+            );
             load(query, 1, false, activeFilter);
           }}
           onClose={() => setEditing(null)}

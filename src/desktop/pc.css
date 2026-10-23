@@ -295,6 +295,17 @@
 .pc-table tbody tr { transition: background 0.12s; }
 .pc-table tbody tr:hover { background: #f8fafc; }
 .pc-table tbody tr:last-child td { border-bottom: none; }
+
+/* ---------- 冻结列：横向滚动时保持可见（原站 layui fixed:'left'/'right'） ----------
+   必须给不透明底色，否则滚动内容会从冻结单元格后面透出来 */
+.pc-table thead th[style*="sticky"] { background: #f8fafc; z-index: 3; }
+.pc-table tbody td[style*="sticky"] { background: var(--c-surface); }
+.pc-table tbody tr:hover td[style*="sticky"] { background: #f8fafc; }
+
+/* ---------- 产品货号/说明书单元格：逐变体一行，货号 + 预览/下载（原站 templet） ---------- */
+.pc-goods-cell { display: block; line-height: 1.9; }
+.pc-goods-row { display: block; white-space: nowrap; }
+.pc-goods-row .gg-xs { margin-left: 4px; vertical-align: middle; }
 .pc-col-idx { color: var(--c-text-4); font-variant-numeric: tabular-nums; }
 .pc-table-empty { text-align: center; color: var(--c-text-4); padding: 28px 0 !important; font-size: 13px; }
 .pc-td-strong { font-weight: 500; color: var(--c-text); font-size: 13.5px; }

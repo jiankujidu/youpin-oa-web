@@ -14,6 +14,8 @@ export interface Column<T> {
   head?: React.ReactNode;
   /** 固定宽列：不参与「按容器归一化」，始终按 width(px) 渲染（操作列用，避免按钮换行撑高行） */
   fixed?: boolean;
+  /** 冻结列（横向滚动时保持可见）：left=贴左缘，right=贴右缘。原站 layui fixed:'left'/'right' */
+  freeze?: 'left' | 'right';
 }
 
 /** 页面头：面包屑 + 标题 + 右侧操作区 */
@@ -229,6 +231,29 @@ export function DataTable<T>({
   const colStyle = (i: number) =>
     widths.pct ? { width: widths.pct[i] } : { width: widths.px[i] + 'px' };
 
+  /* ---- 冻结列偏移：左冻结按列序累加 left，右冻结从右往左累加 right ---- */
+  const allCols = indexCol ? [{ key: '__idx', title: '序号', render: () => null, freeze: undefined as 'left' | 'right' | undefined }, ...columns] : columns;
+  const nAll = allCols.length;
+  const frz = useMemo(() => {
+    const left = new Array<number>(nAll).fill(-1);
+    const right = new Array<number>(nAll).fill(-1);
+    let acc = 0;
+    for (let i = 0; i < nAll; i++) {
+      if (allCols[i].freeze === 'left') { left[i] = acc; acc += widths.px[i] || 0; }
+    }
+    acc = 0;
+    for (let i = nAll - 1; i >= 0; i--) {
+      if (allCols[i].freeze === 'right') { right[i] = acc; acc += widths.px[i] || 0; }
+    }
+    return { left, right };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nAll, widths, columns, indexCol]);
+  const frzStyle = (i: number): React.CSSProperties | undefined => {
+    if (frz.left[i] >= 0) return { position: 'sticky', left: frz.left[i], zIndex: 2 };
+    if (frz.right[i] >= 0) return { position: 'sticky', right: frz.right[i], zIndex: 2 };
+    return undefined;
+  };
+
   const server = typeof pageProp === 'number' && !!onPageChange;
   const setPage = (p: number) => (server ? onPageChange!(p) : setInnerPage(p));
   const page = server ? pageProp : innerPage;
@@ -248,9 +273,9 @@ export function DataTable<T>({
         </colgroup>
         <thead>
           <tr>
-            {indexCol ? <th>序号</th> : null}
-            {columns.map((c) => (
-              <th key={c.key} style={{ textAlign: c.align || 'left' }}>
+            {indexCol ? <th style={frzStyle(0)}>序号</th> : null}
+            {columns.map((c, i) => (
+              <th key={c.key} style={{ textAlign: c.align || 'left', ...frzStyle(i + (indexCol ? 1 : 0)) }}>
                 {c.head !== undefined ? c.head : c.title}
               </th>
             ))}
@@ -277,10 +302,10 @@ export function DataTable<T>({
                 style={onRowClick ? { cursor: 'pointer' } : undefined}
               >
                 {indexCol ? <td className="pc-col-idx">{(cur - 1) * pageSize + i + 1}</td> : null}
-                {columns.map((c) => {
+                {columns.map((c, ci) => {
                   const raw = c.render(r, (cur - 1) * pageSize + i);
                   // 裸文本单元格统一收敛为「单行 + 省略 + 悬停全文」：
-                  // 列宽自适应后若放任换行，行高会被撑到 100px+，首屏可见行数骤减
+                  // 列宽自适应后若放任换行，行高会被撑到 100px+，首屏可见行数骤降
                   const cell =
                     typeof raw === 'string' || typeof raw === 'number' ? (
                       <span className="pc-cell-1" title={String(raw)}>
@@ -290,7 +315,7 @@ export function DataTable<T>({
                       raw
                     );
                   return (
-                    <td key={c.key} style={{ textAlign: c.align || 'left' }}>
+                    <td key={c.key} style={{ textAlign: c.align || 'left', ...frzStyle(ci + (indexCol ? 1 : 0)) }}>
                       {cell}
                     </td>
                   );
