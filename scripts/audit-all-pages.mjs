@@ -25,6 +25,17 @@ page.on('pageerror', (e) => errs.push(String(e).slice(0, 160)));
 await page.goto(BASE, { waitUntil: 'networkidle2', timeout: 60000 });
 await new Promise((r) => setTimeout(r, 5000));
 
+// 侧栏分组默认折叠：先全部展开，子菜单项才会进入 DOM
+for (let r = 0; r < 4; r++) {
+  await page.evaluate(() => {
+    document.querySelectorAll('.d-nav-parent').forEach((p) => {
+      if (p.querySelector('.d-nav-arrow')?.textContent?.includes('▸')) p.click();
+    });
+  });
+  await new Promise((r) => setTimeout(r, 400));
+}
+await new Promise((r) => setTimeout(r, 500));
+
 const items = await page.evaluate(() =>
   [...document.querySelectorAll('.d-nav-item')]
     .filter((e) => !e.classList.contains('d-nav-parent'))

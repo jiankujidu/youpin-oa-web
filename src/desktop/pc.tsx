@@ -189,7 +189,22 @@ export function DataTable<T>({
       flexRaw.push(px0(c.width) || AUTO_MIN);
     });
     const flexTotal = flexRaw.reduce((s, w) => s + w, 0);
-    const pool = Math.max(120, (avail || flexTotal + reserved) - reserved);
+    const declared = flexTotal + reserved; // 各列声明 px 宽度之和
+    const nCol = columns.length + (indexCol ? 1 : 0);
+    // 声明白名单宽度（不缩放）：宽表溢出时用它，配合 wrap 的 overflow-x:auto 横向滚动
+    const outDeclared = new Array<number>(nCol).fill(MIN_COL);
+    flexIdx.forEach((ci, k) => { outDeclared[ci + (indexCol ? 1 : 0)] = flexRaw[k]; });
+    columns.forEach((c, i) => {
+      if (c.fixed) outDeclared[i + (indexCol ? 1 : 0)] = px0(c.width) || MIN_COL;
+    });
+
+    /* 容器装得下声明宽度 → 按比例铺满 100%（原站窄表同样铺满）；
+       装不下（如产品 26 列）→ 保留声明宽度，表格溢出由 wrap 横向滚动。
+       早期版本无条件归一化，导致宽表所有列被按比例压扁、表头文字竖排。 */
+    if (!(avail > 0 && declared <= avail)) {
+      return { px: outDeclared, pct: null as string[] | null, min: declared };
+    }
+    const pool = Math.max(120, avail - reserved);
     let px = flexRaw.map((w) => (w * pool) / flexTotal);
     // 兜底：任何列都不得窄于 MIN_COL，缺口由宽列按比例让出（迭代收敛）
     for (let it = 0; it < 6; it++) {
@@ -201,7 +216,7 @@ export function DataTable<T>({
       px = px.map((p) => (p > MIN_COL ? p * k : MIN_COL));
     }
     // 映射回完整列序
-    const out: number[] = new Array(columns.length + (indexCol ? 1 : 0)).fill(MIN_COL);
+    const out = new Array<number>(nCol).fill(MIN_COL);
     flexIdx.forEach((ci, k) => {
       out[ci + (indexCol ? 1 : 0)] = px[k];
     });
@@ -209,7 +224,7 @@ export function DataTable<T>({
       if (c.fixed) out[i + (indexCol ? 1 : 0)] = px0(c.width) || MIN_COL;
     });
     const sum = out.reduce((s, w) => s + w, 0);
-    return { px: out, pct: avail ? out.map((p) => ((p / sum) * 100).toFixed(4) + '%') : null as string[] | null };
+    return { px: out, pct: out.map((p) => ((p / sum) * 100).toFixed(4) + '%'), min: 0 };
   }, [columns, indexCol, avail]);
   const colStyle = (i: number) =>
     widths.pct ? { width: widths.pct[i] } : { width: widths.px[i] + 'px' };
@@ -224,7 +239,7 @@ export function DataTable<T>({
 
   return (
     <div className="pc-table-wrap" ref={wrapRef}>
-      <table className="pc-table">
+      <table className="pc-table" style={widths.min ? { minWidth: widths.min + 'px' } : undefined}>
         <colgroup>
           {indexCol ? <col style={colStyle(0)} /> : null}
           {columns.map((c, i) => (

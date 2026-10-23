@@ -14,3 +14,9 @@ verify-shots/
 vite.config.ts.timestamp-*.mjs
 .tmp-*/
 origin-snapshot/
+
+# 一次性调试/抓取脚本与本地部署产物
+scripts/tmp-*.mjs
+.tmp/
+.wrangler/
+wrangler-out.txt

@@ -300,6 +300,12 @@
 .pc-td-strong { font-weight: 500; color: var(--c-text); font-size: 13.5px; }
 .pc-td-sub { color: var(--c-text-2); font-size: 12.5px; }
 
+/* ---------- 原站 layui 文字色（.green/.blue/.yellow/.red，产品属性/权限/状态列 1:1 复刻） ---------- */
+.pc-c-green { color: #16b777; }
+.pc-c-blue { color: #1A75FF; }
+.pc-c-yellow { color: #f9ae3d; }
+.pc-c-red { color: #f56c6c; }
+
 /* ---------- 单元格内容收敛（行高治理：任何列最多 2 行，悬停看全文） ---------- */
 .pc-cell-2 {
   display: -webkit-box;

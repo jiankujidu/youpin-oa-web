@@ -233,7 +233,21 @@ export default function DesktopProduct() {
       { key: 'price', title: '价格明细' },
       { key: 'species', title: '种属' },
       { key: 'app', title: '应用' },
+      { key: 'gene', title: '基因名称' },
+      { key: 'alias', title: '其他别称' },
+      { key: 'mw', title: '分子量' },
+      { key: 'source', title: '来源' },
+      { key: 'scope', title: '定量/定性' },
+      { key: 'speciesEng', title: '种属英文名' },
+      { key: 'method', title: '方法学' },
+      { key: 'concentration', title: '浓度点' },
+      { key: 'eng', title: '英文名称' },
+      { key: 'tag', title: 'Tag' },
+      { key: 'expr', title: '表达系统' },
+      { key: 'productCode', title: '产品代码' },
+      { key: 'attr', title: '属性' },
       { key: 'dl', title: '下载量' },
+      { key: 'share', title: '阅读权限范围' },
       { key: 'time', title: '更新时间' },
     ];
     const csvRows = (checkedRows.length ? checkedRows : (displayRows as any[])).slice(0, 5000).map((r) => ({
@@ -244,7 +258,21 @@ export default function DesktopProduct() {
       price: fmtPrice(r.price_desc),
       species: r.species || '',
       app: r.application || '',
+      gene: (r as any).gene_name || '',
+      alias: (r as any).other_name || '',
+      mw: (r as any).da || '',
+      source: (r as any).source || '',
+      scope: (r as any).scope || '',
+      speciesEng: (r as any).species_eng_name || '',
+      method: (r as any).methodology || '',
+      concentration: (r as any).concentration || '',
+      eng: (r as any).eng_name || '',
+      tag: (r as any).tag || '',
+      expr: (r as any).expression_system || '',
+      productCode: (r as any).product_code || '',
+      attr: (() => { const t = String((r as any).type ?? ''); return t === '1' ? '精华' : t === '2' ? '热门' : t === '3' ? '推荐' : '暂无'; })(),
       dl: r.down_load_num ?? 0,
+      share: (() => { const v = String((r as any).is_share ?? ''); return v === '1' ? '所有人' : v === '2' ? '部门' : v === '3' ? '部分人员' : '私有'; })(),
       time: fmtTime(r.update_time || r.create_time),
     }));
     downloadCsv(`产品列表-${new Date().toISOString().slice(0, 10)}`, cols, csvRows);
@@ -261,7 +289,7 @@ export default function DesktopProduct() {
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
-  /** 与原站一致：编号 / 货号 / 状态 / 分类 / 价格 / 标题 / 种属 / 应用 / 基因名 / 别称 / 分子量 / 方法学 / 英文名 / Tag / 表达系统 / 下载量 / 更新时间 */
+  /** 与原站一致：编号 / 货号 / 状态 / 分类 / 价格 / 标题 / 种属 / 应用 / 基因名 / 别称 / 分子量 / 来源 / 定量定性 / 种属英文名 / 方法学 / 浓度点 / 英文名 / Tag / 表达系统 / 产品代码 / 属性 / 下载量 / 阅读权限范围 / 更新时间 */
   const cols: Column<Product>[] = [
     {
       key: '_check',
@@ -295,12 +323,12 @@ export default function DesktopProduct() {
     {
       key: 'status',
       title: '状态',
-      width: 90,
+      width: 66,
       render: (r) => {
+        // 原站 #status 模板：status==1 → 绿色「有货」，否则红色「下架」（纯色文字，非徽标）
         const s = String((r as any).status ?? '');
-        if (s === '1' || s === '已上架' || s === '在售') return <StatusTag tone="ok">上架</StatusTag>;
-        if (s === '0' || s === '已下架') return <StatusTag tone="no">下架</StatusTag>;
-        return <StatusTag tone="info">{s || '—'}</StatusTag>;
+        const on = s === '1' || s === '已上架' || s === '在售';
+        return on ? <span className="pc-c-green">有货</span> : <span className="pc-c-red">下架</span>;
       },
     },
     { key: 'cate', title: '产品分类', width: 130, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || '—'}</span> },
@@ -315,11 +343,32 @@ export default function DesktopProduct() {
           {(r as any).da || '—'}
         </span>
       ) },
+    { key: 'source', title: '来源', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || '—'}</span> },
+    { key: 'scope', title: '定量/定性', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || '—'}</span> },
+    { key: 'speciesEng', title: '种属英文名', width: 120, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).species_eng_name}>{(r as any).species_eng_name || '—'}</span> },
     { key: 'method', title: '方法学', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || '—'}</span> },
+    { key: 'concentration', title: '浓度点', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).concentration}>{(r as any).concentration || '—'}</span> },
     { key: 'eng', title: '英文名称', width: 150, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || '—'}</span> },
     { key: 'tag', title: 'Tag', width: 90, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || '—'}</span> },
     { key: 'expr', title: '表达系统', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || '—'}</span> },
+    { key: 'productCode', title: '产品代码', width: 110, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).product_code}>{(r as any).product_code || '—'}</span> },
+    { key: 'attr', title: '属性', width: 80, render: (r) => {
+        // 原站 templet：0/其它→暂无(绿)、1→精华(蓝)、2→热门(黄)、3→推荐(红)
+        const t = String((r as any).type ?? '');
+        if (t === '1') return <span className="pc-c-blue">精华</span>;
+        if (t === '2') return <span className="pc-c-yellow">热门</span>;
+        if (t === '3') return <span className="pc-c-red">推荐</span>;
+        return <span className="pc-c-green">暂无</span>;
+      } },
     { key: 'dl', title: '下载量', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
+    { key: 'share', title: '阅读权限范围', width: 100, render: (r) => {
+        // 原站 templet：0→私有(绿)、1→所有人(蓝)、2→部门(黄)、3→部分人员(红)
+        const v = String((r as any).is_share ?? '');
+        if (v === '1') return <span className="pc-c-blue">所有人</span>;
+        if (v === '2') return <span className="pc-c-yellow">部门</span>;
+        if (v === '3') return <span className="pc-c-red">部分人员</span>;
+        return <span className="pc-c-green">私有</span>;
+      } },
     { key: 'time', title: '更新时间', width: 155, render: (r) => (
         <span className="pc-cell-1" title={fmtTime((r as any).update_time || (r as any).create_time)} style={{ fontSize: 12.5, color: 'var(--c-text-2)' }}>
           {fmtTime((r as any).update_time || (r as any).create_time) || '—'}
