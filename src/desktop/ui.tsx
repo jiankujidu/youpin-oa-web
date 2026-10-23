@@ -52,6 +52,146 @@ export function Modal({
   );
 }
 
+/* ---------- 文件「真预览 / 真下载」 ----------
+ * 背景：OA 的 get_oss_file.html 是唯一会返回真实文件字节的端点，但它带
+ *   Content-Disposition: attachment，直接 window.open 只会触发下载、看不到内容；
+ *   而 down_oss_file.html 只返回一段明文直链（71 字节），点开是乱码文本。
+ * 所以预览必须：fetch → Blob → URL.createObjectURL → iframe 内联渲染
+ *   （objectURL 不带 attachment 头，浏览器内置 PDF 阅读器会直接显示）。
+ * 下载则反过来：直接 <a href=get_oss_file download="xxx.pdf"> 落真实文件。
+ */
+function isInlineable(name: string): boolean {
+  return /\.(pdf|png|jpe?g|gif|webp|bmp|svg|txt|csv)$/i.test(name || '');
+}
+
+/** 内嵌预览面板（拉流 → objectURL → iframe） */
+export function DocPreviewPane({
+  url,
+  name,
+  height = 620,
+}: {
+  url: string;
+  name: string;
+  height?: number | string;
+}) {
+  const [stat, setStat] = useState<'loading' | 'ok' | 'err'>('loading');
+  const [src, setSrc] = useState('');
+  const [msg, setMsg] = useState('');
+  const [size, setSize] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    let obj = '';
+    setStat('loading');
+    setSrc('');
+    (async () => {
+      try {
+        const res = await fetch(url, { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (!blob.size) throw new Error('文件为空');
+        obj = URL.createObjectURL(blob);
+        if (!alive) {
+          URL.revokeObjectURL(obj);
+          return;
+        }
+        setSize(blob.size);
+        setSrc(obj);
+        setStat('ok');
+      } catch (e) {
+        if (alive) {
+          setMsg(e instanceof Error ? e.message : String(e));
+          setStat('err');
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+      if (obj) URL.revokeObjectURL(obj);
+    };
+  }, [url]);
+
+  if (stat === 'loading') {
+    return (
+      <div className="d-loading" style={{ height: 120 }}>
+        正在加载文件…
+      </div>
+    );
+  }
+  if (stat === 'err') {
+    return (
+      <div className="d-empty" style={{ padding: '24px 0' }}>
+        预览失败：{msg}
+        <div style={{ marginTop: 10 }}>
+          <a className="pc-btn pc-btn-sm pc-btn-cyan" href={url} download={name}>
+            改为直接下载
+          </a>
+        </div>
+      </div>
+    );
+  }
+  if (!isInlineable(name)) {
+    return (
+      <div className="d-empty" style={{ padding: '24px 0' }}>
+        该格式（{name.split('.').pop()}）浏览器无法直接预览，请下载后查看
+        <div style={{ marginTop: 10 }}>
+          <a className="pc-btn pc-btn-sm pc-btn-cyan" href={url} download={name}>
+            下载文件
+          </a>
+        </div>
+      </div>
+    );
+  }
+  return <iframe className="doc-preview-frame" title={name} src={src} style={{ height }} />;
+}
+
+/** 全屏预览弹窗（iframe + 新标签页打开 / 下载 / 关闭） */
+export function DocPreviewModal({
+  url,
+  name,
+  onClose,
+}: {
+  url: string;
+  name: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="d-mask doc-preview-mask" onClick={onClose}>
+      <div className="d-modal d-modal-lg" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="d-modal-title" title={name}>
+          说明书预览 · {name}
+        </div>
+        <DocPreviewPane url={url} name={name} height="66vh" />
+        <div className="d-modal-btns">
+          <a className="pc-btn pc-btn-sm pc-btn-cyan" href={url} download={name}>
+            下载
+          </a>
+          <button
+            className="pc-btn pc-btn-sm pc-btn-ghost"
+            onClick={() => window.open(url, '_blank', 'noopener')}
+          >
+            新标签页打开
+          </button>
+          <button className="pc-btn pc-btn-sm" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Loading() {
   return <div className="d-loading">加载中…</div>;
 }

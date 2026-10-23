@@ -46,7 +46,8 @@ try {
     const wr = wrap.getBoundingClientRect();
     const opIdx = ths.findIndex((t) => (t.textContent || '').trim() === '操作');
     const opRect = opIdx >= 0 ? ths[opIdx].getBoundingClientRect() : null;
-    const first9 = ths.slice(0, 9).map((t) => {
+    const KEY = 12; // 首屏必须完整可见的列数
+    const firstN = ths.slice(0, KEY).map((t) => {
       const r = t.getBoundingClientRect();
       return { title: (t.textContent || '').trim(), left: Math.round(r.left), right: Math.round(r.right), w: Math.round(r.width) };
     });
@@ -56,15 +57,18 @@ try {
       wrapWidth: Math.round(wr.width),
       scrollLeft: wrap.scrollLeft,
       scrollWidth: wrap.scrollWidth,
-      first9,
-      first9Right: first9.length ? first9[first9.length - 1].right : 0,
+      keyCount: KEY,
+      first9: firstN,
+      first9Right: firstN.length ? firstN[firstN.length - 1].right : 0,
       opLeft: opRect ? Math.round(opRect.left) : null,
       opWidth: opRect ? Math.round(opRect.width) : null,
     };
   }, VIS);
-  /** 首屏可见判定：第 9 列右边界 ≤ 操作列左边界（右冻结列不遮挡） */
+  /** 首屏可见判定：第 12 列右边界 ≤ 操作列左边界（右冻结列不遮挡），且横向未滚动 */
   const g = out.geometry;
-  out.nineColsVisible = !!g.opLeft && g.first9Right <= g.opLeft + 1;
+  out.nineColsVisible = !!g.opLeft && g.first9Right <= g.opLeft + 1 && (g.scrollLeft || 0) === 0;
+  out.expectCols = ['产品货号/说明书', '产品标题', '种属', '应用', '价格明细', '基因名称', '方法学', '分子量', '来源', '定量/定性', '分类', '浓度点'];
+  out.orderOk = out.expectCols.every((t, i) => (out.heads[i] || '') === t);
 
   // 行勾选：hover 第一行（真实鼠标移动），检查行首圆点是否显形
   const rowBox = await page.evaluate((v) => {

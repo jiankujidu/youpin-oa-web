@@ -1727,3 +1727,15 @@ select.dt-f-input { cursor: pointer; }
 }
 .dt-detail-row label { width: 110px; flex: none; color: #999; text-align: right; }
 .dt-detail-row span { color: #323232; word-break: break-all; min-width: 0; }
+
+/* ---------- 说明书真预览（iframe 内联渲染 PDF） ---------- */
+.d-modal.d-modal-lg { max-width: 1120px; width: 96vw; padding: 18px 20px 20px; }
+.doc-preview-mask { z-index: 120; }
+.doc-preview-frame {
+  width: 100%;
+  border: 1px solid var(--c-border, #e6e8eb);
+  border-radius: 8px;
+  background: #f5f6f8;
+  display: block;
+}
+.d-doc-inline { margin: 8px 0 4px; }

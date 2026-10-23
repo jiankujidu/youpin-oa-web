@@ -28,7 +28,7 @@ import { addProducts, createFolder as createQuoteFolder, getFolders as getQuoteF
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { fmtTime, plain, sanitizeName, toast } from '../core/util';
-import { ConfirmDialog, EditModal, Modal } from './ui';
+import { ConfirmDialog, DocPreviewModal, DocPreviewPane, EditModal, Modal } from './ui';
 import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
 
 /** 产品编辑 / 复制 表单字段（对齐原站 /product/index/add 主要可填项） */
@@ -285,6 +285,10 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   const [cur, setCur] = useState<Product | null>(null);
   const [folders, setFolders] = useState<FavFolder[]>([]);
   const [saving, setSaving] = useState<{ name: string; url: string; productId: string } | null>(null);
+  /** 说明书「真预览」弹窗：url 指向 get_oss_file，组件内部拉流成 blob 再内联渲染 */
+  const [previewDoc, setPreviewDoc] = useState<{ name: string; url: string } | null>(null);
+  /** 产品详情弹窗里展开内联预览的说明书货号 */
+  const [inlineDoc, setInlineDoc] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   /** 勾选的产品（对齐原站批量说明书 / getCheckData） */
   const [checked, setChecked] = useState<string[]>([]);
@@ -335,6 +339,8 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     load(query, 1, activeFilter);
   }, [query, activeFilter, load]);
   useEffect(() => setFolders(getFolders()), []);
+  /** 切换产品时收起上一条的内联说明书预览 */
+  useEffect(() => setInlineDoc(null), [cur]);
 
   /** 分类映射（cate_id → 分类名，后台拉取并缓存）；种属/应用选项取自当前页数据 */
   useEffect(() => {
@@ -402,15 +408,19 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   }
 
   /**
-   * 列顺序（用户指定）：产品货号/说明书 → 产品标题 → 种属 → 应用 → 价格明细 →
-   * 基因名称 → 方法学 → 分子量 → 来源（这 9 列首屏可见），其余列往后，横向滚动查看。
-   * 原复选框列已去掉（省 50px），改为「行首 hover 圆点勾选」（见 DataTable rowSelect）。
+   * 列顺序（用户指定，这 12 列必须在一屏内完整显示、不被右侧常驻「操作」列压住）：
+   *   产品货号/说明书 → 产品标题 → 种属 → 应用 → 价格明细 → 基因名称 →
+   *   方法学 → 分子量 → 来源 → 定量/定性 → 分类 → 浓度点
+   * 其余列（状态 / 别称 / 种属英文名 / 英文名 / Tag / 表达系统 / 产品代码 /
+   *   属性 / 下载量 / 阅读权限 / 操作）往后放，横向滚动查看。
+   * 宽度预算：240+200+70+70+150+78+78+70+70+80+90+78 = 1174px（首屏可用约 1244px）。
+   * 原复选框列已去掉，改为「行首 hover 圆点勾选」（见 DataTable rowSelect）。
    */
   const cols: Column<Product>[] = [
     {
       key: 'no',
       title: '产品货号/说明书',
-      width: 280,
+      width: 226,
       align: 'center',
       freeze: 'left',
       render: (r) => {
@@ -431,34 +441,32 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             {list.map((g, i) => {
               const no = g.goods_no || '';
               const has = !!(g.goods_no_url || g.pc_goods_no_url);
-              // 原站：预览 data-href = pc_yu_goods_no_url（down_oss_file）；
-              //       下载 downloadFile(pc_goods_no_url, goods_no_desc) → <a download> 真下载
-              const preview =
-                absOaUrl(g.pc_yu_goods_no_url || '') || absOaUrl(g.pc_goods_no_url || '') || signedOssToProxy(g.goods_no_url || '');
-              const dl = absOaUrl(g.pc_goods_no_url || g.pc_yu_goods_no_url || '') || signedOssToProxy(g.goods_no_url || '');
+              // ★ 预览与下载都用同一个「真文件」端点 get_oss_file（pc_goods_no_url）：
+              //   - 预览：fetch → Blob → objectURL → 弹窗 iframe 内联渲染（浏览器内置 PDF 阅读器）
+              //   - 下载：<a href download> 直接落真实文件
+              //   注意 pc_yu_goods_no_url（down_oss_file）返回的是 71 字节明文直链，不能用于预览。
+              const url = docUrl(g);
               const dlName = g.goods_no_desc || `${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`;
               return (
                 <span className="pc-goods-row" key={i}>
                   <span className={has ? 'pc-c-blue' : 'pc-c-red'}>{no}</span>
-                  {has && preview ? (
+                  {has && url ? (
                     <>
                       <button
                         className="pc-xs-btn pc-xs-danger"
-                        title="在线查看"
+                        title="在浏览器内预览"
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(preview, '_blank', 'noopener');
+                          setPreviewDoc({ name: dlName, url });
                         }}
                       >
                         预览
                       </button>
                       <a
                         className="pc-xs-btn pc-xs-cyan"
-                        href={dl}
+                        href={url}
                         download={dlName}
-                        target="_blank"
-                        rel="noopener"
-                        title={dlName}
+                        title={`下载 ${dlName}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         下载
@@ -496,26 +504,29 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
       },
     },
     // 原站 templet：'<a data-href="/product/index/view/id/xx.html" class="side-a">{{d.title}}</a>'（.side-a = #1A75FF 可点）
-    { key: 'title', title: '产品标题', width: 240, render: (r) => (
+    { key: 'title', title: '产品标题', width: 192, render: (r) => (
         <span className="pc-cell-2" style={{ color: '#1A75FF', cursor: 'pointer' }} title={plain(r.title)} onClick={(e) => { e.stopPropagation(); setCur(r); }}>
           {plain(r.title)}
         </span>
       ) },
-    { key: 'species', title: '种属', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || ''}</span> },
-    { key: 'app', title: '应用', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || ''}</span> },
+    { key: 'species', title: '种属', width: 70, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || ''}</span> },
+    { key: 'app', title: '应用', width: 70, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || ''}</span> },
     // 原站 templet：'<span class="green">{{d.price_desc}}</span>' —— 原始字符串直接展示，绿色，自然换行
-    { key: 'price', title: '价格明细', width: 180, render: (r) => (
+    { key: 'price', title: '价格明细', width: 148, render: (r) => (
         <span className="pc-c-green" style={{ fontSize: 12.5 }}>{(r as any).price_desc || ''}</span>
       ) },
-    { key: 'gene', title: '基因名称', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || ''}</span> },
-    { key: 'method', title: '方法学', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || ''}</span> },
-    { key: 'mw', title: '分子量', width: 86, align: 'center', render: (r) => (
+    { key: 'gene', title: '基因名称', width: 76, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || ''}</span> },
+    { key: 'method', title: '方法学', width: 76, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || ''}</span> },
+    { key: 'mw', title: '分子量', width: 70, align: 'center', render: (r) => (
         <span className="pc-cell-1 pc-td-sub" title={(r as any).da}>
           {(r as any).da || ''}
         </span>
       ) },
-    { key: 'source', title: '来源', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || ''}</span> },
-    /* ---- 以下为次要列（横向滚动查看）：状态 / 分类 / 别称 / 定性定量 ---- */
+    { key: 'source', title: '来源', width: 70, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || ''}</span> },
+    { key: 'scope', title: '定量/定性', width: 78, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || ''}</span> },
+    { key: 'cate', title: '分类', width: 82, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || ''}</span> },
+    { key: 'concentration', title: '浓度点', width: 74, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).concentration}>{(r as any).concentration || ''}</span> },
+    /* ---- 以下为次要列（横向滚动查看）：状态 / 别称 / 种属英文名 / 英文名 等 ---- */
     {
       key: 'status',
       title: '状态',
@@ -533,12 +544,9 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
         );
       },
     },
-    // 原站对齐：货号/状态/分类/各属性列 align="center"；价格明细与产品标题左对齐；空值渲染为空白（不是「—」）
-    { key: 'cate', title: '分类', width: 150, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || ''}</span> },
+    // 原站对齐：货号/状态/各属性列 align="center"；价格明细与产品标题左对齐；空值渲染为空白（不是「—」）
     { key: 'alias', title: '其他别称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || ''}</span> },
-    { key: 'scope', title: '定量/定性', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || ''}</span> },
     { key: 'speciesEng', title: '种属英文名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).species_eng_name}>{(r as any).species_eng_name || ''}</span> },
-    { key: 'concentration', title: '浓度点', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).concentration}>{(r as any).concentration || ''}</span> },
     { key: 'eng', title: '英文名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || ''}</span> },
     { key: 'tag', title: 'Tag', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || ''}</span> },
     { key: 'expr', title: '表达系统', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || ''}</span> },
@@ -563,7 +571,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     {
       key: 'op',
       title: '操作',
-      width: 150,
+      width: 138,
       align: 'center',
       fixed: true,
       freeze: 'right',
@@ -615,11 +623,17 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     },
   ];
 
-  const docs = (cur?.goods_no_list || []).map((g) => ({
-    no: g.goods_no,
-    url: docUrl(g),
-    name: `${sanitizeName(g.goods_no)}-${sanitizeName(plain(cur?.title || ''))}.pdf`,
-  }));
+  const docs = (cur?.goods_no_list || []).map((g: any) => {
+    const fileName = g.goods_no_desc || `${sanitizeName(g.goods_no || '')}-${sanitizeName(plain(cur?.title || ''))}.pdf`;
+    return {
+      no: g.goods_no,
+      url: docUrl(g),
+      /** 保存时用的文件名（先按原站命名，再兜底） */
+      name: `${sanitizeName(g.goods_no || '')}-${sanitizeName(plain(cur?.title || ''))}.pdf`,
+      /** 真实下载文件名（优先用原站 goods_no_desc） */
+      fileName,
+    };
+  });
 
   return (
     <div>
@@ -913,33 +927,48 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             <div style={{ fontSize: 13, color: 'var(--c-text-4)' }}>该产品暂无说明书</div>
           ) : (
             docs.map((d) => (
-              <div
-                key={d.no}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '9px 0',
-                  borderTop: '1px solid var(--c-border)',
-                  fontSize: 13,
-                }}
-              >
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.no}</span>
-                {d.url ? (
-                  <>
-                    <span className="pc-link" onClick={() => window.open(d.url, '_blank', 'noopener')}>
-                      预览
-                    </span>
-                    <span className="pc-link" onClick={() => setSaving({ name: d.name, url: d.url, productId: String(cur.id) })}>
-                      收藏
-                    </span>
-                    <span className="pc-link" onClick={() => void shareDoc(d.name, d.url)}>
-                      转发
-                    </span>
-                  </>
-                ) : (
-                  <StatusTag tone="info">未提供文件</StatusTag>
-                )}
+              <div key={d.no} style={{ borderTop: '1px solid var(--c-border)' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '9px 0',
+                    fontSize: 13,
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.no}</span>
+                  {d.url ? (
+                    <>
+                      <span
+                        className="pc-link"
+                        onClick={() => setInlineDoc((v) => (v === d.no ? null : d.no))}
+                      >
+                        {inlineDoc === d.no ? '收起预览' : '预览'}
+                      </span>
+                      <a className="pc-link" href={d.url} download={d.fileName}>
+                        下载
+                      </a>
+                      <span className="pc-link" onClick={() => setPreviewDoc({ name: d.fileName, url: d.url })}>
+                        全屏
+                      </span>
+                      <span className="pc-link" onClick={() => setSaving({ name: d.name, url: d.url, productId: String(cur.id) })}>
+                        收藏
+                      </span>
+                      <span className="pc-link" onClick={() => void shareDoc(d.name, d.url)}>
+                        转发
+                      </span>
+                    </>
+                  ) : (
+                    <StatusTag tone="info">未提供文件</StatusTag>
+                  )}
+                </div>
+                {/* 行内真预览：blob → iframe，直接在产品详情里翻说明书 */}
+                {d.url && inlineDoc === d.no ? (
+                  <div className="d-doc-inline">
+                    <DocPreviewPane url={d.url} name={d.fileName} height={520} />
+                  </div>
+                ) : null}
               </div>
             ))
           )}
@@ -1131,6 +1160,15 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             取消选择
           </button>
         </div>
+      ) : null}
+
+      {/* 说明书真预览（blob → iframe） */}
+      {previewDoc ? (
+        <DocPreviewModal
+          url={previewDoc.url}
+          name={previewDoc.name}
+          onClose={() => setPreviewDoc(null)}
+        />
       ) : null}
     </div>
   );
