@@ -123,6 +123,73 @@ function events(html) {
   return [...new Set([...html.matchAll(/lay-event="([^"]+)"/g)].map((m) => m[1]))];
 }
 
+/** 提取行操作事件 → 按钮文案（cols templet 内 lay-event="X">LABEL</span>） */
+function opLabels(html) {
+  const block = colsBlock(html);
+  if (!block) return {};
+  const out = {};
+  for (const m of block.matchAll(/lay-event="(\w+)"[^>]*>\s*([^<>]{1,16}?)\s*<\//g)) {
+    if (m[2]) out[m[1]] = m[2];
+  }
+  return out;
+}
+
+/** 提取主筛选栏（gg-form-bar 表单：文本/下拉/日期/部门树） */
+function parseSearchForm(html) {
+  const m = /<form[^>]*gg-form-bar[\s\S]*?<\/form>/.exec(html);
+  if (!m) return [];
+  const form = m[0];
+  const out = [];
+  // 按 layui-input-inline 分段
+  const segs = form.split(/<div class="layui-input-inline"/).slice(1);
+  // xmSelect 的 tips（部门下拉提示）
+  const tips = /tips\s*:\s*'([^']+)'/.exec(html);
+  for (const seg of segs) {
+    const head = seg.slice(0, seg.indexOf('>') + 1);
+    const w = /width\s*:\s*(\d+)px/.exec(head);
+    const width = w ? Number(w[1]) : undefined;
+    const divId = /id="([^"]+)"/.exec(head);
+    const sel = /<select name="([^"]+)"[^>]*>([\s\S]*?)<\/select>/.exec(seg);
+    if (sel) {
+      const options = [...sel[2].matchAll(/<option value="([^"]*)"[^>]*>([^<]*)<\/option>/g)].map((o) => ({ v: o[1], label: o[2].trim() }));
+      out.push({ kind: 'select', name: sel[1], placeholder: options[0]?.label || '请选择', width, options });
+      continue;
+    }
+    const inp = /<input[^>]*name="([^"]+)"[^>]*>/.exec(seg);
+    const hidden = inp && /type="hidden"/.test(inp[0]);
+    if (inp && !hidden) {
+      const tag = /<input([^>]*)>/.exec(seg)[1];
+      const ph = /placeholder="([^"]*)"/.exec(tag);
+      const id = /id="([^"]*)"/.exec(tag);
+      const readonly = /readonly/.test(tag);
+      const isDate = id?.[1] === 'diff_time' || /laydate|range/.test(tag) || ph?.[1] === '选择时间区间';
+      out.push({ kind: isDate ? 'date' : 'text', name: inp[1], placeholder: ph?.[1] || '', width, readonly: isDate ? true : readonly });
+      continue;
+    }
+    // xmSelect 挂载点（如 #todid 部门树，段内可能只有隐藏域）
+    if (divId && (!inp || hidden)) {
+      out.push({ kind: 'dept', name: divId[1], placeholder: tips?.[1] || '部门', width });
+    }
+  }
+  return out;
+}
+
+/** 提取 #toolbarDemo：按钮（lay-event+文案）与红字统计（label+totalRow 字段） */
+function parseToolbar(html) {
+  const m = /<script type="text\/html" id="toolbarDemo">([\s\S]*?)<\/script>/.exec(html);
+  if (!m) return { btns: [], totals: [] };
+  const t = m[1];
+  const btns = [...t.matchAll(/<span class="layui-btn[^"]*"\s+lay-event="([^"]+)"[^>]*>([\s\S]*?)<\/span>/g)].map((b) => ({
+    event: b[1],
+    label: b[2].replace(/<[^>]+>/g, '').trim(),
+  }));
+  const totals = [...t.matchAll(/([^<>：\s][^<>：]*)：\s*<font[^>]*id="([^"]+)"/g)].map((x) => ({
+    id: x[2],
+    label: x[1].trim(),
+  }));
+  return { btns, totals };
+}
+
 const specs = {};
 for (const [key, file] of Object.entries(PAGE_MAP)) {
   const p = path.join(SNAP, file);
@@ -130,6 +197,7 @@ for (const [key, file] of Object.entries(PAGE_MAP)) {
   const html = fs.readFileSync(p, 'utf8');
   const cols = parseCols(colsBlock(html));
   const evs = events(html);
+  const { btns, totals } = parseToolbar(html);
   // 行内操作：出现在表格 templet 里的 lay-event（通常是 view/edit/del/...）
   const ROW_KNOWN = new Set(['view', 'edit', 'del', 'remove', 'delete', 'detail', 'check', 'approve', 'reject', 'back', 'restore', 'print', 'download', 'copy', 'visit', 'classification', 'get', 'distribute', 'recall', 'pay', 'invoice', 'recv']);
   specs[key] = {
@@ -138,9 +206,13 @@ for (const [key, file] of Object.entries(PAGE_MAP)) {
     cols,
     rowOps: evs.filter((e) => ROW_KNOWN.has(e)),
     toolbar: evs.filter((e) => !ROW_KNOWN.has(e)),
+    filter: parseSearchForm(html),
+    toolbarBtns: btns,
+    totals,
+    opLabels: opLabels(html),
   };
   console.log(
-    `${key.padEnd(20)} cols=${String(cols.length).padStart(2)} url=${specs[key].url.padEnd(34)} rowOps=${specs[key].rowOps.join(',')}`,
+    `${key.padEnd(20)} cols=${String(cols.length).padStart(2)} url=${specs[key].url.padEnd(34)} rowOps=${specs[key].rowOps.join(',')} filter=${specs[key].filter.length} tbBtns=${btns.length} totals=${totals.length}`,
   );
 }
 
@@ -165,12 +237,28 @@ export interface SpecCol {
   fixed?: string;
 }
 
+export interface SpecFilter {
+  kind: 'text' | 'select' | 'date' | 'dept';
+  name: string;
+  placeholder?: string;
+  width?: number;
+  readonly?: boolean;
+  options?: { v: string; label: string }[];
+}
+
+export interface SpecToolbarBtn { event: string; label: string }
+export interface SpecTotal { id: string; label: string }
+
 export interface PageSpec {
   file: string;
   url: string;
   cols: SpecCol[];
   rowOps: string[];
   toolbar: string[];
+  filter: SpecFilter[];
+  toolbarBtns: SpecToolbarBtn[];
+  totals: SpecTotal[];
+  opLabels: Record<string, string>;
 }
 
 export const PAGE_SPECS: Record<string, PageSpec> = {

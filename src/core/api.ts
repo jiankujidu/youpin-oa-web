@@ -302,7 +302,7 @@ function extractObj<T>(r: any, fallback: T): T {
 async function oaPage(
   path: string,
   params: Record<string, unknown> = {},
-): Promise<{ rows: Record<string, any>[]; total: number }> {
+): Promise<{ rows: Record<string, any>[]; total: number; totalRow?: Record<string, any> }> {
   const qs = Object.entries(params)
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
@@ -313,7 +313,7 @@ async function oaPage(
   const rows = extractList<Record<string, any>>(r);
   const total =
     Number(r?.count ?? r?.total ?? r?.data?.count ?? r?.data?.total ?? rows.length) || rows.length;
-  return { rows, total };
+  return { rows, total, totalRow: (r as any)?.totalRow };
 }
 
 export { oaPage };
