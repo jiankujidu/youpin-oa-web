@@ -407,23 +407,59 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
+  /** 单行勾选 / 取消（加入收藏夹、报价、导出选中行都用这套状态） */
+  function toggleChecked(id: string) {
+    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  /** 本页是否全选 / 部分选中（表头复选框的 indeterminate 半选态） */
+  const pageIds = displayRows.map((p) => String((p as any).id ?? ''));
+  const pageAllOn = pageIds.length > 0 && pageIds.every((id) => checked.includes(id));
+  const pageSomeOn = !pageAllOn && pageIds.some((id) => checked.includes(id));
+
   /**
    * 列顺序（用户指定，这 12 列必须在一屏内完整显示、不被右侧常驻「操作」列压住）：
    *   产品货号/说明书 → 产品标题 → 种属 → 应用 → 价格明细 → 基因名称 →
    *   方法学 → 分子量 → 来源 → 定量/定性 → 分类 → 浓度点
    * 其余列（状态 / 别称 / 种属英文名 / 英文名 / Tag / 表达系统 / 产品代码 /
    *   属性 / 下载量 / 阅读权限 / 操作）往后放，横向滚动查看。
-   * 宽度预算：240+200+70+70+150+78+78+70+70+80+90+78 = 1174px（首屏可用约 1244px）。
-   * 原复选框列已去掉，改为「行首 hover 圆点勾选」（见 DataTable rowSelect）。
+   * 宽度预算：240+186+70+70+144+76+76+70+70+78+82+74 = 1236px（首屏可用约 1244px）。
+   * ★ 勾选方式（用户定稿）：不设独立复选框列，复选框常驻「产品货号/说明书」列内、
+   *   货号左侧；点货号文字同样切换勾选——所见即所勾，不再用 hover 才显形的圆点。
    */
   const cols: Column<Product>[] = [
     {
       key: 'no',
       title: '产品货号/说明书',
-      width: 226,
+      width: 240,
       align: 'center',
       freeze: 'left',
+      /** 表头全选（半选态 indeterminate 直接写 DOM 属性） */
+      head: (
+        <label className="pc-th-pick" title={pageAllOn ? '取消全选本页' : '全选本页产品'}>
+          <input
+            type="checkbox"
+            className="pc-check"
+            checked={pageAllOn}
+            ref={(el) => {
+              if (el) el.indeterminate = pageSomeOn;
+            }}
+            onChange={() =>
+              setChecked((prev) =>
+                pageAllOn ? prev.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...prev, ...pageIds])),
+              )
+            }
+          />
+          <span>产品货号/说明书</span>
+        </label>
+      ),
       render: (r) => {
+        const rid = String(r.id ?? '');
+        const on = checked.includes(rid);
+        /** 复选框 / 货号文字：点即勾选或取消（阻止冒泡，避免顺手打开详情弹窗） */
+        const toggle = (e: { stopPropagation: () => void }) => {
+          e.stopPropagation();
+          toggleChecked(rid);
+        };
         // 原站 templet：逐行列出 goods_no_list 每个变体——
         // 有说明书 → 蓝色货号 + 预览(红) + 下载；无 → 红色货号 + 两个「暂无说明书」提示
         const list = ((r as any).goods_no_list || []) as {
@@ -433,11 +469,12 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
           pc_yu_goods_no_url?: string;
           goods_no_desc?: string;
         }[];
-        if (!list.length) {
-          return <span className="pc-td-strong">{String(r.goods_no || '').split(';')[0] || ''}</span>;
-        }
-        return (
-          <span className="pc-goods-cell">
+        const body = !list.length ? (
+          <span className="pc-td-strong pc-goods-no" title={on ? '点击取消勾选' : '点击勾选此产品'} onClick={toggle}>
+            {String(r.goods_no || '').split(';')[0] || ''}
+          </span>
+        ) : (
+          <span className="pc-goods-body">
             {list.map((g, i) => {
               const no = g.goods_no || '';
               const has = !!(g.goods_no_url || g.pc_goods_no_url);
@@ -449,7 +486,13 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
               const dlName = g.goods_no_desc || `${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`;
               return (
                 <span className="pc-goods-row" key={i}>
-                  <span className={has ? 'pc-c-blue' : 'pc-c-red'}>{no}</span>
+                  <span
+                    className={`pc-goods-no${has ? ' pc-c-blue' : ' pc-c-red'}`}
+                    title={`${no}${on ? '（已勾选，点击取消）' : '（点击勾选此产品）'}`}
+                    onClick={toggle}
+                  >
+                    {no}
+                  </span>
                   {has && url ? (
                     <>
                       <button
@@ -501,10 +544,23 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             })}
           </span>
         );
+        return (
+          <span className="pc-goods-cell">
+            <input
+              type="checkbox"
+              className="pc-check"
+              checked={on}
+              title={on ? '取消勾选此产品' : '勾选此产品（加入收藏夹 / 报价）'}
+              onClick={(e) => e.stopPropagation()}
+              onChange={toggle}
+            />
+            {body}
+          </span>
+        );
       },
     },
     // 原站 templet：'<a data-href="/product/index/view/id/xx.html" class="side-a">{{d.title}}</a>'（.side-a = #1A75FF 可点）
-    { key: 'title', title: '产品标题', width: 192, render: (r) => (
+    { key: 'title', title: '产品标题', width: 186, render: (r) => (
         <span className="pc-cell-2" style={{ color: '#1A75FF', cursor: 'pointer' }} title={plain(r.title)} onClick={(e) => { e.stopPropagation(); setCur(r); }}>
           {plain(r.title)}
         </span>
@@ -512,7 +568,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     { key: 'species', title: '种属', width: 70, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || ''}</span> },
     { key: 'app', title: '应用', width: 70, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || ''}</span> },
     // 原站 templet：'<span class="green">{{d.price_desc}}</span>' —— 原始字符串直接展示，绿色，自然换行
-    { key: 'price', title: '价格明细', width: 148, render: (r) => (
+    { key: 'price', title: '价格明细', width: 144, render: (r) => (
         <span className="pc-c-green" style={{ fontSize: 12.5 }}>{(r as any).price_desc || ''}</span>
       ) },
     { key: 'gene', title: '基因名称', width: 76, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || ''}</span> },

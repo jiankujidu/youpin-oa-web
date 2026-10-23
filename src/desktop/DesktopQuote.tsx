@@ -14,25 +14,33 @@ import {
   addProducts,
   createFolder,
   exportQuoteCsv,
+  exportQuoteXlsx,
+  EXTRA_COLS,
   getDocs,
   getFolders,
   lineAmount,
   money,
   moveItems,
   nextQuoteNo,
+  quoteColumns,
   removeDoc,
   removeFolder,
   removeItems,
   renameFolder,
   rmbUpper,
+  round2,
   saveDoc,
   subscribeQuote,
   sumQuote,
   uid,
   unitPrice,
   updateItem,
+  type QuoteCol,
+  type QuoteDoc,
   type QuoteFolder,
   type QuoteItem,
+  type QuoteOpts,
+  type QuoteSheetInfo,
 } from '../core/quoteStore';
 import type { Product } from '../core/types';
 import { plain, toast } from '../core/util';
@@ -46,10 +54,18 @@ interface Settings {
   seller: string;
   validDays: number;
   priceType: 'dir' | 'dist';
+  /** 客户类型：retail 终端客户（不体现经销价） / dealer 经销商（体现经销价并以经销价报价） */
+  mode: 'retail' | 'dealer';
   discount: number;
   taxRate: number;
   note: string;
   includeSub: boolean;
+  /** 报价单是否体现折扣列 */
+  showDiscount: boolean;
+  /** 附加属性列（分类/方法学/基因名称/分子量/来源） */
+  extra: string[];
+  /** 是否体现备注列 */
+  showNote: boolean;
 }
 
 const DEF_SETTINGS: Settings = {
@@ -58,16 +74,26 @@ const DEF_SETTINGS: Settings = {
   seller: '',
   validDays: 30,
   priceType: 'dir',
+  mode: 'retail',
   discount: 100,
   taxRate: 0,
   note: '1、本报价含税票；2、货期以合同为准；3、报价有效期内价格不变。',
   includeSub: true,
+  showDiscount: false,
+  extra: [],
+  showNote: false,
 };
 
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY_SETTINGS);
-    if (raw) return { ...DEF_SETTINGS, ...(JSON.parse(raw) as Settings) };
+    if (raw) {
+      const s = { ...DEF_SETTINGS, ...(JSON.parse(raw) as Settings) } as Settings;
+      // 兼容旧存档：没有 mode 时按原 priceType 推导
+      if (!s.mode) s.mode = s.priceType === 'dist' ? 'dealer' : 'retail';
+      if (!Array.isArray(s.extra)) s.extra = [];
+      return s;
+    }
   } catch {
     /* noop */
   }
@@ -80,11 +106,65 @@ function today(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** 历史报价单 → Excel 导出所需的抬头/汇总 */
+function docSheetInfo(d: QuoteDoc): QuoteSheetInfo {
+  const taxRate = Number(d.taxRate) || 0;
+  const tax = round2(d.amount * (taxRate / 100));
+  return {
+    no: d.no,
+    customer: d.customer,
+    contact: d.contact,
+    seller: d.seller,
+    date: d.date,
+    validDays: d.validDays,
+    priceLabel: d.mode === 'dealer' ? '经销价（经销商）' : '目录价（终端客户）',
+    taxRate,
+    total: d.amount,
+    tax,
+    gross: round2(d.amount + tax),
+    note: d.note,
+  };
+}
+
+/** 历史报价单 → 输出选项（保存时的口径） */
+function docOpts(d: QuoteDoc): QuoteOpts {
+  return {
+    mode: d.mode || (d.priceType === 'dist' ? 'dealer' : 'retail'),
+    showDiscount: !!d.showDiscount,
+    extra: d.extra || [],
+    showNote: false,
+  };
+}
+
 function addDays(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + (Number(days) || 0));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+/** 明细表各列像素宽度（Excel 列宽另在 quoteColumns 里以字符数定义） */
+const COL_PX: Record<string, number> = {
+  idx: 46,
+  goods_no: 132,
+  title: 250,
+  species: 88,
+  application: 132,
+  cate: 110,
+  method: 100,
+  gene: 100,
+  mw: 90,
+  source: 90,
+  basis: 96,
+  spec: 132,
+  unit: 78,
+  dir: 104,
+  dist: 116,
+  discount: 78,
+  quote: 106,
+  qty: 66,
+  amount: 116,
+  note: 140,
+};
 
 /** 行 = 收藏条目 + 所属夹（右侧表格按夹聚合展示） */
 interface Row {
@@ -151,6 +231,64 @@ export default function DesktopQuote() {
   const sum = useMemo(() => sumQuote(rows.map((r) => r.item), setting.taxRate), [rows, setting.taxRate]);
   const selRows = rows.filter((r) => r.item.sel);
 
+  /** 报价单输出选项（列集合 / 是否体现经销价 / 是否体现折扣） */
+  const opts: QuoteOpts = useMemo(
+    () => ({
+      mode: setting.mode,
+      showDiscount: setting.showDiscount,
+      extra: setting.extra || [],
+      showNote: setting.showNote,
+    }),
+    [setting.mode, setting.showDiscount, setting.extra, setting.showNote],
+  );
+  /** 明细表 / 预览 / Excel 共用的列 */
+  const cols = useMemo(() => quoteColumns(opts), [opts]);
+
+  /** 明细表列 = 报价单列 + 「取价」列（目录价/经销价/自定义，仅编辑用，不进报价单） */
+  const editCols = useMemo(() => {
+    const basis: QuoteCol = { key: 'basis', title: '取价', width: 100, kind: 'textC', get: () => '' };
+    const out: QuoteCol[] = [];
+    for (const c of cols) {
+      if (c.key === 'dir') out.push(basis);
+      out.push(c);
+    }
+    return out;
+  }, [cols]);
+
+  /** 属性缺失（旧条目没有种属/应用场景）的条数 */
+  const missingAttrs = rows.filter((r) => !r.item.species && !r.item.application).length;
+
+  /** 从原站产品库按货号回填种属/应用场景等属性 */
+  async function fillAttrs() {
+    const targets = rows.filter((r) => !r.item.application || !r.item.species);
+    if (!targets.length) return toast('产品属性已齐全');
+    toast(`正在补全 ${targets.length} 个产品的属性…`);
+    let n = 0;
+    for (const r of targets.slice(0, 60)) {
+      try {
+        const { rows: list } = await fetchProductPage(r.item.goods_no, 1, 5);
+        const m =
+          list.find((p) => (p.goods_no || '').split(/[;；]/)[0] === r.item.goods_no) || list[0];
+        if (m) {
+          const anyP = m as unknown as Record<string, unknown>;
+          updateItem(r.folder.id, r.item.id, {
+            species: m.species || r.item.species || '',
+            application: m.application || r.item.application || '',
+            method: m.methodology || r.item.method || '',
+            gene: String(anyP.gene_name ?? r.item.gene ?? ''),
+            mw: String(anyP.da ?? r.item.mw ?? ''),
+            source: m.source || r.item.source || '',
+          });
+          n++;
+        }
+      } catch {
+        /* 单条失败不影响整体 */
+      }
+    }
+    refresh();
+    toast(`已补全 ${n} 个产品的种属/应用场景等属性`);
+  }
+
   /* ------------------------------ 收藏夹操作 ------------------------------ */
   function doCreateFolder(name: string, parentId: string | null) {
     const f = createFolder(name, parentId);
@@ -187,6 +325,14 @@ export default function DesktopQuote() {
     refresh();
   }
 
+  /** 客户类型：终端客户（目录价，不体现经销价）/ 经销商（经销价，体现经销价列） */
+  function applyMode(m: 'retail' | 'dealer') {
+    const t: 'dir' | 'dist' = m === 'dealer' ? 'dist' : 'dir';
+    setSetting((s) => ({ ...s, mode: m, priceType: t }));
+    rows.forEach((r) => updateItem(r.folder.id, r.item.id, { priceType: t }));
+    refresh();
+  }
+
   function applyPriceType(t: 'dir' | 'dist') {
     setSetting((s) => ({ ...s, priceType: t }));
     rows.forEach((r) => updateItem(r.folder.id, r.item.id, { priceType: t }));
@@ -202,6 +348,121 @@ export default function DesktopQuote() {
   function removeRow(row: Row) {
     removeItems(row.folder.id, [row.item.id]);
     refresh();
+  }
+
+  /** 明细表单元格：属性列只读展示，价格/数量/单位等可就地编辑 */
+  function renderCell(c: QuoteCol, r: Row, i: number) {
+    const it = r.item;
+    const spec = it.prices[it.specIndex] || it.prices[0];
+    switch (c.key) {
+      case 'idx':
+        return i + 1;
+      case 'goods_no':
+        return (
+          <span style={{ fontFamily: 'Consolas, Menlo, monospace', fontSize: 12.5 }}>{it.goods_no || '—'}</span>
+        );
+      case 'title':
+        return (
+          <div className="q-title-cell">
+            <span className="t" title={it.title}>
+              {it.title}
+            </span>
+            {it.cate ? <span className="s">{it.cate}</span> : null}
+          </div>
+        );
+      case 'species':
+      case 'application':
+      case 'cate':
+      case 'method':
+      case 'gene':
+      case 'mw':
+      case 'source': {
+        const v = String(c.get(it) || '');
+        return (
+          <span className="pc-cell-1" title={v}>
+            {v || '—'}
+          </span>
+        );
+      }
+      case 'basis':
+        return (
+          <select
+            className="q-sel"
+            style={{ width: '100%' }}
+            value={it.priceType}
+            onChange={(e) => patch(r, { priceType: e.target.value as 'dir' | 'dist' | 'custom' })}
+          >
+            <option value="dir">目录价</option>
+            <option value="dist">经销价</option>
+            <option value="custom">自定义</option>
+          </select>
+        );
+      case 'spec':
+        return it.prices.length > 1 ? (
+          <select
+            className="q-sel"
+            style={{ width: '100%' }}
+            value={it.specIndex}
+            onChange={(e) => patch(r, { specIndex: Number(e.target.value) })}
+          >
+            {it.prices.map((p, k) => (
+              <option key={k} value={k}>
+                {p.spec}
+                {p.dir ? `（¥${money(p.dir)}）` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span>{spec?.spec || '—'}</span>
+        );
+      case 'unit':
+        return <input className="q-inp" value={it.unit} onChange={(e) => patch(r, { unit: e.target.value })} />;
+      case 'dir':
+        return spec?.dir ? money(spec.dir) : '—';
+      case 'dist':
+        return spec?.dist ? money(spec.dist) : '—';
+      case 'discount':
+        return (
+          <input
+            className="q-inp r"
+            type="number"
+            value={it.discount}
+            onChange={(e) => patch(r, { discount: Number(e.target.value) || 0 })}
+          />
+        );
+      case 'quote':
+        return (
+          <input
+            className="q-inp r"
+            type="number"
+            value={it.priceType === 'custom' ? it.custom : unitPrice(it)}
+            onChange={(e) => patch(r, { priceType: 'custom', custom: Number(e.target.value) || 0 })}
+          />
+        );
+      case 'qty':
+        return (
+          <input
+            className="q-inp r"
+            type="number"
+            min={0}
+            value={it.qty}
+            onChange={(e) => patch(r, { qty: Number(e.target.value) || 0 })}
+          />
+        );
+      case 'amount':
+        return <b>¥{money(lineAmount(it))}</b>;
+      case 'note':
+        return (
+          <input
+            className="q-inp"
+            value={it.note}
+            placeholder="选填"
+            onChange={(e) => patch(r, { note: e.target.value })}
+          />
+        );
+      default:
+        return String(c.get(it) ?? '');
+    }
   }
 
   function clearFolder() {
@@ -229,6 +490,9 @@ export default function DesktopQuote() {
       date: today(),
       validDays: setting.validDays,
       priceType: setting.priceType,
+      mode: setting.mode,
+      extra: setting.extra || [],
+      showDiscount: setting.showDiscount,
       discount: setting.discount,
       taxRate: setting.taxRate,
       currency: 'CNY',
@@ -248,22 +512,39 @@ export default function DesktopQuote() {
     setQuoteNo(nextQuoteNo());
   }
 
-  const meta = {
-    报价单号: quoteNo,
-    客户名称: setting.customer,
-    联系人: setting.contact,
-    报价日期: today(),
-    有效期: `${setting.validDays} 天（至 ${addDays(setting.validDays)}）`,
-    价格类型: setting.priceType === 'dist' ? '经销价' : '目录价',
-    税率: `${setting.taxRate}%`,
-    销售: setting.seller,
+  /** 导出/打印共用的抬头 + 汇总 */
+  const sheetInfo: QuoteSheetInfo = {
+    no: quoteNo,
+    customer: setting.customer,
+    contact: setting.contact,
+    seller: setting.seller,
+    date: today(),
+    validDays: setting.validDays,
+    priceLabel:
+      setting.mode === 'dealer' ? '经销价（经销商）' : '目录价（终端客户）',
+    taxRate: Number(setting.taxRate) || 0,
+    total: sum.total,
+    tax: sum.tax,
+    gross: sum.gross,
+    note: setting.note,
   };
+
+  function exportExcel() {
+    if (!selRows.length) return toast('请先勾选要报价的产品');
+    exportQuoteXlsx(
+      selRows.map((r) => r.item),
+      sheetInfo,
+      opts,
+    );
+    toast('已导出 Excel 报价单');
+  }
 
   function exportCsv() {
     if (!selRows.length) return toast('请先勾选要报价的产品');
     exportQuoteCsv(
       selRows.map((r) => r.item),
-      meta,
+      sheetInfo,
+      opts,
     );
     toast('已导出 CSV');
   }
@@ -509,24 +790,27 @@ export default function DesktopQuote() {
                   onChange={(e) => setSetting((s) => ({ ...s, validDays: Number(e.target.value) || 0 }))}
                 />
               </div>
-              <div className="q-field" style={{ width: 150 }}>
-                <span>价格类型</span>
+              <div className="q-field" style={{ width: 196 }}>
+                <span>客户类型（决定报价口径）</span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
-                    className={`pc-btn pc-btn-sm${setting.priceType === 'dir' ? '' : ' pc-btn-ghost'}`}
-                    onClick={() => applyPriceType('dir')}
+                    className={`pc-btn pc-btn-sm${setting.mode === 'retail' ? '' : ' pc-btn-ghost'}`}
+                    onClick={() => applyMode('retail')}
                   >
-                    目录价
+                    终端客户
                   </button>
                   <button
-                    className={`pc-btn pc-btn-sm${setting.priceType === 'dist' ? '' : ' pc-btn-ghost'}`}
-                    onClick={() => applyPriceType('dist')}
+                    className={`pc-btn pc-btn-sm${setting.mode === 'dealer' ? '' : ' pc-btn-ghost'}`}
+                    onClick={() => applyMode('dealer')}
                   >
-                    经销价
+                    经销商
                   </button>
                 </div>
+                <span style={{ fontSize: 11.5, color: '#98a2b3', lineHeight: 1.4 }}>
+                  {setting.mode === 'dealer' ? '按经销价报价，报价单体现经销价' : '按目录价报价，不体现经销价'}
+                </span>
               </div>
-              <div className="q-field" style={{ width: 120 }}>
+              <div className="q-field" style={{ width: 136 }}>
                 <span>统一折扣（%）</span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input
@@ -538,6 +822,47 @@ export default function DesktopQuote() {
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => applyDiscount(setting.discount)}>
                     应用
                   </button>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, height: 22 }}>
+                  <input
+                    type="checkbox"
+                    className="pc-check"
+                    checked={setting.showDiscount}
+                    onChange={(e) => setSetting((s) => ({ ...s, showDiscount: e.target.checked }))}
+                  />
+                  报价单显示折扣列
+                </label>
+              </div>
+              <div className="q-field" style={{ width: 330 }}>
+                <span>报价单附加列（种属、应用场景恒显示）</span>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12.5, height: 28 }}>
+                  {EXTRA_COLS.map((c) => (
+                    <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <input
+                        type="checkbox"
+                        className="pc-check"
+                        checked={setting.extra.includes(c.key)}
+                        onChange={(e) =>
+                          setSetting((s) => ({
+                            ...s,
+                            extra: e.target.checked
+                              ? [...(s.extra || []), c.key]
+                              : (s.extra || []).filter((x) => x !== c.key),
+                          }))
+                        }
+                      />
+                      {c.title}
+                    </label>
+                  ))}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <input
+                      type="checkbox"
+                      className="pc-check"
+                      checked={setting.showNote}
+                      onChange={(e) => setSetting((s) => ({ ...s, showNote: e.target.checked }))}
+                    />
+                    备注
+                  </label>
                 </div>
               </div>
               <div className="q-field" style={{ width: 100 }}>
@@ -586,6 +911,15 @@ export default function DesktopQuote() {
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setPickOpen(true)}>
                     ＋ 添加产品
                   </button>
+                  {missingAttrs ? (
+                    <button
+                      className="pc-btn pc-btn-sm pc-btn-ghost"
+                      title="按货号回原站产品库补回种属 / 应用场景 / 方法学等属性"
+                      onClick={() => void fillAttrs()}
+                    >
+                      ↻ 补全属性({missingAttrs})
+                    </button>
+                  ) : null}
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setAllSel(true)}>
                     全选
                   </button>
@@ -611,17 +945,11 @@ export default function DesktopQuote() {
                             onChange={(e) => setAllSel(e.target.checked)}
                           />
                         </th>
-                        <th style={{ width: 46 }}>序号</th>
-                        <th style={{ width: 120 }}>货号</th>
-                        <th>产品名称</th>
-                        <th style={{ width: 130 }}>规格</th>
-                        <th style={{ width: 110 }}>价格类型</th>
-                        <th style={{ width: 100 }}>单价(元)</th>
-                        <th style={{ width: 80 }}>数量</th>
-                        <th style={{ width: 70 }}>单位</th>
-                        <th style={{ width: 90 }}>折扣(%)</th>
-                        <th style={{ width: 110 }}>金额(元)</th>
-                        <th style={{ width: 140 }}>备注</th>
+                        {editCols.map((c) => (
+                          <th key={c.key} style={{ width: COL_PX[c.key] }}>
+                            {c.title}
+                          </th>
+                        ))}
                         <th style={{ width: 90 }}>所属夹</th>
                         <th style={{ width: 70 }}>操作</th>
                       </tr>
@@ -639,86 +967,14 @@ export default function DesktopQuote() {
                                 onChange={(e) => patch(r, { sel: e.target.checked })}
                               />
                             </td>
-                            <td>{i + 1}</td>
-                            <td>{it.goods_no || '—'}</td>
-                            <td className="q-title-cell">
-                              <span className="t" title={it.title}>
-                                {it.title}
-                              </span>
-                              {it.cate ? <span className="s">{it.cate}</span> : null}
-                            </td>
-                            <td>
-                              {it.prices.length > 1 ? (
-                                <select
-                                  className="q-sel"
-                                  style={{ width: '100%' }}
-                                  value={it.specIndex}
-                                  onChange={(e) => patch(r, { specIndex: Number(e.target.value) })}
-                                >
-                                  {it.prices.map((p, k) => (
-                                    <option key={k} value={k}>
-                                      {p.spec}
-                                      {p.dir ? `（¥${money(p.dir)}）` : ''}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span>{it.prices[0]?.spec || '—'}</span>
-                              )}
-                            </td>
-                            <td>
-                              <select
-                                className="q-sel"
-                                style={{ width: '100%' }}
-                                value={it.priceType}
-                                onChange={(e) => patch(r, { priceType: e.target.value as 'dir' | 'dist' | 'custom' })}
+                            {editCols.map((c) => (
+                              <td
+                                key={c.key}
+                                className={c.kind === 'num' || c.kind === 'quote' || c.kind === 'int' ? 'q-num' : undefined}
                               >
-                                <option value="dir">目录价</option>
-                                <option value="dist">经销价</option>
-                                <option value="custom">自定义</option>
-                              </select>
-                            </td>
-                            <td>
-                              <input
-                                className="q-inp r"
-                                type="number"
-                                value={it.priceType === 'custom' ? it.custom : unitPrice(it)}
-                                onChange={(e) => patch(r, { priceType: 'custom', custom: Number(e.target.value) || 0 })}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                className="q-inp r"
-                                type="number"
-                                min={0}
-                                value={it.qty}
-                                onChange={(e) => patch(r, { qty: Number(e.target.value) || 0 })}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                className="q-inp"
-                                value={it.unit}
-                                onChange={(e) => patch(r, { unit: e.target.value })}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                className="q-inp r"
-                                type="number"
-                                value={it.discount}
-                                onChange={(e) => patch(r, { discount: Number(e.target.value) || 0 })}
-                              />
-                            </td>
-                            <td className="q-num">¥{money(lineAmount(it))}</td>
-                            <td>
-                              <input
-                                className="q-inp"
-                                value={it.note}
-                                placeholder="选填"
-                                onChange={(e) => patch(r, { note: e.target.value })}
-                              />
-                            </td>
+                                {renderCell(c, r, i)}
+                              </td>
+                            ))}
                             <td style={{ fontSize: 12, color: '#8a919f' }}>{r.folder.name}</td>
                             <td>
                               <span style={{ display: 'flex', gap: 4 }}>
@@ -779,6 +1035,9 @@ export default function DesktopQuote() {
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => window.print()}>
                     打印 / 存为 PDF
                   </button>
+                  <button className="pc-btn pc-btn-sm pc-btn-green" onClick={exportExcel}>
+                    导出 Excel 报价单
+                  </button>
                   <button className="pc-btn pc-btn-sm pc-btn-warm" onClick={exportCsv}>
                     导出 CSV
                   </button>
@@ -813,7 +1072,7 @@ export default function DesktopQuote() {
                   </div>
                   <div>
                     <span>价格类型：</span>
-                    {setting.priceType === 'dist' ? '经销价' : '目录价'}
+                    {sheetInfo.priceLabel}
                   </div>
                   <div>
                     <span>销售负责人：</span>
@@ -823,42 +1082,38 @@ export default function DesktopQuote() {
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ width: 40 }}>序号</th>
-                      <th style={{ width: 110 }}>货号</th>
-                      <th>产品名称</th>
-                      <th style={{ width: 110 }}>规格</th>
-                      <th style={{ width: 60 }}>单位</th>
-                      <th className="r" style={{ width: 90 }}>
-                        单价
-                      </th>
-                      <th className="r" style={{ width: 60 }}>
-                        数量
-                      </th>
-                      <th className="r" style={{ width: 70 }}>
-                        折扣
-                      </th>
-                      <th className="r" style={{ width: 100 }}>
-                        金额
-                      </th>
+                      {cols.map((c) => (
+                        <th key={c.key} className={c.kind === 'num' || c.kind === 'quote' || c.kind === 'int' ? 'r' : undefined}>
+                          {c.title}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {selRows.map((r, i) => (
                       <tr key={r.item.id}>
-                        <td>{i + 1}</td>
-                        <td>{r.item.goods_no}</td>
-                        <td>{r.item.title}</td>
-                        <td>{r.item.prices[r.item.specIndex]?.spec || '—'}</td>
-                        <td>{r.item.unit}</td>
-                        <td className="r">{money(unitPrice(r.item))}</td>
-                        <td className="r">{r.item.qty}</td>
-                        <td className="r">{r.item.discount}%</td>
-                        <td className="r">{money(lineAmount(r.item))}</td>
+                        {cols.map((c) => {
+                          const it = r.item;
+                          const isNum = c.kind === 'num' || c.kind === 'quote' || c.kind === 'int';
+                          if (c.key === 'idx') return <td key={c.key}>{i + 1}</td>;
+                          if (c.key === 'amount') return <td key={c.key} className="r">{money(lineAmount(it))}</td>;
+                          if (c.key === 'quote') return <td key={c.key} className="r">{money(unitPrice(it))}</td>;
+                          if (c.key === 'dir' || c.key === 'dist') {
+                            const v = Number(c.get(it)) || 0;
+                            return <td key={c.key} className="r">{v ? money(v) : '—'}</td>;
+                          }
+                          const v = c.get(it);
+                          return (
+                            <td key={c.key} className={isNum ? 'r' : undefined}>
+                              {v === '' || v === null || v === undefined ? '—' : v}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                     {!selRows.length ? (
                       <tr>
-                        <td colSpan={9} style={{ textAlign: 'center', color: '#98a2b3', padding: '18px 0' }}>
+                        <td colSpan={cols.length} style={{ textAlign: 'center', color: '#98a2b3', padding: '18px 0' }}>
                           未勾选产品
                         </td>
                       </tr>
@@ -932,6 +1187,9 @@ export default function DesktopQuote() {
                                     seller: d.seller,
                                     validDays: d.validDays,
                                     priceType: d.priceType,
+                                    mode: d.mode || (d.priceType === 'dist' ? 'dealer' : 'retail'),
+                                    extra: d.extra || [],
+                                    showDiscount: !!d.showDiscount,
                                     taxRate: d.taxRate,
                                     note: d.note,
                                   }));
@@ -940,6 +1198,16 @@ export default function DesktopQuote() {
                                 }}
                               >
                                 查看
+                              </button>
+                              <button
+                                className="pc-xs-btn pc-xs-green"
+                                title="按该单保存时的口径导出 Excel"
+                                onClick={() => {
+                                  exportQuoteXlsx(d.rows, docSheetInfo(d), docOpts(d));
+                                  toast('已导出 Excel 报价单');
+                                }}
+                              >
+                                Excel
                               </button>
                               <button
                                 className="pc-xs-btn pc-xs-danger"

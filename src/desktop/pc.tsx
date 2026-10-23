@@ -293,17 +293,8 @@ export function DataTable<T>({
             {indexCol ? <th style={frzStyle(0)}>序号</th> : null}
             {columns.map((c, i) => (
               <th key={c.key} style={{ textAlign: c.align || 'left', ...frzStyle(i + (indexCol ? 1 : 0)) }}>
-                {i === 0 && rowSelect ? (
-                  <span
-                    className={`pc-pick-all${rowSelect.allOn ? ' on' : ''}`}
-                    title={
-                      rowSelect.allOn
-                        ? `已全选本页（${rowSelect.selCount} 个），点击取消`
-                        : '全选本页（鼠标移到行上，点行首圆点可单个勾选；Ctrl+点击行也可）'
-                    }
-                    onClick={() => rowSelect.onAll(!rowSelect.allOn)}
-                  />
-                ) : null}
+                {/* 勾选 UI 由调用方在业务列内绘制（产品页即「货号列复选框」），
+                    这里不再叠 absolute 圆点——圆点会压住货号文字且不显眼。 */}
                 {c.head !== undefined ? c.head : c.title}
               </th>
             ))}
@@ -339,8 +330,6 @@ export function DataTable<T>({
               >
                 {indexCol ? <td className="pc-col-idx">{(cur - 1) * pageSize + i + 1}</td> : null}
                 {columns.map((c, ci) => {
-                  const absIdx = (cur - 1) * pageSize + i;
-                  /** 行首勾选圆点（仅第一列，absolute 不占列宽；hover 才显形） */
                   const raw = c.render(r, (cur - 1) * pageSize + i);
                   // 裸文本单元格统一收敛为「单行 + 省略 + 悬停全文」：
                   // 列宽自适应后若放任换行，行高会被撑到 100px+，首屏可见行数骤降
@@ -354,16 +343,6 @@ export function DataTable<T>({
                     );
                   return (
                     <td key={c.key} style={{ textAlign: c.align || 'left', ...frzStyle(ci + (indexCol ? 1 : 0)) }}>
-                      {ci === 0 && rowSelect ? (
-                        <span
-                          className={`pc-row-pick${rowSelect.isSel(r) ? ' on' : ''}`}
-                          title={rowSelect.isSel(r) ? '取消勾选' : '勾选此产品'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            rowSelect.onToggle(r, absIdx);
-                          }}
-                        />
-                      ) : null}
                       {cell}
                     </td>
                   );

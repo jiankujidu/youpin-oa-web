@@ -70,34 +70,71 @@ try {
   out.expectCols = ['产品货号/说明书', '产品标题', '种属', '应用', '价格明细', '基因名称', '方法学', '分子量', '来源', '定量/定性', '分类', '浓度点'];
   out.orderOk = out.expectCols.every((t, i) => (out.heads[i] || '') === t);
 
-  // 行勾选：hover 第一行（真实鼠标移动），检查行首圆点是否显形
-  const rowBox = await page.evaluate((v) => {
-    const tr = eval(v).querySelector('tbody tr');
-    const r = tr.getBoundingClientRect();
-    return { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2) };
+  /* 行勾选（「勾选货号」方案）：
+     ① 货号列内常驻复选框（不需要 hover 就看得见）② 点货号文字同样切换 ③ 表头全选（含半选态） */
+  out.pickBox = await page.evaluate((v) => {
+    const wrap = eval(v);
+    const boxes = Array.from(wrap.querySelectorAll('tbody tr .pc-goods-cell input[type="checkbox"]'));
+    if (!boxes.length) return null;
+    const first = boxes[0];
+    const r = first.getBoundingClientRect();
+    const cs = getComputedStyle(first);
+    const noEl = first.closest('td')?.querySelector('.pc-goods-no');
+    return {
+      count: boxes.length,
+      visible: cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.1 && r.width > 8,
+      w: Math.round(r.width),
+      inFirstCol: first.closest('td') === wrap.querySelector('tbody tr td'),
+      noText: (noEl?.textContent || '').trim().slice(0, 24),
+    };
   }, VIS);
-  await page.mouse.move(rowBox.x, rowBox.y);
-  await sleep(400);
-  out.pickVisible = await page.evaluate((v) => {
-    const p = eval(v).querySelector('tbody tr .pc-row-pick');
-    if (!p) return null;
-    const cs = getComputedStyle(p);
-    return { opacity: cs.opacity, w: Math.round(p.getBoundingClientRect().width) };
-  }, VIS);
-  await page.evaluate((v) => eval(v).querySelector('tbody tr .pc-row-pick')?.click(), VIS);
+
+  // ① 点第一个货号复选框
+  await page.evaluate((v) => eval(v).querySelector('tbody tr .pc-goods-cell input[type="checkbox"]')?.click(), VIS);
   await sleep(400);
   out.afterPick = await page.evaluate((v) => ({
     selRows: eval(v).querySelectorAll('tbody tr.pc-row-sel').length,
+    checkedBoxes: Array.from(eval(v).querySelectorAll('tbody tr .pc-goods-cell input[type="checkbox"]')).filter((i) => i.checked).length,
     favBar: (document.querySelector('.pc-fav-bar')?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40),
   }), VIS);
 
-  // 表头全选圆点
-  await page.evaluate((v) => eval(v).querySelector('.pc-pick-all')?.click(), VIS);
+  // ② 点第二行的货号文字（应勾选第 2 行）
+  await page.evaluate((v) => {
+    const tr = eval(v).querySelectorAll('tbody tr')[1];
+    tr?.querySelector('.pc-goods-no')?.click();
+  }, VIS);
+  await sleep(400);
+  out.afterClickNo = await page.evaluate((v) => ({
+    selRows: eval(v).querySelectorAll('tbody tr.pc-row-sel').length,
+    row2Checked: !!eval(v).querySelectorAll('tbody tr')[1]?.querySelector('input[type="checkbox"]')?.checked,
+  }), VIS);
+
+  // ③ 表头全选（先取消已选，再全选，验证半选态）
+  out.headState = await page.evaluate((v) => {
+    const el = eval(v).querySelector('thead .pc-th-pick input[type="checkbox"]');
+    return el ? { checked: el.checked, indeterminate: el.indeterminate } : null;
+  }, VIS);
+  await page.evaluate((v) => eval(v).querySelector('thead .pc-th-pick input[type="checkbox"]')?.click(), VIS);
   await sleep(500);
   out.afterAll = await page.evaluate((v) => ({
     selRows: eval(v).querySelectorAll('tbody tr.pc-row-sel').length,
+    rows: eval(v).querySelectorAll('tbody tr').length,
+    allChecked: Array.from(eval(v).querySelectorAll('tbody tr input[type="checkbox"]')).every((i) => i.checked),
     bar: (document.querySelector('.pc-fav-bar')?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60),
   }), VIS);
+
+  // 行高体检：flex 化货号列后行高不应被撑高（前 6 行）
+  out.rowHeights = await page.evaluate((v) => {
+    const rows = Array.from(eval(v).querySelectorAll('tbody tr')).slice(0, 6);
+    return rows.map((tr) => {
+      const td = tr.querySelector('td');
+      const inner = td?.firstElementChild;
+      return {
+        tr: Math.round(tr.getBoundingClientRect().height),
+        content: inner ? Math.round(inner.getBoundingClientRect().height) : null,
+      };
+    });
+  }, VIS);
 
   await page.screenshot({ path: '.tmp-cols.png' });
   out.jsErrors = errs;
@@ -107,7 +144,13 @@ try {
 }
 
 async function waitTable(p) {
+  // 等到「真数据行」出现（货号复选框渲染出来），空态/加载中行不算
   await p.waitForSelector('.pc-table tbody tr', { timeout: 60000 });
+  try {
+    await p.waitForSelector('tbody tr .pc-goods-cell input[type="checkbox"]', { timeout: 60000 });
+  } catch {
+    /* 空数据时放行，由后续断言暴露 */
+  }
   await sleep(1500);
 }
 

@@ -75,6 +75,7 @@ try {
 
   // 3) 打开产品选择器，搜索并全选本页加入
   await clickText(page, '.pc-actions button', '添加产品');
+  await page.waitForSelector('.q-modal', { timeout: 30000 });
   await sleep(1200);
   out.pickerOpen = await page.evaluate(() => !!document.querySelector('.q-modal'));
   await page.evaluate(() => {
@@ -92,6 +93,7 @@ try {
     return el ? el.textContent.trim() : '';
   });
   // 目标夹：选「报价测试夹」
+  await page.waitForSelector('.q-modal-foot select', { timeout: 30000 });
   await page.evaluate(() => {
     const sel = document.querySelector('.q-modal-foot select');
     const opt = Array.from(sel.options).find((o) => o.textContent.includes('报价测试夹'));
