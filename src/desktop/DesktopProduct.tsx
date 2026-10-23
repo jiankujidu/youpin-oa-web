@@ -2,15 +2,31 @@
  * 产品中心 › 产品列表（/product/index/list）
  * PC 后台统一版式：工具栏 + 数据表格 + 分页 + 详情弹层（说明书 预览/收藏/转发）
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchProductCateOptions, fetchProductPage, productDelete, productSave, type ProductFilter } from '../core/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  fetchProductCateOptions,
+  fetchProductPage,
+  productAndUpInstructions,
+  productDelete,
+  productExportDownloadUrl,
+  productExportUrl,
+  productImport,
+  productImportUnder,
+  productImportUp,
+  productImportUpdate,
+  productSave,
+  productTempInstructions,
+  productUpInstructions,
+  type ProductFilter,
+} from '../core/api';
+import { CONFIG } from '../core/config';
 import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
 import { editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { type EditField } from '../core/opsFields';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
-import { downloadCsv, fmtTime, plain, sanitizeName, toast } from '../core/util';
+import { fmtTime, plain, sanitizeName, toast } from '../core/util';
 import { ConfirmDialog, EditModal, Modal } from './ui';
 import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
 
@@ -27,136 +43,222 @@ const PRODUCT_FIELDS: EditField[] = [
   { key: 'content', label: '备注/说明', type: 'textarea' },
 ];
 
-/** 价格明细展示行 */
-type PriceLine = { spec: string; price: string };
-
-/** 去掉规格串里的「规格」字样，收敛连续分隔符，控制长度 */
-function cleanSpec(raw: string): string {
-  const c = raw
-    .replace(/规格/g, '')
-    .replace(/[\s:：\-]{2,}/g, '：')
-    .replace(/^[\s:：\-]+|[\s:：\-]+$/g, '')
-    .slice(0, 12);
-  return c || '规格';
-}
-
-/**
- * 价格明细 → 结构化行。兼容三种原站格式：
- *  A「睿信目录价：规格：96T：2800元/48T：2000元;仑昌硕目录价：…」（分号分品牌、斜杠分规格）
- *  B「规格：96T-目录价：4000元/经销价：2000元,规格：48T-…」（逗号分规格）
- *  C「100UL;2230;53ul;1560」（规格;价格 交替，无「元」）
- */
-function priceLines(s?: string): PriceLine[] {
-  if (!s) return [];
-  const segs = s.split(/[;,/]/).map((x) => x.trim()).filter(Boolean);
-  const out: PriceLine[] = [];
-  for (const seg of segs) {
-    const m = /^([\u4e00-\u9fa5A-Za-z0-9.+\- :：]{0,14}?)[-:：]?\s*(?:目录价|经销价)?\s*[:：]?\s*([\d.]+)\s*元?$/.exec(seg);
-    // 规格段为空且不带「元」的纯数字（格式 C 的价格位）不在此解析，走下面的配对逻辑
-    if (m && /\d/.test(m[2]) && (m[1] || /元/.test(seg))) {
-      let spec = cleanSpec(m[1]);
-      if (spec === '规格') {
-        // 首部被「目录价/经销价」吃掉时用价格类型词兜底，如「经销价 ¥2000」
-        const t = /(目录价|经销价|单价)/.exec(seg);
-        if (t) spec = t[1];
-      }
-      out.push({ spec, price: m[2] });
-    }
-  }
-  if (out.length) return out;
-  const pairs: PriceLine[] = [];
-  for (let i = 0; i + 1 < segs.length; i += 2) pairs.push({ spec: cleanSpec(segs[i]), price: segs[i + 1] });
-  return pairs;
-}
-
-/** CSV 用：完整价格文本 */
-function fmtPrice(s?: string): string {
-  const lines = priceLines(s);
-  if (!lines.length) return s ? s.replace(/\n+/g, ' ').slice(0, 60) : '—';
-  return lines.map((l) => `${l.spec} ¥${l.price}`).join(' / ');
-}
-
-/** 价格明细单元格：最多 2 行 + 「共 N 项」，悬停显示全文 */
-function PriceCell({ desc }: { desc?: string }) {
-  const lines = priceLines(desc);
-  if (!lines.length) return <span style={{ color: 'var(--c-text-4)' }}>—</span>;
-  const shown = lines.slice(0, 1);
-  const rest = lines.length - shown.length;
-  const full = lines.map((l) => `${l.spec} ¥${l.price}`).join('\n');
-  return (
-    <span className="pc-price-cell" title={full}>
-      {shown.map((l, i) => (
-        <span className="pc-price-row" key={i}>
-          <span className="pc-price-spec">{l.spec}</span>
-          <span className="pc-price-num">{l.price}</span>
-        </span>
-      ))}
-      {rest > 0 ? <span className="pc-price-more">共 {lines.length} 项规格</span> : null}
-    </span>
-  );
-}
-
 /** 说明书地址：优先稳定端点 pc_goods_no_url（get_oss_file?id=，经代理不过期）；签名直链永远 403，转代理 /oss/ */
 function docUrl(g: { goods_no_url?: string; pc_goods_no_url?: string }): string {
   return absOaUrl(g.pc_goods_no_url || '') || signedOssToProxy(g.goods_no_url || '');
 }
 
-/** CSV 导出列（与表格列一致，属性/阅读权限导出中文标签） */
-const CSV_COLS = [
-  { key: 'no', title: '产品货号' },
-  { key: 'title', title: '产品标题' },
-  { key: 'cate', title: '分类' },
-  { key: 'price', title: '价格明细' },
-  { key: 'species', title: '种属' },
-  { key: 'app', title: '应用' },
-  { key: 'gene', title: '基因名称' },
-  { key: 'alias', title: '其他别称' },
-  { key: 'mw', title: '分子量' },
-  { key: 'source', title: '来源' },
-  { key: 'scope', title: '定量/定性' },
-  { key: 'speciesEng', title: '种属英文名称' },
-  { key: 'method', title: '方法学' },
-  { key: 'concentration', title: '浓度点' },
-  { key: 'eng', title: '英文名称' },
-  { key: 'tag', title: 'Tag' },
-  { key: 'expr', title: '表达系统' },
-  { key: 'productCode', title: '产品代码' },
-  { key: 'attr', title: '属性' },
-  { key: 'dl', title: '下载量' },
-  { key: 'share', title: '阅读权限范围' },
-];
+/* ---------- 导入 / 上下架 / 说明书上传弹窗（对齐原站 toolbar 事件的 layer.open 面板） ---------- */
 
-function csvRow(r: any) {
-  return {
-    no: String(r.goods_no || '').split(';')[0] || '',
-    title: plain(r.title || ''),
-    cate: r.cate_title || '',
-    price: fmtPrice(r.price_desc),
-    species: r.species || '',
-    app: r.application || '',
-    gene: r.gene_name || '',
-    alias: r.other_name || '',
-    mw: r.da || '',
-    source: r.source || '',
-    scope: r.scope || '',
-    speciesEng: r.species_eng_name || '',
-    method: r.methodology || '',
-    concentration: r.concentration || '',
-    eng: r.eng_name || '',
-    tag: r.tag || '',
-    expr: r.expression_system || '',
-    productCode: r.product_code || '',
-    attr: (() => { const t = String(r.type ?? ''); return t === '1' ? '精华' : t === '2' ? '热门' : t === '3' ? '推荐' : '暂无'; })(),
-    dl: r.down_load_num ?? 0,
-    share: (() => { const v = String(r.is_share ?? ''); return v === '1' ? '所有人' : v === '2' ? '部门' : v === '3' ? '部分人员' : '私有'; })(),
-  };
+/** 弹窗形态 → 原站标题 / 提示语 / 文件要求 / 模板下载链接 */
+const UPLOAD_KINDS: Record<
+  string,
+  { title: string; tips: string; accept: string; tpl?: string; tplName?: string; instr?: boolean }
+> = {
+  sync: {
+    title: '批量导入产品',
+    tips: '1、普通员工都可以进行批量导入操作；2、只能上传 .xls、.xlsx文件；3、数据请勿放在合并的单元格中；4、文件大小请勿超过2MB，导入数据不能超过20000条；5、一二级分类需要系统中存在。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品导入模板.xlsx',
+    tplName: 'Execl表格模板下载',
+  },
+  async: {
+    title: '批量导入产品(异步)',
+    tips: '1、普通员工都可以进行批量导入操作；2、只能上传 .xls、.xlsx文件；3、数据请勿放在合并的单元格中；4、文件大小请勿超过2MB，导入数据不能超过20000条。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品导入模板.xlsx',
+    tplName: 'Execl表格模板下载',
+  },
+  update: {
+    title: '批量更新产品',
+    tips: '1、普通员工都可以进行批量更新操作；2、只能上传 .xls、.xlsx文件；3、数据请勿放在合并的单元格中；4、文件大小请勿超过2MB。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品导入模板.xlsx',
+    tplName: 'Execl表格模板下载',
+  },
+  under: {
+    title: '批量下架产品',
+    tips: '1、普通员工都可以进行批量下架操作；2、只能上传 .xls、.xlsx文件；3、货号需要系统中存在，不存在处理失败。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品上下架导入模板.xlsx',
+    tplName: 'Execl表格模板下载',
+  },
+  up: {
+    title: '批量上架产品',
+    tips: '1、普通员工都可以进行批量上架操作；2、只能上传 .xls、.xlsx文件；3、货号需要系统中存在，不存在处理失败。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品上下架导入模板.xlsx',
+    tplName: 'Execl表格模板下载',
+  },
+  up2: {
+    title: '批量生成UP说明书',
+    tips: '1、数据文件只能上传 .xls、.xlsx文件，模板文件只能上传docx文件；2、数据请勿放在合并的单元格中；3、文件大小请勿超过1MB，导入数据不能超过1000条；4、文件名列需填写数据表中用于命名文件所在的列序号：A-最后列名，不填默认取C列。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品说明书导入模板.xlsx',
+    tplName: '说明书数据demo.xlsx下载',
+    instr: true,
+  },
+  productUp: {
+    title: '批量导入产品(异步)&生成UP说明书',
+    tips: '1、数据文件只能上传 .xls、.xlsx文件，模板文件只能上传docx文件；2、数据请勿放在合并的单元格中；3、文件大小请勿超过2MB。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品说明书导入模板.xlsx',
+    tplName: '说明书数据demo.xlsx下载',
+    instr: true,
+  },
+  productTemp: {
+    title: '批量导入产品(异步)&生成说明书',
+    tips: '1、数据文件只能上传 .xls、.xlsx文件，模板文件只能上传docx文件；2、数据请勿放在合并的单元格中；3、文件大小请勿超过2MB。',
+    accept: '.xls,.xlsx',
+    tpl: '/static/home/file/优品OA产品说明书导入模板.xlsx',
+    tplName: '说明书数据demo.xlsx下载',
+    instr: true,
+  },
+};
+
+function UploadModal({
+  kind,
+  busy,
+  note,
+  onBusy,
+  onNote,
+  onClose,
+  onDone,
+}: {
+  kind: string;
+  busy: boolean;
+  note: string;
+  onBusy: (v: boolean) => void;
+  onNote: (v: string) => void;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const cfg = UPLOAD_KINDS[kind] || UPLOAD_KINDS.sync;
+  const instr = !!cfg.instr;
+  const [file, setFile] = useState<File | null>(null);
+  const [tpl, setTpl] = useState<File | null>(null);
+  const [arrange, setArrange] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const tplRef = useRef<HTMLInputElement>(null);
+
+  async function submit() {
+    if (!file) return toast('请先选择文件');
+    if (instr && !tpl) return toast('请选择模板文件（.docx）');
+    onBusy(true);
+    onNote('文件上传中...');
+    let res;
+    if (kind === 'sync') res = await productImport(file, 1);
+    else if (kind === 'async') res = await productImport(file, 2);
+    else if (kind === 'update') res = await productImportUpdate(file);
+    else if (kind === 'under') res = await productImportUnder(file);
+    else if (kind === 'up') res = await productImportUp(file);
+    else if (kind === 'up2') res = await productUpInstructions(file, tpl!, arrange);
+    else if (kind === 'productUp') res = await productAndUpInstructions(file, tpl!, arrange);
+    else res = await productTempInstructions(file, tpl!, arrange);
+    onBusy(false);
+    onNote(res.msg || '');
+    if (res.ok) {
+      toast(res.msg || '操作成功');
+      onDone();
+    } else {
+      toast(res.msg || '操作失败');
+    }
+  }
+
+  return (
+    <Modal
+      title={cfg.title}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="pc-btn pc-btn-ghost" onClick={onClose} disabled={busy}>
+            关闭
+          </button>
+          <button className="pc-btn" onClick={submit} disabled={busy}>
+            {busy ? '处理中…' : '上传并导入'}
+          </button>
+        </>
+      }
+    >
+      <div style={{ fontSize: 13, color: 'var(--c-text-2)', lineHeight: 1.9 }}>
+        <div style={{ marginBottom: 10 }}>
+          <span style={{ color: 'var(--c-text)' }}>文件：</span>
+          <span style={{ color: 'var(--c-text-4)' }}>{cfg.accept}</span>
+          <button className="pc-btn pc-btn-ghost" style={{ marginLeft: 10 }} onClick={() => fileRef.current?.click()}>
+            选择文件
+          </button>
+          <span style={{ marginLeft: 10, color: 'var(--c-primary)' }}>
+            {file ? file.name : ''}
+          </span>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={cfg.accept}
+            style={{ display: 'none' }}
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+          />
+        </div>
+        {instr ? (
+          <div style={{ marginBottom: 10 }}>
+            <span style={{ color: 'var(--c-text)' }}>模板文件：</span>
+            <span style={{ color: 'var(--c-text-4)' }}>.docx</span>
+            <button className="pc-btn pc-btn-warm" style={{ marginLeft: 10 }} onClick={() => tplRef.current?.click()}>
+              选择模板文件
+            </button>
+            <span style={{ marginLeft: 10, color: 'var(--c-primary)' }}>
+              {tpl ? tpl.name : ''}
+            </span>
+            <input
+              ref={tplRef}
+              type="file"
+              accept=".docx"
+              style={{ display: 'none' }}
+              onChange={(e) => setTpl(e.target.files?.[0] || null)}
+            />
+          </div>
+        ) : null}
+        {instr ? (
+          <div style={{ marginBottom: 10 }}>
+            <span style={{ color: 'var(--c-text)' }}>文件名列：</span>
+            <input
+              className="pc-input"
+              style={{ width: 220, marginLeft: 10 }}
+              maxLength={12}
+              placeholder="文件命名存在的列序号：A-最后列名"
+              value={arrange}
+              onChange={(e) => setArrange(e.target.value)}
+            />
+          </div>
+        ) : null}
+        {cfg.tpl ? (
+          <div style={{ marginBottom: 10 }}>
+            <a
+              className="pc-link"
+              href={`${CONFIG.oaProxy}${cfg.tpl}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {cfg.tplName || '模板下载'}
+            </a>
+          </div>
+        ) : null}
+        <div style={{ color: 'var(--c-text-4)', fontSize: 12.5, whiteSpace: 'pre-line' }}>{cfg.tips}</div>
+        {note ? (
+          <div style={{ marginTop: 10, color: note.includes('失败') || note.includes('错误') ? '#f53f3f' : '#16b777' }}>
+            {note}
+          </div>
+        ) : null}
+      </div>
+    </Modal>
+  );
 }
 
 export default function DesktopProduct() {
   const [list, setList] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
+  /** 每页条数（原站分页条「20 条/页 ▾」，服务端生效） */
+  const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
@@ -164,6 +266,20 @@ export default function DesktopProduct() {
   const [cateId, setCateId] = useState('');
   const [speciesF, setSpeciesF] = useState('');
   const [appF, setAppF] = useState('');
+  /** 原站 #searchForm 其余筛选项（全部服务端参数） */
+  const [attrF, setAttrF] = useState('');
+  const [statusF, setStatusF] = useState('');
+  const [diffTimeF, setDiffTimeF] = useState('');
+  const [productNameF, setProductNameF] = useState('');
+  const [geneNameF, setGeneNameF] = useState('');
+  const [otherNameF, setOtherNameF] = useState('');
+  /** 关键词匹配方式：模糊(1) / 分明(0)，对齐原站 keyword_type 切换 */
+  const [keywordType, setKeywordType] = useState<'1' | '0'>('1');
+  /** 导入/上下架/说明书上传弹窗（原站 toolbar 事件） */
+  const [importKind, setImportKind] = useState<'sync' | 'async' | 'update' | 'under' | 'up' | null>(null);
+  const [instrKind, setInstrKind] = useState<'up2' | 'productUp' | 'productTemp' | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadNote, setUploadNote] = useState('');
   const [cateOpts, setCateOpts] = useState<{ id: string; title: string }[]>([]);
   const [cur, setCur] = useState<Product | null>(null);
   const [folders, setFolders] = useState<FavFolder[]>([]);
@@ -171,10 +287,6 @@ export default function DesktopProduct() {
   const [newName, setNewName] = useState('');
   /** 勾选的产品（对齐原站批量说明书 / getCheckData） */
   const [checked, setChecked] = useState<string[]>([]);
-  /** 模糊搜索（对齐原站「模糊」开关） */
-  const [fuzzy, setFuzzy] = useState(false);
-  /** 批量说明书结果弹窗 */
-  const [batch, setBatch] = useState(false);
   /** 新增 / 编辑产品弹窗（真实提交 POST /product/index/add） */
   const [editing, setEditing] = useState<Product | null>(null);
   /** 编辑弹窗形态：edit=编辑既有 / copy=复制为新品 / new=添加产品 */
@@ -184,35 +296,42 @@ export default function DesktopProduct() {
   /** 本地层版本号（复制/编辑后刷新合并行） */
   const [localVer, setLocalVer] = useState(0);
 
-  /** 逐页载入（后端 12 万+ 条，一次拉完会超时）；筛选走服务端参数（严格按原站接口） */
-  const load = useCallback(
-    (kw: string, p: number, append: boolean, filter?: ProductFilter) => {
-      if (!append) setLoading(true);
-      else setLoadingMore(true);
-      fetchProductPage(kw, p, 50, filter)
-        .then(({ rows, total }) => {
-          setList((prev) => (append ? [...prev, ...rows] : rows));
-          setTotal(total);
-          setLoading(false);
-          setLoadingMore(false);
-        })
-        .catch((e: unknown) => {
-          setLoading(false);
-          setLoadingMore(false);
-          toast('产品列表加载失败：' + (e instanceof Error ? e.message : '网络异常'));
-        });
-    },
-    [],
-  );
+  /** 服务端分页载入（原站每页 20 条，共 12 万+ 条；筛选/关键词全部走服务端参数） */
+  const load = useCallback((kw: string, p: number, filter?: ProductFilter) => {
+    setLoading(true);
+    fetchProductPage(kw, p, pageSize, filter)
+      .then(({ rows, total }) => {
+        setList(rows);
+        setTotal(total);
+        setLoading(false);
+      })
+      .catch((e: unknown) => {
+        setLoading(false);
+        toast('产品列表加载失败：' + (e instanceof Error ? e.message : '网络异常'));
+      });
+  }, [pageSize]);
 
+  /** 筛选条件 → 服务端参数（严格按原站 #searchForm 字段名） */
   const activeFilter = useMemo<ProductFilter | undefined>(() => {
-    if (!cateId && !speciesF && !appF) return undefined;
-    return { cateId: cateId || undefined, species: speciesF || undefined, application: appF || undefined };
-  }, [cateId, speciesF, appF]);
+    const f: ProductFilter = {
+      cateId: cateId || undefined,
+      species: speciesF || undefined,
+      application: appF || undefined,
+      type: attrF || undefined,
+      status: statusF || undefined,
+      diffTime: diffTimeF || undefined,
+      productName: productNameF || undefined,
+      geneName: geneNameF || undefined,
+      otherName: otherNameF || undefined,
+      keywordType: keywordType || undefined,
+    };
+    const has = Object.values(f).some((v) => !!v);
+    return has ? f : undefined;
+  }, [cateId, speciesF, appF, attrF, statusF, diffTimeF, productNameF, geneNameF, otherNameF, keywordType]);
 
   useEffect(() => {
     setPage(1);
-    load(query, 1, false, activeFilter);
+    load(query, 1, activeFilter);
   }, [query, activeFilter, load]);
   useEffect(() => setFolders(getFolders()), []);
 
@@ -222,16 +341,6 @@ export default function DesktopProduct() {
       if (opts.length) setCateOpts(opts);
     });
   }, []);
-  const opts = useMemo(() => {
-    const uniq = (get: (p: Product) => string | undefined) =>
-      [...new Set(list.map(get).filter((v): v is string => !!v))].sort();
-    return {
-      cate: cateOpts.length ? cateOpts.map((c) => c.title) : uniq((p) => p.cate_title),
-      species: uniq((p) => p.species),
-      app: uniq((p) => p.application),
-    };
-  }, [list, cateOpts]);
-
   /** 载入行即展示行（筛选已由服务端完成；本地复制的产品仍合并显示） */
   const rows = list;
 
@@ -250,26 +359,6 @@ export default function DesktopProduct() {
     [displayRows, checked],
   );
 
-  /** 勾选（或全部已载入）产品的说明书清单 */
-  const batchDocs = useMemo(() => {
-    const base = checkedRows.length ? checkedRows : (displayRows as any[]);
-    const out: { no: string; title: string; url: string; name: string }[] = [];
-    for (const p of base.slice(0, 100)) {
-      for (const g of p.goods_no_list || []) {
-        const url = docUrl(g);
-        if (!url) continue;
-        out.push({
-          no: g.goods_no,
-          title: plain(p.title || ''),
-          url,
-          name: `${sanitizeName(g.goods_no)}-${sanitizeName(plain(p.title || ''))}.pdf`,
-        });
-      }
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkedRows, displayRows, localVer]);
-
   /** 复制产品（打开编辑弹窗，去掉 id 即「另存为新品」真实提交原站） */
   function copyProduct(p: Product) {
     const { id: _drop, ...rest } = p as any;
@@ -281,22 +370,6 @@ export default function DesktopProduct() {
   function addProduct() {
     setEditKind('new');
     setEditing({ id: '', title: '', goods_no: '', species: '', application: '', cate_title: '', create_time: '' } as Product);
-  }
-
-  /** 导出勾选行（对齐原站「导出选中行数据(N)」） */
-  function exportCheckedCsv() {
-    if (!checkedRows.length) return toast('请先勾选要导出的产品');
-    const cols = CSV_COLS;
-    const rows = checkedRows.slice(0, 5000).map((r) => csvRow(r));
-    downloadCsv(`产品列表-选中-${new Date().toISOString().slice(0, 10)}`, cols, rows);
-    toast(`已导出 ${rows.length} 个选中产品为 CSV`);
-  }
-
-  /** 导出当前产品为 CSV（对齐原站「导出」） */
-  function exportCsv() {
-    const csvRows = (checkedRows.length ? checkedRows : (displayRows as any[])).slice(0, 5000).map(csvRow);
-    downloadCsv(`产品列表-${new Date().toISOString().slice(0, 10)}`, CSV_COLS, csvRows);
-    toast(`已导出 ${csvRows.length} 个产品为 CSV`);
   }
 
   async function shareDoc(name: string, url: string) {
@@ -416,7 +489,10 @@ export default function DesktopProduct() {
       },
     },
     { key: 'cate', title: '分类', width: 150, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || '—'}</span> },
-    { key: 'price', title: '价格明细', width: 200, render: (r) => <PriceCell desc={r.price_desc} /> },
+    // 原站 templet：'<span class="green">{{d.price_desc}}</span>' —— 原始字符串直接展示，绿色，自然换行
+    { key: 'price', title: '价格明细', width: 200, render: (r) => (
+        <span className="pc-c-green" style={{ fontSize: 12.5 }}>{(r as any).price_desc || '—'}</span>
+      ) },
     { key: 'title', title: '产品标题', width: 250, render: (r) => <span className="pc-td-strong pc-cell-2" title={plain(r.title)}>{plain(r.title)}</span> },
     { key: 'species', title: '种属', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || '—'}</span> },
     { key: 'app', title: '应用', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || '—'}</span> },
@@ -521,122 +597,201 @@ export default function DesktopProduct() {
         desc={`共 ${total || rows.length} 个产品 · 已载入 ${list.length} 个${localCount ? ` · 本地新增 ${localCount} 个` : ''}${checked.length ? ` · 已勾选 ${checked.length} 个` : ''}`}
         actions={
           <>
-            {/* 原站 #toolbarDemo 顺序：添加产品 / 批量导入… / 批量下架 / 批量上架 / 导出产品(csv) /
-                导出选中行数据(N) / 清空选中 / 批量生成UP说明书 / 导入(异步)&UP说明书…
-                批量导入系需文件上传通道，暂未接；其余按原站标签与顺序复刻。 */}
-            <button className="pc-btn" onClick={addProduct}>
+            {/* 原站 #toolbarDemo 12 按钮（顺序/标签/配色全部按快照 layui-btn 复刻） */}
+            <button className="pc-btn pc-btn-green" onClick={addProduct}>
               + 添加产品
             </button>
-            <button className="pc-btn pc-btn-ghost" onClick={exportCsv}>
+            <button className="pc-btn pc-btn-blue" onClick={() => { setImportKind('sync'); setUploadNote(''); }}>
+              批量导入(同步)
+            </button>
+            <button className="pc-btn pc-btn-blue" onClick={() => { setImportKind('async'); setUploadNote(''); }}>
+              批量导入(异步)
+            </button>
+            <button className="pc-btn pc-btn-warm" onClick={() => { setImportKind('update'); setUploadNote(''); }}>
+              批量更新(异步)
+            </button>
+            <button className="pc-btn pc-btn-warm" onClick={() => { setImportKind('under'); setUploadNote(''); }}>
+              批量下架
+            </button>
+            <button className="pc-btn pc-btn-green" onClick={() => { setImportKind('up'); setUploadNote(''); }}>
+              批量上架
+            </button>
+            {/* 原站 export：window.open('/product/index/list?export=1&limit=10000000&'+formData) */}
+            <button
+              className="pc-btn pc-btn-ghost"
+              onClick={() => {
+                window.open(productExportUrl(), '_blank', 'noopener');
+                toast('已按当前筛选条件导出（原站服务端 CSV）');
+              }}
+            >
               导出产品(csv)
             </button>
-            <button className="pc-btn pc-btn-ghost" onClick={exportCheckedCsv}>
-              导出选中行数据({checkedRows.length})
+            {/* 原站 getCheckData：导出勾选 id（空则提示「请至少选择一个产品」） */}
+            <button
+              className="pc-btn pc-btn-ghost"
+              onClick={() => {
+                if (!checked.length) return toast('请至少选择一个产品');
+                window.open(productExportUrl(checked), '_blank', 'noopener');
+              }}
+            >
+              导出选中行数据({checked.length})
             </button>
             {checked.length ? (
               <button className="pc-btn pc-btn-ghost" onClick={() => setChecked([])}>
                 清空选中
               </button>
             ) : null}
-            <button className="pc-btn" onClick={() => setBatch(true)}>
+            <button className="pc-btn pc-btn-ghost" onClick={() => { setInstrKind('up2'); setUploadNote(''); }}>
               批量生成UP说明书
             </button>
-            <button className="pc-btn pc-btn-ghost" onClick={() => load(query, 1, false)}>
-              刷新
+            <button className="pc-btn pc-btn-purple" onClick={() => { setInstrKind('productUp'); setUploadNote(''); }}>
+              导入(异步)&UP说明书
             </button>
+            {/* 原站 exportDownload：/product/api/exportDownload?export_file_type=2 */}
             <button
               className="pc-btn pc-btn-ghost"
               onClick={() => {
-                setFuzzy((f) => !f);
-                toast(fuzzy ? '已切换为精确搜索' : '已切换为模糊搜索（关键词分词匹配）');
+                window.open(productExportDownloadUrl(), '_blank', 'noopener');
+                toast('正在导出说明书下载量排行榜');
               }}
             >
-              模糊：{fuzzy ? '开' : '关'}
+              导出产品(说明书下载量排行榜)
             </button>
-            {list.length < total ? (
-              <button
-                className="pc-btn"
-                disabled={loadingMore}
-                onClick={() => {
-                  const p = page + 1;
-                  setPage(p);
-                  load(query, p, true, activeFilter);
-                }}
-              >
-                {loadingMore ? '载入中…' : `载入更多（${list.length}/${total}）`}
-              </button>
-            ) : null}
+            <button className="pc-btn pc-btn-ghost" onClick={() => load(query, page, activeFilter)}>
+              刷新
+            </button>
           </>
         }
       />
 
       <Panel bodyPad={false}>
-        <div style={{ padding: '14px 16px' }}>
-          <div className="pc-toolbar">
-            <input
-              className="pc-input"
-              style={{ width: 280 }}
-              placeholder="搜索产品名称 / 货号"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') setQuery(keyword);
-              }}
-            />
-            {(
-              [
-                ['全部种属', speciesF, setSpeciesF, opts.species, 150],
-                ['全部应用', appF, setAppF, opts.app, 170],
-              ] as [string, string, (v: string) => void, string[], number][]
-            ).map(([label, val, set, values, w]) => (
-              <select
-                key={label}
-                className="pc-input"
-                style={{ width: w }}
-                value={val}
-                onChange={(e) => set(e.target.value)}
-              >
-                <option value="">{label}</option>
-                {values.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            ))}
+        {/* 原站 #searchForm 两行筛选：分类/种属/应用/状态/时间区间/产品标题/基因名称 + 其他别称/关键词 + 模糊分明 + 搜索/清空 */}
+        <div style={{ padding: '14px 16px 4px' }}>
+          <div className="pc-toolbar" style={{ marginBottom: 10 }}>
             <select
               className="pc-input"
-              style={{ width: 210 }}
+              style={{ width: 150 }}
               value={cateId}
-              onChange={(e) => {
-                const id = e.target.value;
-                setCateId(id);
-              }}
+              onChange={(e) => setCateId(e.target.value)}
             >
-              <option value="">全部分类</option>
+              <option value="">产品分类</option>
               {cateOpts.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.title}
                 </option>
               ))}
             </select>
-            <button className="pc-btn" onClick={() => setQuery(keyword)}>
-              查询
+            <select
+              className="pc-input"
+              style={{ width: 130 }}
+              value={attrF}
+              onChange={(e) => setAttrF(e.target.value)}
+            >
+              <option value="">请选择产品属性</option>
+              <option value="1">精华</option>
+              <option value="2">热门</option>
+              <option value="3">推荐</option>
+            </select>
+            <input
+              className="pc-input"
+              style={{ width: 110 }}
+              placeholder="种属"
+              value={speciesF}
+              onChange={(e) => setSpeciesF(e.target.value)}
+            />
+            <input
+              className="pc-input"
+              style={{ width: 110 }}
+              placeholder="应用"
+              value={appF}
+              onChange={(e) => setAppF(e.target.value)}
+            />
+            <select
+              className="pc-input"
+              style={{ width: 130 }}
+              value={statusF}
+              onChange={(e) => setStatusF(e.target.value)}
+            >
+              <option value="">请选择状态</option>
+              <option value="1">有货</option>
+              <option value="0">下架</option>
+            </select>
+            <input
+              className="pc-input"
+              style={{ width: 150 }}
+              placeholder="选择时间区间"
+              value={diffTimeF}
+              onChange={(e) => setDiffTimeF(e.target.value)}
+            />
+            <input
+              className="pc-input"
+              style={{ width: 140 }}
+              placeholder="产品标题"
+              value={productNameF}
+              onChange={(e) => setProductNameF(e.target.value)}
+            />
+            <input
+              className="pc-input"
+              style={{ width: 130 }}
+              placeholder="基因名称"
+              value={geneNameF}
+              onChange={(e) => setGeneNameF(e.target.value)}
+            />
+          </div>
+          <div className="pc-toolbar">
+            <input
+              className="pc-input"
+              style={{ width: 130 }}
+              placeholder="其他别称"
+              value={otherNameF}
+              onChange={(e) => setOtherNameF(e.target.value)}
+            />
+            <input
+              className="pc-input"
+              style={{ width: 320 }}
+              placeholder="货号/其他别称/基因名称/产品标题/产品代码"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setQuery(keyword);
+              }}
+            />
+            {/* 原站关键词匹配方式切换（keyword_type）：模糊 / 分明 */}
+            <button
+              className={`pc-btn${keywordType === '1' ? '' : ' pc-btn-ghost'}`}
+              style={{ width: 64, justifyContent: 'center' }}
+              onClick={() => setKeywordType('1')}
+            >
+              模糊
             </button>
-            {(query || cateId || speciesF || appF) && (
-              <button
-                className="pc-btn pc-btn-ghost"
-                onClick={() => {
-                  setKeyword('');
-                  setQuery('');
-                  setCateId('');
-                  setSpeciesF('');
-                  setAppF('');
-                }}
-              >
-                重置
-              </button>
-            )}
+            <button
+              className={`pc-btn${keywordType === '0' ? '' : ' pc-btn-ghost'}`}
+              style={{ width: 64, justifyContent: 'center' }}
+              onClick={() => setKeywordType('0')}
+            >
+              分明
+            </button>
+            <button className="pc-btn" onClick={() => setQuery(keyword)}>
+              搜索
+            </button>
+            <button
+              className="pc-btn pc-btn-ghost"
+              onClick={() => {
+                setKeyword('');
+                setQuery('');
+                setCateId('');
+                setAttrF('');
+                setSpeciesF('');
+                setAppF('');
+                setStatusF('');
+                setDiffTimeF('');
+                setProductNameF('');
+                setGeneNameF('');
+                setOtherNameF('');
+              }}
+            >
+              清空
+            </button>
           </div>
         </div>
         <div style={{ padding: '0 16px 12px' }}>
@@ -646,79 +801,21 @@ export default function DesktopProduct() {
             rowKey={(r) => String(r.id)}
             onRowClick={setCur}
             loading={loading}
-            pageSize={20}
-            totalText={total ? `已载入 ${list.length} / 共 ${total} 个` : undefined}
+            pageSize={pageSize}
+            page={page}
+            total={total}
+            onPageChange={(p) => {
+              setPage(p);
+              load(query, p, activeFilter);
+            }}
+            onPageSizeChange={(n) => {
+              setPageSize(n);
+              setPage(1);
+              load(query, 1, activeFilter);
+            }}
           />
         </div>
       </Panel>
-
-      {/* ===== 批量说明书（对齐原站 批量说明书 / 批量产品+说明书） ===== */}
-      {batch ? (
-        <Modal
-          title="批量说明书"
-          onClose={() => setBatch(false)}
-          footer={
-            <>
-              <button className="pc-btn pc-btn-ghost" onClick={() => setBatch(false)}>
-                关闭
-              </button>
-              {batchDocs.length ? (
-                <button
-                  className="pc-btn"
-                  onClick={() => {
-                    void shareFilesAsZip(
-                      batchDocs.map((d) => ({ name: d.name, url: d.url })),
-                      '批量说明书',
-                    ).then((r) => {
-                      if (r.ok) toast(r.via === 'download' ? '已下载 zip' : '已调起系统分享');
-                      else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
-                    });
-                  }}
-                >
-                  打包转发（{batchDocs.length}）
-                </button>
-              ) : null}
-            </>
-          }
-        >
-          <div style={{ fontSize: 12.5, color: '#e8862a', background: '#fff7ec', border: '1px solid #ffd9a8', borderRadius: 6, padding: '7px 10px', marginBottom: 12 }}>
-            {checkedRows.length ? `已勾选 ${checkedRows.length} 个产品` : '未勾选，默认取当前已载入产品（最多 100 个）'}；说明文书签在本地生成，不提交原站。
-          </div>
-          {batchDocs.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--c-text-4)' }}>这些产品暂无可访问的说明书</div>
-          ) : (
-            <div style={{ maxHeight: 400, overflow: 'auto', border: '1px solid var(--c-border)', borderRadius: 6 }}>
-              <table className="pc-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 50 }}>序号</th>
-                    <th>货号</th>
-                    <th>产品</th>
-                    <th style={{ width: 170 }}>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {batchDocs.map((d, i) => (
-                    <tr key={`${d.no}-${i}`}>
-                      <td className="pc-col-idx">{i + 1}</td>
-                      <td>{d.no}</td>
-                      <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</td>
-                      <td>
-                        <span className="pc-link" onClick={() => window.open(d.url, '_blank', 'noopener')}>
-                          预览
-                        </span>
-                        <span className="pc-link" onClick={() => void shareDoc(d.name, d.url)}>
-                          转发
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Modal>
-      ) : null}
 
       {/* ===== 产品详情 + 说明书 ===== */}
       {cur ? (
@@ -755,7 +852,7 @@ export default function DesktopProduct() {
                 ['产品编号', cur.id],
                 ['货号', cur.goods_no],
                 ['产品分类', cur.cate_title],
-                ['规格 / 价格', fmtPrice(cur.price_desc)],
+                ['规格 / 价格', cur.price_desc || '—'],
                 ['物种', cur.species],
                 ['应用', cur.application],
                 ['方法学', cur.methodology],
@@ -912,7 +1009,8 @@ export default function DesktopProduct() {
                   ? '已复制为新品（原站已同步）'
                   : '已添加（原站已同步）',
             );
-            load(query, 1, false, activeFilter);
+            setPage(1);
+            load(query, 1, activeFilter);
           }}
           onClose={() => setEditing(null)}
         />
@@ -927,9 +1025,31 @@ export default function DesktopProduct() {
             if (!res.ok) return toast(res.msg || '删除失败');
             setConfirmDel(null);
             toast('已删除（原站已同步）');
-            load(query, 1, false, activeFilter);
+            load(query, page, activeFilter);
           }}
           onClose={() => setConfirmDel(null)}
+        />
+      ) : null}
+
+      {/* ===== 导入 / 上下架 / 说明书上传弹窗（对齐原站 toolbar 事件的 layer.open 面板） ===== */}
+      {importKind || instrKind ? (
+        <UploadModal
+          kind={(importKind || instrKind) as string}
+          busy={uploadBusy}
+          note={uploadNote}
+          onBusy={setUploadBusy}
+          onNote={setUploadNote}
+          onClose={() => {
+            setImportKind(null);
+            setInstrKind(null);
+            setUploadNote('');
+          }}
+          onDone={() => {
+            setImportKind(null);
+            setInstrKind(null);
+            setUploadNote('');
+            load(query, page, activeFilter);
+          }}
         />
       ) : null}
     </div>

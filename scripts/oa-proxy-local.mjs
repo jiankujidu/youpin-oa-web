@@ -115,6 +115,7 @@ const server = http.createServer(async (req, res) => {
   delete headers.origin;
   delete headers.referer;
   delete headers.host;
+  delete headers.expect; // Expect: 100-continue 会让 undici 干等到超时（上传大文件必现）
   delete headers['x-oa-session'];
   delete headers['x-oa-sid']; // 账号会话标记绝不下发到 OA
   delete headers['x-oa-no-xhr']; // 页面型标记绝不下发到 OA
@@ -134,10 +135,11 @@ const server = http.createServer(async (req, res) => {
 
   let body;
   if (req.method === 'POST') {
+    // 必须用 Buffer 收集：字符串拼接会按 UTF-8 损坏二进制（multipart 文件上传）
     body = await new Promise((resolve) => {
-      let data = '';
-      req.on('data', (c) => (data += c));
-      req.on('end', () => resolve(data));
+      const chunks = [];
+      req.on('data', (c) => chunks.push(c));
+      req.on('end', () => resolve(Buffer.concat(chunks)));
     });
     if (!headers['content-type']) headers['content-type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
   }

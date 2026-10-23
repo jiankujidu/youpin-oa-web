@@ -65,6 +65,7 @@ async function handle({ request, params }) {
   const headers = new Headers();
   headers.set('Referer', OA_ORIGIN + '/');
   headers.set('User-Agent', BROWSER_UA);
+  headers.delete('Expect'); // Expect: 100-continue 会让 fetch 干等到超时（上传大文件必现）
   // 后端以此判定 ajax 请求：缺失会回整页 HTML 而非 JSON。
   // 但页面型端点（如 /home/index/edit_personal、/home/index/main.html）带 XHR 头会被
   // 原站 nginx 403 —— 客户端用 x-oa-no-xhr 头（或 ?__noxhr=1）显式标记这类请求。
@@ -85,7 +86,8 @@ async function handle({ request, params }) {
     upstream = await fetch(target, {
       method: request.method,
       headers,
-      body: request.method === 'POST' ? await request.text() : undefined,
+      // arrayBuffer 而非 text()：multipart 文件上传的二进制必须原样透传
+      body: request.method === 'POST' ? await request.arrayBuffer() : undefined,
       redirect: 'follow',
     });
   } catch (e) {

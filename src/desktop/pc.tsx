@@ -140,6 +140,7 @@ export function DataTable<T>({
   page: pageProp,
   total: totalProp,
   onPageChange,
+  onPageSizeChange,
   /** 自定义分页文案（如「已载入 100 / 共 1006 条」，用于逐页载入的超大列表） */
   totalText,
 }: {
@@ -155,9 +156,12 @@ export function DataTable<T>({
   page?: number;
   total?: number;
   onPageChange?: (page: number) => void;
+  /** 每页条数变更（服务端分页时生效；原站 layui 分页条「20 条/页 ▾」） */
+  onPageSizeChange?: (size: number) => void;
   totalText?: string;
 }) {
   const [innerPage, setInnerPage] = useState(1);
+  const [jumpTo, setJumpTo] = useState('');
 
   /* ---- 自适应列宽：把各列声明的 px 宽度按容器实际宽度归一化，
          保证表格永远 100% 铺满容器（不再出现大幅横向滚动）。 ---- */
@@ -326,31 +330,96 @@ export function DataTable<T>({
         </tbody>
       </table>
 
-      {total > pageSize ? (
+      {total > 0 ? (
         <div className="pc-pager">
-          <span className="pc-pager-info">
-            {totalText || `共 ${total} 条`} · 每页 {pageSize} 条 · 第 {cur}/{pages} 页
-          </span>
+          {/* 原站 layui 分页条：‹ 1 2 3 … 6184 › | 到第 [ ] 页 确定 | 共 N 条 M 条/页 ▾ */}
           <span className="pc-pager-btns">
-            <button className="pc-pg" disabled={cur <= 1} onClick={() => setPage(1)}>
-              首页
+            <button className="pc-pg" disabled={cur <= 1} onClick={() => setPage(cur - 1)} title="上一页">
+              ‹
             </button>
-            <button className="pc-pg" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>
-              上一页
-            </button>
-            <button className="pc-pg" disabled={cur >= pages} onClick={() => setPage(cur + 1)}>
-              下一页
-            </button>
-            <button className="pc-pg" disabled={cur >= pages} onClick={() => setPage(pages)}>
-              末页
+            {pageList(cur, pages).map((p, i) =>
+              p === '…' ? (
+                <span className="pc-pg-ell" key={`e${i}`}>
+                  …
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  className={`pc-pg${p === cur ? ' pc-pg-cur' : ''}`}
+                  onClick={() => setPage(p as number)}
+                >
+                  {p}
+                </button>
+              ),
+            )}
+            <button className="pc-pg" disabled={cur >= pages} onClick={() => setPage(cur + 1)} title="下一页">
+              ›
             </button>
           </span>
-        </div>
-      ) : total > 0 ? (
-        <div className="pc-pager">
-          <span className="pc-pager-info">{totalText || `共 ${total} 条`}</span>
+          {pages > 1 ? (
+            <span className="pc-pager-jump">
+              到第
+              <input
+                className="pc-pg-input"
+                value={jumpTo}
+                onChange={(e) => setJumpTo(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const p = Math.min(pages, Math.max(1, Number(jumpTo) || 1));
+                    setJumpTo('');
+                    setPage(p);
+                  }
+                }}
+              />
+              页
+              <button
+                className="pc-pg"
+                onClick={() => {
+                  const p = Math.min(pages, Math.max(1, Number(jumpTo) || 1));
+                  setJumpTo('');
+                  setPage(p);
+                }}
+              >
+                确定
+              </button>
+            </span>
+          ) : null}
+          <span className="pc-pager-info">
+            {totalText || `共 ${total} 条`}
+            {onPageSizeChange ? (
+              <>
+                {' '}
+                <select
+                  className="pc-pg-select"
+                  value={pageSize}
+                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                >
+                  {[10, 20, 30, 40, 50].map((n) => (
+                    <option key={n} value={n}>
+                      {n} 条/页
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              ` · 每页 ${pageSize} 条`
+            )}
+          </span>
         </div>
       ) : null}
     </div>
   );
+}
+
+/** 原站 layui 页码序列：当前页附近 ±2，首末页固定，中间用 … 省略 */
+function pageList(cur: number, pages: number): (number | '…')[] {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+  const out: (number | '…')[] = [1];
+  const from = Math.max(2, cur - 2);
+  const to = Math.min(pages - 1, cur + 2);
+  if (from > 2) out.push('…');
+  for (let p = from; p <= to; p++) out.push(p);
+  if (to < pages - 1) out.push('…');
+  out.push(pages);
+  return out;
 }

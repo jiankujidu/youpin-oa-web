@@ -591,6 +591,16 @@ export interface ProductFilter {
   species?: string;
   cateId?: string;
   application?: string;
+  /** 原站筛选（全部服务端参数，见 product.html #searchForm） */
+  /** 产品属性（type）：1=精华 2=热门 3=推荐 */
+  type?: string;
+  status?: string;
+  diffTime?: string;
+  productName?: string;
+  geneName?: string;
+  otherName?: string;
+  /** 模糊(1)/分明(0) */
+  keywordType?: string;
 }
 
 export function fetchProductPage(keyword = '', page = 1, limit = 50, filter?: ProductFilter): Promise<ListPage<Product>> {
@@ -599,6 +609,13 @@ export function fetchProductPage(keyword = '', page = 1, limit = 50, filter?: Pr
     if (filter?.species) params.species = filter.species;
     if (filter?.cateId) params.cate_id = filter.cateId;
     if (filter?.application) params.application = filter.application;
+    if (filter?.type) params.type = filter.type;
+    if (filter?.status) params.status = filter.status;
+    if (filter?.diffTime) params.diff_time = filter.diffTime;
+    if (filter?.productName) params.product_name = filter.productName;
+    if (filter?.geneName) params.gene_name = filter.geneName;
+    if (filter?.otherName) params.other_name = filter.otherName;
+    if (filter?.keywordType) params.keyword_type = filter.keywordType;
     return oaPage('/product/index/list', params).then(({ rows, total }) => ({
       rows: rows as unknown as Product[],
       total,
@@ -1310,6 +1327,130 @@ export async function productDelete(id: string): Promise<ActionResult> {
   } catch (e) {
     return { ok: false, msg: e instanceof Error ? e.message : '网络异常' };
   }
+}
+
+/* ======================= 产品批量导入 / 上下架 / 导出（原站 toolbar 事件） ======================= */
+
+/**
+ * multipart 上传（经代理，二进制原样透传）。
+ * 原站 layui upload 的 url：
+ *   /api/import/import_product?type=1|2  批量导入（同步/异步）
+ *   /api/import/import_product_update    批量更新(异步)
+ *   /api/import/import_product_under     批量下架
+ *   /api/import/import_product_up        批量上架
+ *   /api/tool/deal_up_instructions       批量生成UP说明书（数据+模板+arrange）
+ *   /api/tool/deal_product_temp_instructions 导入(异步)&说明书
+ *   /api/tool/deal_product_instructions  导入(异步)&UP说明书
+ */
+async function oaUpload(
+  path: string,
+  form: FormData,
+  extra: Record<string, string> = {},
+): Promise<ActionResult> {
+  if (IS_DEMO_DATA) return { ok: true, msg: '（演示模式）已提交' };
+  try {
+    for (const [k, v] of Object.entries(extra)) form.append(k, v);
+    const res = await oaFetch(path, { method: 'POST', body: form });
+    const txt = await res.text();
+    let msg = '';
+    let code = 0;
+    try {
+      const j = JSON.parse(txt);
+      code = j.code ?? j.status ?? -1;
+      msg = j.msg || j.message || '';
+    } catch {
+      code = res.ok ? 0 : -1;
+      msg = txt.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    }
+    if (res.ok && (code === 0 || code === 200)) return { ok: true, msg: msg || '操作成功' };
+    return { ok: false, msg: msg || `操作失败（HTTP ${res.status}）` };
+  } catch (e) {
+    return { ok: false, msg: e instanceof Error ? e.message : '网络异常，请重试' };
+  }
+}
+
+/** 批量导入产品（type=1 同步 / type=2 异步） */
+export function productImport(file: File, type: 1 | 2): Promise<ActionResult> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return oaUpload(`/api/import/import_product?type=${type}`, form);
+}
+
+/** 批量更新产品（异步，Excel） */
+export function productImportUpdate(file: File): Promise<ActionResult> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return oaUpload('/api/import/import_product_update', form);
+}
+
+/** 批量下架（Excel 货号清单） */
+export function productImportUnder(file: File): Promise<ActionResult> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return oaUpload('/api/import/import_product_under', form);
+}
+
+/** 批量上架（Excel 货号清单） */
+export function productImportUp(file: File): Promise<ActionResult> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return oaUpload('/api/import/import_product_up', form);
+}
+
+/** 批量生成UP说明书（数据 xlsx + 模板 docx + 文件名列序号 arrange） */
+export function productUpInstructions(
+  dataFile: File,
+  tplFile: File,
+  arrange: string,
+): Promise<ActionResult> {
+  const form = new FormData();
+  form.append('file', dataFile, dataFile.name);
+  form.append('file_template', tplFile, tplFile.name);
+  return oaUpload('/api/tool/deal_up_instructions', form, { arrange });
+}
+
+/** 批量导入产品(异步)&生成UP说明书 */
+export function productAndUpInstructions(
+  dataFile: File,
+  tplFile: File,
+  arrange: string,
+): Promise<ActionResult> {
+  const form = new FormData();
+  form.append('file', dataFile, dataFile.name);
+  form.append('file_template', tplFile, tplFile.name);
+  return oaUpload('/api/tool/deal_product_instructions', form, { arrange });
+}
+
+/** 批量导入产品(异步)&生成说明书（模板） */
+export function productTempInstructions(
+  dataFile: File,
+  tplFile: File,
+  arrange: string,
+): Promise<ActionResult> {
+  const form = new FormData();
+  form.append('file', dataFile, dataFile.name);
+  form.append('file_template', tplFile, tplFile.name);
+  return oaUpload('/api/tool/deal_product_temp_instructions', form, { arrange });
+}
+
+/**
+ * 导出产品数据（对齐原站 window.open）：
+ *   /product/index/list?export=1&limit=10000000[&ids=1,2,3]
+ * 需带账号会话（img/a 无法带自定义头 → 用 __sid 查询参数）。
+ */
+export function productExportUrl(ids?: string[]): string {
+  const sid = currentAccountSid();
+  const q = new URLSearchParams({ export: '1', limit: '10000000' });
+  if (ids && ids.length) q.set('ids', ids.join(','));
+  const base = `${CONFIG.oaProxy}/product/index/list?${q.toString()}`;
+  return sid ? `${base}&__sid=${encodeURIComponent(sid)}` : base;
+}
+
+/** 导出产品（说明书下载量排行榜）：/product/api/exportDownload?export_file_type=2 */
+export function productExportDownloadUrl(): string {
+  const sid = currentAccountSid();
+  const base = `${CONFIG.oaProxy}/product/api/exportDownload?export_file_type=2`;
+  return sid ? `${base}&__sid=${encodeURIComponent(sid)}` : base;
 }
 
 /* ======================= 消息 / 公告写操作 ======================= */
