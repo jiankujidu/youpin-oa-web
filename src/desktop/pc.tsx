@@ -143,6 +143,12 @@ export function DataTable<T>({
   onPageSizeChange,
   /** 自定义分页文案（如「已载入 100 / 共 1006 条」，用于逐页载入的超大列表） */
   totalText,
+  /**
+   * 行勾选（无复选框列方案）：整表最左侧不占列宽，
+   * 鼠标移到行上时行首浮出一个圆点即可勾选；Ctrl/⌘ + 点击行亦可切换。
+   * 用于产品列表等超宽表——省掉复选框列把首屏宽度让给业务列。
+   */
+  rowSelect,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -159,6 +165,13 @@ export function DataTable<T>({
   /** 每页条数变更（服务端分页时生效；原站 layui 分页条「20 条/页 ▾」） */
   onPageSizeChange?: (size: number) => void;
   totalText?: string;
+  rowSelect?: {
+    isSel: (row: T) => boolean;
+    onToggle: (row: T, index: number) => void;
+    onAll: (on: boolean) => void;
+    allOn: boolean;
+    selCount: number;
+  };
 }) {
   const [innerPage, setInnerPage] = useState(1);
   const [jumpTo, setJumpTo] = useState('');
@@ -280,6 +293,17 @@ export function DataTable<T>({
             {indexCol ? <th style={frzStyle(0)}>序号</th> : null}
             {columns.map((c, i) => (
               <th key={c.key} style={{ textAlign: c.align || 'left', ...frzStyle(i + (indexCol ? 1 : 0)) }}>
+                {i === 0 && rowSelect ? (
+                  <span
+                    className={`pc-pick-all${rowSelect.allOn ? ' on' : ''}`}
+                    title={
+                      rowSelect.allOn
+                        ? `已全选本页（${rowSelect.selCount} 个），点击取消`
+                        : '全选本页（鼠标移到行上，点行首圆点可单个勾选；Ctrl+点击行也可）'
+                    }
+                    onClick={() => rowSelect.onAll(!rowSelect.allOn)}
+                  />
+                ) : null}
                 {c.head !== undefined ? c.head : c.title}
               </th>
             ))}
@@ -302,11 +326,21 @@ export function DataTable<T>({
             slice.map((r, i) => (
               <tr
                 key={rowKey(r, i)}
-                onClick={onRowClick ? () => onRowClick(r) : undefined}
-                style={onRowClick ? { cursor: 'pointer' } : undefined}
+                className={rowSelect && rowSelect.isSel(r) ? 'pc-row-sel' : undefined}
+                onClick={(e) => {
+                  // Ctrl/⌘ + 点击行 = 切换勾选（不打开详情）
+                  if (rowSelect && (e.ctrlKey || e.metaKey)) {
+                    rowSelect.onToggle(r, (cur - 1) * pageSize + i);
+                    return;
+                  }
+                  onRowClick?.(r);
+                }}
+                style={onRowClick || rowSelect ? { cursor: 'pointer' } : undefined}
               >
                 {indexCol ? <td className="pc-col-idx">{(cur - 1) * pageSize + i + 1}</td> : null}
                 {columns.map((c, ci) => {
+                  const absIdx = (cur - 1) * pageSize + i;
+                  /** 行首勾选圆点（仅第一列，absolute 不占列宽；hover 才显形） */
                   const raw = c.render(r, (cur - 1) * pageSize + i);
                   // 裸文本单元格统一收敛为「单行 + 省略 + 悬停全文」：
                   // 列宽自适应后若放任换行，行高会被撑到 100px+，首屏可见行数骤降
@@ -320,6 +354,16 @@ export function DataTable<T>({
                     );
                   return (
                     <td key={c.key} style={{ textAlign: c.align || 'left', ...frzStyle(ci + (indexCol ? 1 : 0)) }}>
+                      {ci === 0 && rowSelect ? (
+                        <span
+                          className={`pc-row-pick${rowSelect.isSel(r) ? ' on' : ''}`}
+                          title={rowSelect.isSel(r) ? '取消勾选' : '勾选此产品'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            rowSelect.onToggle(r, absIdx);
+                          }}
+                        />
+                      ) : null}
                       {cell}
                     </td>
                   );

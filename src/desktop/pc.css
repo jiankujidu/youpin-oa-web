@@ -557,6 +557,62 @@
 }
 .pc-fav-bar b { color: #1e6fff; font-variant-numeric: tabular-nums; }
 
+/* ---------- 行勾选（无复选框列方案：行首 hover 圆点） ---------- */
+.pc-table td:first-child { position: relative; }
+.pc-table th:first-child { position: relative; }
+.pc-row-pick {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid #c8d0dc;
+  background: #fff;
+  opacity: 0;
+  transition: opacity 0.12s;
+  cursor: pointer;
+  z-index: 4;
+}
+.pc-table tbody tr:hover .pc-row-pick { opacity: 1; }
+.pc-row-pick.on { opacity: 1; background: var(--c-primary); border-color: var(--c-primary); }
+.pc-row-pick.on::after {
+  content: '✓';
+  display: block;
+  color: #fff;
+  font-size: 11px;
+  line-height: 12px;
+  text-align: center;
+}
+.pc-table tbody tr.pc-row-sel { background: #eaf1ff; }
+.pc-table tbody tr.pc-row-sel:hover { background: #e2ecff; }
+/* 表头全选圆点：常驻半透明，hover 变实心 */
+.pc-pick-all {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid #b9c3d2;
+  background: #fff;
+  opacity: 0.75;
+  cursor: pointer;
+  z-index: 4;
+}
+.pc-pick-all:hover { opacity: 1; border-color: var(--c-primary); }
+.pc-pick-all.on { background: var(--c-primary); border-color: var(--c-primary); opacity: 1; }
+.pc-pick-all.on::after {
+  content: '✓';
+  display: block;
+  color: #fff;
+  font-size: 11px;
+  line-height: 12px;
+  text-align: center;
+}
+
 /* ---------- 勾选框 ---------- */
 .pc-check { width: 15px; height: 15px; accent-color: var(--c-primary); cursor: pointer; vertical-align: middle; }
 .pc-ops .pc-check { margin-right: 2px; }

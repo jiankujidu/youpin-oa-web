@@ -401,40 +401,16 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
-  /** 与原站一致：货号/说明书(左冻结) / 状态 / 分类 / 价格 / 标题 / 种属 / 应用 / 基因名 / 别称 / 分子量 / 来源 / 定量定性 / 种属英文名 / 方法学 / 浓度点 / 英文名 / Tag / 表达系统 / 产品代码 / 属性 / 下载量 / 阅读权限范围 / 更新时间 / 操作(右冻结) */
+  /**
+   * 列顺序（用户指定）：产品货号/说明书 → 产品标题 → 种属 → 应用 → 价格明细 →
+   * 基因名称 → 方法学 → 分子量 → 来源（这 9 列首屏可见），其余列往后，横向滚动查看。
+   * 原复选框列已去掉（省 50px），改为「行首 hover 圆点勾选」（见 DataTable rowSelect）。
+   */
   const cols: Column<Product>[] = [
-    {
-      key: '_check',
-      title: '',
-      width: 50,
-      freeze: 'left',
-      head: (
-        <input
-          type="checkbox"
-          className="pc-check"
-          title="全选"
-          checked={displayRows.length > 0 && checked.length === displayRows.length}
-          onChange={(e) => setChecked(e.target.checked ? (displayRows as any[]).map((p) => String(p.id ?? '')) : [])}
-        />
-      ),
-      render: (r) => (
-        <input
-          type="checkbox"
-          className="pc-check"
-          checked={checked.includes(String(r.id ?? ''))}
-          onChange={() =>
-            setChecked((prev) =>
-              prev.includes(String(r.id ?? '')) ? prev.filter((x) => x !== String(r.id ?? '')) : [...prev, String(r.id ?? '')],
-            )
-          }
-          onClick={(e) => e.stopPropagation()}
-        />
-      ),
-    },
     {
       key: 'no',
       title: '产品货号/说明书',
-      width: 300,
+      width: 280,
       align: 'center',
       freeze: 'left',
       render: (r) => {
@@ -519,6 +495,27 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
         );
       },
     },
+    // 原站 templet：'<a data-href="/product/index/view/id/xx.html" class="side-a">{{d.title}}</a>'（.side-a = #1A75FF 可点）
+    { key: 'title', title: '产品标题', width: 240, render: (r) => (
+        <span className="pc-cell-2" style={{ color: '#1A75FF', cursor: 'pointer' }} title={plain(r.title)} onClick={(e) => { e.stopPropagation(); setCur(r); }}>
+          {plain(r.title)}
+        </span>
+      ) },
+    { key: 'species', title: '种属', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || ''}</span> },
+    { key: 'app', title: '应用', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || ''}</span> },
+    // 原站 templet：'<span class="green">{{d.price_desc}}</span>' —— 原始字符串直接展示，绿色，自然换行
+    { key: 'price', title: '价格明细', width: 180, render: (r) => (
+        <span className="pc-c-green" style={{ fontSize: 12.5 }}>{(r as any).price_desc || ''}</span>
+      ) },
+    { key: 'gene', title: '基因名称', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || ''}</span> },
+    { key: 'method', title: '方法学', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || ''}</span> },
+    { key: 'mw', title: '分子量', width: 86, align: 'center', render: (r) => (
+        <span className="pc-cell-1 pc-td-sub" title={(r as any).da}>
+          {(r as any).da || ''}
+        </span>
+      ) },
+    { key: 'source', title: '来源', width: 86, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || ''}</span> },
+    /* ---- 以下为次要列（横向滚动查看）：状态 / 分类 / 别称 / 定性定量 ---- */
     {
       key: 'status',
       title: '状态',
@@ -538,29 +535,9 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     },
     // 原站对齐：货号/状态/分类/各属性列 align="center"；价格明细与产品标题左对齐；空值渲染为空白（不是「—」）
     { key: 'cate', title: '分类', width: 150, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || ''}</span> },
-    // 原站 templet：'<span class="green">{{d.price_desc}}</span>' —— 原始字符串直接展示，绿色，自然换行
-    { key: 'price', title: '价格明细', width: 200, render: (r) => (
-        <span className="pc-c-green" style={{ fontSize: 12.5 }}>{(r as any).price_desc || ''}</span>
-      ) },
-    // 原站 templet：'<a data-href="/product/index/view/id/xx.html" class="side-a">{{d.title}}</a>'（.side-a = #1A75FF 可点）
-    { key: 'title', title: '产品标题', width: 250, render: (r) => (
-        <span className="pc-cell-2" style={{ color: '#1A75FF', cursor: 'pointer' }} title={plain(r.title)} onClick={(e) => { e.stopPropagation(); setCur(r); }}>
-          {plain(r.title)}
-        </span>
-      ) },
-    { key: 'species', title: '种属', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || ''}</span> },
-    { key: 'app', title: '应用', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || ''}</span> },
-    { key: 'gene', title: '基因名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || ''}</span> },
     { key: 'alias', title: '其他别称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || ''}</span> },
-    { key: 'mw', title: '分子量', width: 100, align: 'center', render: (r) => (
-        <span className="pc-cell-1 pc-td-sub" title={(r as any).da}>
-          {(r as any).da || ''}
-        </span>
-      ) },
-    { key: 'source', title: '来源', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || ''}</span> },
     { key: 'scope', title: '定量/定性', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || ''}</span> },
     { key: 'speciesEng', title: '种属英文名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).species_eng_name}>{(r as any).species_eng_name || ''}</span> },
-    { key: 'method', title: '方法学', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || ''}</span> },
     { key: 'concentration', title: '浓度点', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).concentration}>{(r as any).concentration || ''}</span> },
     { key: 'eng', title: '英文名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || ''}</span> },
     { key: 'tag', title: 'Tag', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || ''}</span> },
@@ -859,6 +836,18 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
               setPage(1);
               load(query, 1, activeFilter);
             }}
+            rowSelect={{
+              isSel: (r) => checked.includes(String(r.id ?? '')),
+              onToggle: (r) =>
+                setChecked((prev) =>
+                  prev.includes(String(r.id ?? ''))
+                    ? prev.filter((x) => x !== String(r.id ?? ''))
+                    : [...prev, String(r.id ?? '')],
+                ),
+              onAll: (on) => setChecked(on ? (displayRows as any[]).map((p) => String(p.id ?? '')) : []),
+              allOn: displayRows.length > 0 && checked.length === displayRows.length,
+              selCount: checked.length,
+            }}
           />
         </div>
       </Panel>
@@ -1125,6 +1114,13 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             value={favNew}
             onChange={(e) => setFavNew(e.target.value)}
           />
+          <button
+            className="pc-btn pc-btn-sm pc-btn-ghost"
+            title="选中本页全部产品"
+            onClick={() => setChecked((displayRows as any[]).map((p) => String(p.id ?? '')))}
+          >
+            全选本页
+          </button>
           <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => addCheckedToFolder(false)}>
             加入收藏夹
           </button>
