@@ -20,6 +20,7 @@ import DesktopApprove from './DesktopApprove';
 import DesktopCustomer from './DesktopCustomer';
 import DesktopFiles from './DesktopFiles';
 import DesktopProduct from './DesktopProduct';
+import DesktopQuote from './DesktopQuote';
 import { DesktopArticle, DesktopMail, DesktopMessage, DesktopNote } from './DesktopContent';
 import { DesktopPassword, DesktopProfile, DesktopSub } from './DesktopSub';
 import DesktopTable from './DesktopTable';
@@ -152,7 +153,11 @@ const MENU: { group: string; icon: string; items: MenuNode[] }[] = [
   {
     group: '产品管理',
     icon: 'icon-chanpinshezhi',
-    items: [{ key: 'product', label: '产品列表', icon: 'icon-chanpinshezhi' }],
+    items: [
+      { key: 'product', label: '产品列表', icon: 'icon-chanpinshezhi' },
+      // 本系统新增：产品收藏夹 + 报价单（原站无此模块，数据存本机）
+      { key: 'quote', label: '收藏夹与报价', icon: 'icon-chanpinshezhi' },
+    ],
   },
 ];
 
@@ -165,7 +170,7 @@ const AUTO_SESSION = { username: 'auto', displayName: '', loginAt: Date.now() };
 
 /** 是否为「内置固定页面」（非按 SUB_PAGES 注册表渲染的通用列表页） */
 const BUILTIN = new Set([
-  'home', 'approve', 'customer', 'customer-sea', 'customer-trash', 'product', 'files',
+  'home', 'approve', 'customer', 'customer-sea', 'customer-trash', 'product', 'quote', 'files',
   'note', 'article', 'message', 'mail', 'profile', 'password', 'ai', 'accounts',
 ]);
 
@@ -445,7 +450,9 @@ export default function DesktopApp({
       case 'customer-trash':
         return <DesktopCustomer initialType={3} />;
       case 'product':
-        return <DesktopProduct />;
+        return <DesktopProduct onNavigate={openTab} />;
+      case 'quote':
+        return <DesktopQuote />;
       case 'files':
         return <DesktopFiles />;
       case 'note':

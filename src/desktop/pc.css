@@ -305,6 +305,8 @@
 /* ---------- 产品货号/说明书单元格：逐变体一行，货号 + 预览/下载（原站 templet） ---------- */
 .pc-goods-cell { display: block; line-height: 1.9; }
 .pc-goods-row { display: block; white-space: nowrap; }
+/* 原站：货号后 &nbsp; 再接按钮（layui-btn-xs 默认 22px 实心小按钮） */
+.pc-goods-row .pc-xs-btn { margin-left: 4px; vertical-align: middle; text-decoration: none; }
 .pc-goods-row .gg-xs { margin-left: 4px; vertical-align: middle; }
 .pc-col-idx { color: var(--c-text-4); font-variant-numeric: tabular-nums; }
 .pc-table-empty { text-align: center; color: var(--c-text-4); padding: 28px 0 !important; font-size: 13px; }
@@ -520,7 +522,7 @@
   align-items: center;
   justify-content: center;
   height: 22px;
-  padding: 0 5px;
+  padding: 0 4px;
   border-radius: 2px;
   font-size: 12px;
   line-height: 22px;
@@ -535,6 +537,25 @@
 .pc-xs-blue { background: #1e9fff; border-color: #1e9fff; }
 .pc-xs-cyan { background: #16baaa; border-color: #16baaa; }
 .pc-xs-danger { background: #ff5722; border-color: #ff5722; }
+
+/* ---------- 勾选后的批量操作浮条（产品页：加入收藏夹 / 去报价） ---------- */
+.pc-fav-bar {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.16);
+  font-size: 13px;
+  color: #3c4858;
+}
+.pc-fav-bar b { color: #1e6fff; font-variant-numeric: tabular-nums; }
 
 /* ---------- 勾选框 ---------- */
 .pc-check { width: 15px; height: 15px; accent-color: var(--c-primary); cursor: pointer; vertical-align: middle; }

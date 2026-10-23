@@ -1,0 +1,352 @@
+/* ============================================================================
+   产品收藏夹 / 报价单（新增模块，风格沿用桌面控制台：白卡片 + 主色 #1e6fff）
+   ============================================================================ */
+
+.q-layout {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-height: 520px;
+}
+
+/* ---------------------- 左侧：收藏夹树 ---------------------- */
+.q-tree {
+  width: 268px;
+  flex: 0 0 268px;
+  background: #fff;
+  border: 1px solid #eceff5;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(31, 45, 61, 0.04);
+  overflow: hidden;
+}
+.q-tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0f2f6;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+.q-tree-body {
+  padding: 6px 8px 10px;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+.q-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #3c4858;
+  user-select: none;
+}
+.q-node:hover { background: #f4f7fd; }
+.q-node.on { background: #eaf1ff; color: #1e6fff; font-weight: 600; }
+.q-node-arrow {
+  width: 14px;
+  text-align: center;
+  color: #9aa4b5;
+  font-size: 10px;
+  flex: 0 0 14px;
+}
+.q-node-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.q-node-count {
+  font-size: 11.5px;
+  color: #98a2b3;
+  font-variant-numeric: tabular-nums;
+}
+.q-node.on .q-node-count { color: #1e6fff; }
+.q-node-ops {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+}
+.q-node:hover .q-node-ops { opacity: 1; }
+.q-node-op {
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 4px;
+  color: #8a95a6;
+  font-size: 12px;
+}
+.q-node-op:hover { background: #e6ecf7; color: #1e6fff; }
+.q-node-child { padding-left: 22px; }
+.q-tree-foot {
+  border-top: 1px solid #f0f2f6;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+}
+.q-name-input {
+  flex: 1;
+  height: 26px;
+  border: 1px solid #1e6fff;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 12.5px;
+  outline: none;
+}
+
+/* ---------------------- 右侧：主区 ---------------------- */
+.q-main { flex: 1; min-width: 0; }
+.q-card {
+  background: #fff;
+  border: 1px solid #eceff5;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(31, 45, 61, 0.04);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.q-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-bottom: 1px solid #f0f2f6;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+.q-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 14px;
+}
+.q-field { display: flex; flex-direction: column; gap: 5px; }
+.q-field > span { font-size: 12px; color: #8a919f; }
+.q-tabs2 {
+  display: flex;
+  gap: 2px;
+  padding: 10px 14px 0;
+  border-bottom: 1px solid #f0f2f6;
+}
+.q-tab2 {
+  padding: 7px 16px;
+  font-size: 13px;
+  color: #6b7684;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.q-tab2.on { color: #1e6fff; font-weight: 600; border-bottom-color: #1e6fff; }
+
+/* 明细表 */
+.q-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.q-table th {
+  background: #f7f9fc;
+  color: #5c6b7f;
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 9px 10px;
+  text-align: left;
+  border-bottom: 1px solid #eceff5;
+  white-space: nowrap;
+}
+.q-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f2f4f8;
+  color: #3c4858;
+  vertical-align: middle;
+}
+.q-table tbody tr:hover { background: #fafcff; }
+.q-table tbody tr.off { opacity: 0.45; }
+.q-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.q-inp {
+  width: 100%;
+  height: 28px;
+  border: 1px solid #dfe4ec;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 12.5px;
+  color: #3c4858;
+  outline: none;
+  background: #fff;
+}
+.q-inp:focus { border-color: #1e6fff; box-shadow: 0 0 0 2px rgba(30, 111, 255, 0.09); }
+.q-inp.r { text-align: right; font-variant-numeric: tabular-nums; }
+.q-sel {
+  height: 28px;
+  border: 1px solid #dfe4ec;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: #3c4858;
+  background: #fff;
+  max-width: 100%;
+}
+.q-title-cell { max-width: 260px; }
+.q-title-cell .t {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.q-title-cell .s { display: block; font-size: 11.5px; color: #98a2b3; }
+
+/* 统计条 */
+.q-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 14px;
+  border-top: 1px solid #f0f2f6;
+  background: #fbfcfe;
+}
+.q-sum-item { font-size: 12.5px; color: #6b7684; }
+.q-sum-item b {
+  font-size: 15px;
+  color: #1f2d3d;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+}
+.q-sum-item.hl b { color: #e4564f; }
+.q-grow { flex: 1; }
+
+/* 空态 */
+.q-empty {
+  padding: 46px 0;
+  text-align: center;
+  color: #98a2b3;
+  font-size: 13px;
+}
+.q-empty .big { font-size: 30px; color: #d6dce6; margin-bottom: 8px; }
+
+/* ---------------------- 报价单预览（可打印） ---------------------- */
+.q-sheet {
+  background: #fff;
+  padding: 28px 30px;
+  color: #1f2d3d;
+}
+.q-sheet-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  margin-bottom: 4px;
+}
+.q-sheet-sub { text-align: center; font-size: 12px; color: #8a919f; margin-bottom: 16px; }
+.q-sheet-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 26px;
+  font-size: 12.5px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #1f2d3d;
+}
+.q-sheet-meta div span { color: #8a919f; margin-right: 4px; }
+.q-sheet table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+.q-sheet th, .q-sheet td {
+  border: 1px solid #cfd6e0;
+  padding: 7px 8px;
+  text-align: left;
+}
+.q-sheet th { background: #f4f7fb; }
+.q-sheet td.r, .q-sheet th.r { text-align: right; font-variant-numeric: tabular-nums; }
+.q-sheet-total {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  font-size: 13px;
+}
+.q-sheet-total .cap { font-size: 12.5px; color: #6b7684; line-height: 1.9; }
+.q-sheet-total .cap b { color: #1f2d3d; }
+.q-sheet-sign {
+  margin-top: 34px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: #6b7684;
+}
+
+/* ---------------------- 产品选择弹层 ---------------------- */
+.q-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.q-modal {
+  background: #fff;
+  border-radius: 10px;
+  width: 960px;
+  max-width: 94vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.24);
+}
+.q-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f2f6;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.q-modal-body { padding: 14px 16px; overflow: auto; flex: 1; }
+.q-modal-foot {
+  padding: 12px 16px;
+  border-top: 1px solid #f0f2f6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.q-close {
+  cursor: pointer;
+  color: #98a2b3;
+  font-size: 16px;
+  line-height: 1;
+}
+.q-close:hover { color: #e4564f; }
+.q-pick-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.q-pick-table th {
+  background: #f7f9fc;
+  padding: 8px 8px;
+  text-align: left;
+  color: #5c6b7f;
+  border-bottom: 1px solid #eceff5;
+}
+.q-pick-table td { padding: 6px 8px; border-bottom: 1px solid #f2f4f8; }
+.q-pick-table tbody tr:hover { background: #fafcff; }
+
+/* ---------------------- 打印 ---------------------- */
+@media print {
+  body * { visibility: hidden; }
+  .q-sheet, .q-sheet * { visibility: visible; }
+  .q-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+  }
+  @page { size: A4; margin: 14mm; }
+}
+
+/* ---------------------- 窄屏 ---------------------- */
+@media (max-width: 1280px) {
+  .q-tree { width: 220px; flex-basis: 220px; }
+}

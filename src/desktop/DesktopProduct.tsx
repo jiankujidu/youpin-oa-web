@@ -24,6 +24,7 @@ import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
 import { editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { type EditField } from '../core/opsFields';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
+import { addProducts, createFolder as createQuoteFolder, getFolders as getQuoteFolders } from '../core/quoteStore';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { fmtTime, plain, sanitizeName, toast } from '../core/util';
@@ -253,7 +254,7 @@ function UploadModal({
   );
 }
 
-export default function DesktopProduct() {
+export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: string) => void } = {}) {
   const [list, setList] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -359,6 +360,24 @@ export default function DesktopProduct() {
     [displayRows, checked],
   );
 
+  /* ---- 收藏夹 / 报价（本系统新增能力，数据落本机，不改动原站结构） ---- */
+  const [favFolders, setFavFolders] = useState(() => getQuoteFolders());
+  const [favTarget, setFavTarget] = useState('');
+  const [favNew, setFavNew] = useState('');
+
+  /** 把勾选的产品加入收藏夹；andQuote=true 时顺带跳到报价页 */
+  function addCheckedToFolder(andQuote: boolean) {
+    if (!checked.length) return toast('请先勾选产品（可点表头全选）');
+    const list = favFolders.length ? favFolders : [createQuoteFolder('默认收藏夹')];
+    const id = favNew.trim() ? createQuoteFolder(favNew.trim()).id : favTarget || list[0].id;
+    const { added, updated } = addProducts(id, checkedRows as unknown as Product[]);
+    toast(`已加入收藏夹 ${added} 个${updated ? `，更新 ${updated} 个` : ''}`);
+    setFavNew('');
+    setFavFolders(getQuoteFolders());
+    setChecked([]);
+    if (andQuote) onNavigate?.('quote');
+  }
+
   /** 复制产品（打开编辑弹窗，去掉 id 即「另存为新品」真实提交原站） */
   function copyProduct(p: Product) {
     const { id: _drop, ...rest } = p as any;
@@ -421,7 +440,13 @@ export default function DesktopProduct() {
       render: (r) => {
         // 原站 templet：逐行列出 goods_no_list 每个变体——
         // 有说明书 → 蓝色货号 + 预览(红) + 下载；无 → 红色货号 + 两个「暂无说明书」提示
-        const list = ((r as any).goods_no_list || []) as { goods_no?: string; goods_no_url?: string; pc_goods_no_url?: string }[];
+        const list = ((r as any).goods_no_list || []) as {
+          goods_no?: string;
+          goods_no_url?: string;
+          pc_goods_no_url?: string;
+          pc_yu_goods_no_url?: string;
+          goods_no_desc?: string;
+        }[];
         if (!list.length) {
           return <span className="pc-td-strong">{String(r.goods_no || '').split(';')[0] || ''}</span>;
         }
@@ -430,40 +455,61 @@ export default function DesktopProduct() {
             {list.map((g, i) => {
               const no = g.goods_no || '';
               const has = !!(g.goods_no_url || g.pc_goods_no_url);
-              const url = docUrl(g as any);
+              // 原站：预览 data-href = pc_yu_goods_no_url（down_oss_file）；
+              //       下载 downloadFile(pc_goods_no_url, goods_no_desc) → <a download> 真下载
+              const preview =
+                absOaUrl(g.pc_yu_goods_no_url || '') || absOaUrl(g.pc_goods_no_url || '') || signedOssToProxy(g.goods_no_url || '');
+              const dl = absOaUrl(g.pc_goods_no_url || g.pc_yu_goods_no_url || '') || signedOssToProxy(g.goods_no_url || '');
+              const dlName = g.goods_no_desc || `${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`;
               return (
                 <span className="pc-goods-row" key={i}>
                   <span className={has ? 'pc-c-blue' : 'pc-c-red'}>{no}</span>
-                  {has && url ? (
+                  {has && preview ? (
                     <>
-                      <span
+                      <button
                         className="pc-xs-btn pc-xs-danger"
                         title="在线查看"
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(url, '_blank', 'noopener');
+                          window.open(preview, '_blank', 'noopener');
                         }}
                       >
                         预览
-                      </span>
-                      <span
+                      </button>
+                      <a
                         className="pc-xs-btn pc-xs-cyan"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void shareDoc(`${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`, url);
-                        }}
+                        href={dl}
+                        download={dlName}
+                        target="_blank"
+                        rel="noopener"
+                        title={dlName}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         下载
-                      </span>
+                      </a>
                     </>
                   ) : (
                     <>
-                      <span className="pc-xs-btn pc-xs-danger" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
+                      <button
+                        className="pc-xs-btn pc-xs-danger"
+                        title="暂无说明书"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toast('暂无说明书');
+                        }}
+                      >
                         预览
-                      </span>
-                      <span className="pc-xs-btn pc-xs-cyan" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
+                      </button>
+                      <button
+                        className="pc-xs-btn pc-xs-cyan"
+                        title="暂无说明书"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toast('暂无说明书');
+                        }}
+                      >
                         下载
-                      </span>
+                      </button>
                     </>
                   )}
                 </span>
@@ -1051,6 +1097,44 @@ export default function DesktopProduct() {
             load(query, page, activeFilter);
           }}
         />
+      ) : null}
+
+      {/* 勾选后的批量操作浮条（新增功能，不占用原站工具栏结构）：加入收藏夹 / 去报价 */}
+      {checked.length ? (
+        <div className="pc-fav-bar">
+          <span>
+            已选 <b>{checked.length}</b> 个产品
+          </span>
+          <select
+            className="pc-input"
+            style={{ width: 150, height: 30 }}
+            value={favTarget}
+            onChange={(e) => setFavTarget(e.target.value)}
+          >
+            <option value="">选择收藏夹…</option>
+            {favFolders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.parentId ? `　└ ${f.name}` : f.name}
+              </option>
+            ))}
+          </select>
+          <input
+            className="pc-input"
+            style={{ width: 130, height: 30 }}
+            placeholder="新建收藏夹"
+            value={favNew}
+            onChange={(e) => setFavNew(e.target.value)}
+          />
+          <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => addCheckedToFolder(false)}>
+            加入收藏夹
+          </button>
+          <button className="pc-btn pc-btn-sm" onClick={() => addCheckedToFolder(true)}>
+            加入并去报价
+          </button>
+          <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setChecked([])}>
+            取消选择
+          </button>
+        </div>
       ) : null}
     </div>
   );
