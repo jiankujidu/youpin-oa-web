@@ -273,8 +273,8 @@ export default function DesktopProduct() {
   const [productNameF, setProductNameF] = useState('');
   const [geneNameF, setGeneNameF] = useState('');
   const [otherNameF, setOtherNameF] = useState('');
-  /** 关键词匹配方式：模糊(1) / 分明(0)，对齐原站 keyword_type 切换 */
-  const [keywordType, setKeywordType] = useState<'1' | '0'>('1');
+  /** 关键词匹配方式：模糊(1) / 分词(2)，对齐原站 radio name=keyword_type（默认 checked=模糊） */
+  const [keywordType, setKeywordType] = useState<'1' | '2'>('1');
   /** 导入/上下架/说明书上传弹窗（原站 toolbar 事件） */
   const [importKind, setImportKind] = useState<'sync' | 'async' | 'update' | 'under' | 'up' | null>(null);
   const [instrKind, setInstrKind] = useState<'up2' | 'productUp' | 'productTemp' | null>(null);
@@ -387,7 +387,7 @@ export default function DesktopProduct() {
     {
       key: '_check',
       title: '',
-      width: 40,
+      width: 50,
       freeze: 'left',
       head: (
         <input
@@ -416,13 +416,14 @@ export default function DesktopProduct() {
       key: 'no',
       title: '产品货号/说明书',
       width: 300,
+      align: 'center',
       freeze: 'left',
       render: (r) => {
         // 原站 templet：逐行列出 goods_no_list 每个变体——
         // 有说明书 → 蓝色货号 + 预览(红) + 下载；无 → 红色货号 + 两个「暂无说明书」提示
         const list = ((r as any).goods_no_list || []) as { goods_no?: string; goods_no_url?: string; pc_goods_no_url?: string }[];
         if (!list.length) {
-          return <span className="pc-td-strong">{String(r.goods_no || '').split(';')[0] || '—'}</span>;
+          return <span className="pc-td-strong">{String(r.goods_no || '').split(';')[0] || ''}</span>;
         }
         return (
           <span className="pc-goods-cell">
@@ -436,7 +437,7 @@ export default function DesktopProduct() {
                   {has && url ? (
                     <>
                       <span
-                        className="gg-xs red"
+                        className="pc-xs-btn pc-xs-danger"
                         title="在线查看"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -446,7 +447,7 @@ export default function DesktopProduct() {
                         预览
                       </span>
                       <span
-                        className="gg-xs"
+                        className="pc-xs-btn pc-xs-cyan"
                         onClick={(e) => {
                           e.stopPropagation();
                           void shareDoc(`${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`, url);
@@ -457,10 +458,10 @@ export default function DesktopProduct() {
                     </>
                   ) : (
                     <>
-                      <span className="gg-xs red" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
+                      <span className="pc-xs-btn pc-xs-danger" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
                         预览
                       </span>
-                      <span className="gg-xs" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
+                      <span className="pc-xs-btn pc-xs-cyan" onClick={(e) => { e.stopPropagation(); toast('暂无说明书'); }}>
                         下载
                       </span>
                     </>
@@ -475,7 +476,8 @@ export default function DesktopProduct() {
     {
       key: 'status',
       title: '状态',
-      width: 66,
+      width: 80,
+      align: 'center',
       render: (r) => {
         // 原站 #status 模板：status==1 → 绿色「有货」，否则红色「下架」
         // 计算样式：纯色文字无底色无边框，字号 16px（.layui-icon 默认字号）
@@ -488,31 +490,37 @@ export default function DesktopProduct() {
         );
       },
     },
-    { key: 'cate', title: '分类', width: 150, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || '—'}</span> },
+    // 原站对齐：货号/状态/分类/各属性列 align="center"；价格明细与产品标题左对齐；空值渲染为空白（不是「—」）
+    { key: 'cate', title: '分类', width: 150, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.cate_title}>{r.cate_title || ''}</span> },
     // 原站 templet：'<span class="green">{{d.price_desc}}</span>' —— 原始字符串直接展示，绿色，自然换行
     { key: 'price', title: '价格明细', width: 200, render: (r) => (
-        <span className="pc-c-green" style={{ fontSize: 12.5 }}>{(r as any).price_desc || '—'}</span>
+        <span className="pc-c-green" style={{ fontSize: 12.5 }}>{(r as any).price_desc || ''}</span>
       ) },
-    { key: 'title', title: '产品标题', width: 250, render: (r) => <span className="pc-td-strong pc-cell-2" title={plain(r.title)}>{plain(r.title)}</span> },
-    { key: 'species', title: '种属', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || '—'}</span> },
-    { key: 'app', title: '应用', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || '—'}</span> },
-    { key: 'gene', title: '基因名称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || '—'}</span> },
-    { key: 'alias', title: '其他别称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || '—'}</span> },
-    { key: 'mw', title: '分子量', width: 100, render: (r) => (
-        <span className="pc-cell-1 pc-td-sub" title={(r as any).da}>
-          {(r as any).da || '—'}
+    // 原站 templet：'<a data-href="/product/index/view/id/xx.html" class="side-a">{{d.title}}</a>'（.side-a = #1A75FF 可点）
+    { key: 'title', title: '产品标题', width: 250, render: (r) => (
+        <span className="pc-cell-2" style={{ color: '#1A75FF', cursor: 'pointer' }} title={plain(r.title)} onClick={(e) => { e.stopPropagation(); setCur(r); }}>
+          {plain(r.title)}
         </span>
       ) },
-    { key: 'source', title: '来源', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || '—'}</span> },
-    { key: 'scope', title: '定量/定性', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || '—'}</span> },
-    { key: 'speciesEng', title: '种属英文名称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).species_eng_name}>{(r as any).species_eng_name || '—'}</span> },
-    { key: 'method', title: '方法学', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || '—'}</span> },
-    { key: 'concentration', title: '浓度点', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).concentration}>{(r as any).concentration || '—'}</span> },
-    { key: 'eng', title: '英文名称', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || '—'}</span> },
-    { key: 'tag', title: 'Tag', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || '—'}</span> },
-    { key: 'expr', title: '表达系统', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || '—'}</span> },
-    { key: 'productCode', title: '产品代码', width: 100, render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).product_code}>{(r as any).product_code || '—'}</span> },
-    { key: 'attr', title: '属性', width: 80, render: (r) => {
+    { key: 'species', title: '种属', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.species}>{r.species || ''}</span> },
+    { key: 'app', title: '应用', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={r.application}>{r.application || ''}</span> },
+    { key: 'gene', title: '基因名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).gene_name}>{(r as any).gene_name || ''}</span> },
+    { key: 'alias', title: '其他别称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).other_name}>{(r as any).other_name || ''}</span> },
+    { key: 'mw', title: '分子量', width: 100, align: 'center', render: (r) => (
+        <span className="pc-cell-1 pc-td-sub" title={(r as any).da}>
+          {(r as any).da || ''}
+        </span>
+      ) },
+    { key: 'source', title: '来源', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).source}>{(r as any).source || ''}</span> },
+    { key: 'scope', title: '定量/定性', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).scope}>{(r as any).scope || ''}</span> },
+    { key: 'speciesEng', title: '种属英文名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).species_eng_name}>{(r as any).species_eng_name || ''}</span> },
+    { key: 'method', title: '方法学', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).methodology}>{(r as any).methodology || ''}</span> },
+    { key: 'concentration', title: '浓度点', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).concentration}>{(r as any).concentration || ''}</span> },
+    { key: 'eng', title: '英文名称', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).eng_name}>{(r as any).eng_name || ''}</span> },
+    { key: 'tag', title: 'Tag', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).tag}>{(r as any).tag || ''}</span> },
+    { key: 'expr', title: '表达系统', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).expression_system}>{(r as any).expression_system || ''}</span> },
+    { key: 'productCode', title: '产品代码', width: 100, align: 'center', render: (r) => <span className="pc-cell-1 pc-td-sub" title={(r as any).product_code}>{(r as any).product_code || ''}</span> },
+    { key: 'attr', title: '属性', width: 80, align: 'center', render: (r) => {
         // 原站 templet：0/其它→暂无(绿)、1→精华(蓝)、2→热门(黄)、3→推荐(红)
         const t = String((r as any).type ?? '');
         if (t === '1') return <span className="pc-c-blue">精华</span>;
@@ -521,7 +529,7 @@ export default function DesktopProduct() {
         return <span className="pc-c-green">暂无</span>;
       } },
     { key: 'dl', title: '下载量', width: 80, align: 'center', render: (r) => String(r.down_load_num ?? 0) },
-    { key: 'share', title: '阅读权限范围', width: 100, render: (r) => {
+    { key: 'share', title: '阅读权限范围', width: 100, align: 'center', render: (r) => {
         // 原站 templet：0→私有(绿)、1→所有人(蓝)、2→部门(黄)、3→部分人员(红)
         const v = String((r as any).is_share ?? '');
         if (v === '1') return <span className="pc-c-blue">所有人</span>;
@@ -533,15 +541,16 @@ export default function DesktopProduct() {
       key: 'op',
       title: '操作',
       width: 150,
+      align: 'center',
       fixed: true,
       freeze: 'right',
       render: (r) => {
         const isLocal = String((r as any).id ?? '').startsWith('local-');
         return (
-          <span className="pc-ops">
-            {/* 原站 #barDemo：复制 / 编辑 / 删除（layui-btn-group，说明书入口在货号列的预览/下载里） */}
+            <span className="pc-ops">
+            {/* 原站 #barDemo：复制(蓝) / 编辑(青绿) / 删除(红)——layui-btn-group 实心小按钮 */}
             <span
-              className="gg-xs"
+              className="pc-xs-btn pc-xs-blue"
               onClick={(e) => {
                 e.stopPropagation();
                 copyProduct(r);
@@ -551,7 +560,7 @@ export default function DesktopProduct() {
             </span>
             {!isLocal ? (
               <span
-                className="gg-xs"
+                className="pc-xs-btn pc-xs-cyan"
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditKind('edit');
@@ -563,7 +572,7 @@ export default function DesktopProduct() {
             ) : null}
             {!isLocal ? (
               <span
-                className="gg-xs red"
+                className="pc-xs-btn pc-xs-danger"
                 onClick={(e) => {
                   e.stopPropagation();
                   setConfirmDel(r as Product);
@@ -573,7 +582,7 @@ export default function DesktopProduct() {
               </span>
             ) : null}
             {isLocal ? (
-              <span className="gg-xs green" onClick={() => setCur(r)}>
+              <span className="pc-xs-btn pc-xs-cyan" onClick={() => setCur(r)}>
                 本地
               </span>
             ) : null}
@@ -594,31 +603,33 @@ export default function DesktopProduct() {
       <PageHead
         title="产品列表"
         crumb={['产品中心', '产品列表']}
-        desc={`共 ${total || rows.length} 个产品 · 已载入 ${list.length} 个${localCount ? ` · 本地新增 ${localCount} 个` : ''}${checked.length ? ` · 已勾选 ${checked.length} 个` : ''}`}
         actions={
           <>
-            {/* 原站 #toolbarDemo 12 按钮（顺序/标签/配色全部按快照 layui-btn 复刻） */}
-            <button className="pc-btn pc-btn-green" onClick={addProduct}>
+            {/* 原站 #toolbarDemo 12 按钮：顺序/标签/配色严格按渲染快照的 layui-btn 计算样式
+                （实测：添加=normal#1e9fff、导入同步/异步/下架/上架=cyan#16baaa、批量更新=normal、
+                 导出csv/排行榜=warm#ffb800、导出选中行/清空选中=danger#ff5722、
+                 批量生成UP=purple#a233c6、导入&UP说明书=checked#16b777；原站无「刷新」） */}
+            <button className="pc-btn pc-btn-sm pc-btn-blue" onClick={addProduct}>
               + 添加产品
             </button>
-            <button className="pc-btn pc-btn-blue" onClick={() => { setImportKind('sync'); setUploadNote(''); }}>
+            <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => { setImportKind('sync'); setUploadNote(''); }}>
               批量导入(同步)
             </button>
-            <button className="pc-btn pc-btn-blue" onClick={() => { setImportKind('async'); setUploadNote(''); }}>
+            <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => { setImportKind('async'); setUploadNote(''); }}>
               批量导入(异步)
             </button>
-            <button className="pc-btn pc-btn-warm" onClick={() => { setImportKind('update'); setUploadNote(''); }}>
+            <button className="pc-btn pc-btn-sm pc-btn-blue" onClick={() => { setImportKind('update'); setUploadNote(''); }}>
               批量更新(异步)
             </button>
-            <button className="pc-btn pc-btn-warm" onClick={() => { setImportKind('under'); setUploadNote(''); }}>
+            <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => { setImportKind('under'); setUploadNote(''); }}>
               批量下架
             </button>
-            <button className="pc-btn pc-btn-green" onClick={() => { setImportKind('up'); setUploadNote(''); }}>
+            <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => { setImportKind('up'); setUploadNote(''); }}>
               批量上架
             </button>
             {/* 原站 export：window.open('/product/index/list?export=1&limit=10000000&'+formData) */}
             <button
-              className="pc-btn pc-btn-ghost"
+              className="pc-btn pc-btn-sm pc-btn-warm"
               onClick={() => {
                 window.open(productExportUrl(), '_blank', 'noopener');
                 toast('已按当前筛选条件导出（原站服务端 CSV）');
@@ -628,7 +639,7 @@ export default function DesktopProduct() {
             </button>
             {/* 原站 getCheckData：导出勾选 id（空则提示「请至少选择一个产品」） */}
             <button
-              className="pc-btn pc-btn-ghost"
+              className="pc-btn pc-btn-sm pc-btn-danger"
               onClick={() => {
                 if (!checked.length) return toast('请至少选择一个产品');
                 window.open(productExportUrl(checked), '_blank', 'noopener');
@@ -636,20 +647,18 @@ export default function DesktopProduct() {
             >
               导出选中行数据({checked.length})
             </button>
-            {checked.length ? (
-              <button className="pc-btn pc-btn-ghost" onClick={() => setChecked([])}>
-                清空选中
-              </button>
-            ) : null}
-            <button className="pc-btn pc-btn-ghost" onClick={() => { setInstrKind('up2'); setUploadNote(''); }}>
+            <button className="pc-btn pc-btn-sm pc-btn-danger" onClick={() => setChecked([])}>
+              清空选中
+            </button>
+            <button className="pc-btn pc-btn-sm pc-btn-purple" onClick={() => { setInstrKind('up2'); setUploadNote(''); }}>
               批量生成UP说明书
             </button>
-            <button className="pc-btn pc-btn-purple" onClick={() => { setInstrKind('productUp'); setUploadNote(''); }}>
+            <button className="pc-btn pc-btn-sm pc-btn-green" onClick={() => { setInstrKind('productUp'); setUploadNote(''); }}>
               导入(异步)&UP说明书
             </button>
             {/* 原站 exportDownload：/product/api/exportDownload?export_file_type=2 */}
             <button
-              className="pc-btn pc-btn-ghost"
+              className="pc-btn pc-btn-sm pc-btn-warm"
               onClick={() => {
                 window.open(productExportDownloadUrl(), '_blank', 'noopener');
                 toast('正在导出说明书下载量排行榜');
@@ -657,17 +666,17 @@ export default function DesktopProduct() {
             >
               导出产品(说明书下载量排行榜)
             </button>
-            <button className="pc-btn pc-btn-ghost" onClick={() => load(query, page, activeFilter)}>
-              刷新
-            </button>
           </>
         }
       />
 
       <Panel bodyPad={false}>
-        {/* 原站 #searchForm 两行筛选：分类/种属/应用/状态/时间区间/产品标题/基因名称 + 其他别称/关键词 + 模糊分明 + 搜索/清空 */}
+        {/* 原站 #searchForm：单个 flex 行内表单，按源码顺序
+             分类(150) → 种属(150) → 应用(150) → 状态(150) → 时间区间(300) → 产品标题(300)
+             → 基因名称(300) → 其他别称(300) → 关键词(300) → 模糊/分词 → 搜索/清空
+             ★ 源码里「请选择产品属性 / 请选择产品分类」两段 select 已被注释掉，故无属性筛选 */}
         <div style={{ padding: '14px 16px 4px' }}>
-          <div className="pc-toolbar" style={{ marginBottom: 10 }}>
+          <div className="pc-toolbar">
             <select
               className="pc-input"
               style={{ width: 150 }}
@@ -681,34 +690,23 @@ export default function DesktopProduct() {
                 </option>
               ))}
             </select>
-            <select
-              className="pc-input"
-              style={{ width: 130 }}
-              value={attrF}
-              onChange={(e) => setAttrF(e.target.value)}
-            >
-              <option value="">请选择产品属性</option>
-              <option value="1">精华</option>
-              <option value="2">热门</option>
-              <option value="3">推荐</option>
-            </select>
             <input
               className="pc-input"
-              style={{ width: 110 }}
+              style={{ width: 150 }}
               placeholder="种属"
               value={speciesF}
               onChange={(e) => setSpeciesF(e.target.value)}
             />
             <input
               className="pc-input"
-              style={{ width: 110 }}
+              style={{ width: 150 }}
               placeholder="应用"
               value={appF}
               onChange={(e) => setAppF(e.target.value)}
             />
             <select
               className="pc-input"
-              style={{ width: 130 }}
+              style={{ width: 150 }}
               value={statusF}
               onChange={(e) => setStatusF(e.target.value)}
             >
@@ -718,37 +716,35 @@ export default function DesktopProduct() {
             </select>
             <input
               className="pc-input"
-              style={{ width: 150 }}
+              style={{ width: 300 }}
               placeholder="选择时间区间"
               value={diffTimeF}
               onChange={(e) => setDiffTimeF(e.target.value)}
             />
             <input
               className="pc-input"
-              style={{ width: 140 }}
+              style={{ width: 300 }}
               placeholder="产品标题"
               value={productNameF}
               onChange={(e) => setProductNameF(e.target.value)}
             />
             <input
               className="pc-input"
-              style={{ width: 130 }}
+              style={{ width: 300 }}
               placeholder="基因名称"
               value={geneNameF}
               onChange={(e) => setGeneNameF(e.target.value)}
             />
-          </div>
-          <div className="pc-toolbar">
             <input
               className="pc-input"
-              style={{ width: 130 }}
+              style={{ width: 300 }}
               placeholder="其他别称"
               value={otherNameF}
               onChange={(e) => setOtherNameF(e.target.value)}
             />
             <input
               className="pc-input"
-              style={{ width: 320 }}
+              style={{ width: 300 }}
               placeholder="货号/其他别称/基因名称/产品标题/产品代码"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
@@ -756,26 +752,30 @@ export default function DesktopProduct() {
                 if (e.key === 'Enter') setQuery(keyword);
               }}
             />
-            {/* 原站关键词匹配方式切换（keyword_type）：模糊 / 分明 */}
-            <button
-              className={`pc-btn${keywordType === '1' ? '' : ' pc-btn-ghost'}`}
-              style={{ width: 64, justifyContent: 'center' }}
-              onClick={() => setKeywordType('1')}
-            >
+            {/* 原站 keyword_type 单选组：模糊(默认) / 分词 */}
+            <label className="pc-radio">
+              <input
+                type="radio"
+                name="keyword_type"
+                checked={keywordType !== '2'}
+                onChange={() => setKeywordType('1')}
+              />
               模糊
-            </button>
-            <button
-              className={`pc-btn${keywordType === '0' ? '' : ' pc-btn-ghost'}`}
-              style={{ width: 64, justifyContent: 'center' }}
-              onClick={() => setKeywordType('0')}
-            >
-              分明
-            </button>
-            <button className="pc-btn" onClick={() => setQuery(keyword)}>
+            </label>
+            <label className="pc-radio">
+              <input
+                type="radio"
+                name="keyword_type"
+                checked={keywordType === '2'}
+                onChange={() => setKeywordType('2')}
+              />
+              分词
+            </label>
+            <button className="pc-btn pc-btn-sm" onClick={() => setQuery(keyword)}>
               搜索
             </button>
             <button
-              className="pc-btn pc-btn-ghost"
+              className="pc-btn pc-btn-sm pc-btn-ghost"
               onClick={() => {
                 setKeyword('');
                 setQuery('');

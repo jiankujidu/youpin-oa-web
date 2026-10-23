@@ -458,6 +458,18 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .pc-select:focus { border-color: var(--c-primary); box-shadow: 0 0 0 3px rgba(30, 111, 255, 0.1); }
+/* 原站筛选区 radio（模糊 / 分词） */
+.pc-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  font-size: 13px;
+  color: var(--c-text-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pc-radio input { accent-color: var(--c-primary); cursor: pointer; }
 
 /* ---------- 按钮 ---------- */
 .pc-btn {
@@ -479,21 +491,50 @@
 .pc-btn:active { transform: translateY(0.5px); }
 .pc-btn-ghost { background: #fff; color: var(--c-text-2); border-color: #dfe3ea; }
 .pc-btn-ghost:hover { background: var(--c-primary-50); color: var(--c-primary); border-color: var(--c-primary); }
-.pc-btn-danger { background: #f53f3f; border-color: #f53f3f; }
-.pc-btn-danger:hover { background: #d8302b; border-color: #d8302b; }
-/* 原站 layui-btn 配色（产品工具栏等）：normal=蓝 / warm=橙 / green / yellow / purple */
+/* 原站 layui 配色实测（/static/assets/gougu/css + layui-btn 计算样式）：
+   danger=#ff5722 / normal=#1e9fff / warm=#ffb800(白字) / green=#16b777 / cyan=#16baaa / purple=#a233c6 */
+.pc-btn-danger { background: #ff5722; border-color: #ff5722; }
+.pc-btn-danger:hover { background: #e64a19; border-color: #e64a19; }
+/* 原站 layui-btn 配色（产品工具栏等）：normal=蓝 / warm=橙 / green / cyan / purple */
 .pc-btn-green { background: #16b777; border-color: #16b777; }
 .pc-btn-green:hover { background: #12a06a; border-color: #12a06a; }
 .pc-btn-blue { background: #1e9fff; border-color: #1e9fff; }
 .pc-btn-blue:hover { background: #1a8fe0; border-color: #1a8fe0; }
-.pc-btn-warm { background: #ffb800; border-color: #ffb800; color: #4a3600; }
+.pc-btn-cyan { background: #16baaa; border-color: #16baaa; }
+.pc-btn-cyan:hover { background: #13a396; border-color: #13a396; }
+.pc-btn-warm { background: #ffb800; border-color: #ffb800; color: #fff; }
 .pc-btn-warm:hover { background: #e6a600; border-color: #e6a600; }
-.pc-btn-purple { background: #7c5cd6; border-color: #7c5cd6; }
-.pc-btn-purple:hover { background: #6a4bc0; border-color: #6a4bc0; }
+.pc-btn-purple { background: #a233c6; border-color: #a233c6; }
+.pc-btn-purple:hover { background: #8e2cae; border-color: #8e2cae; }
+/* 原站 layui-btn-sm：30px 高 / 12px 字 / 左右 10px 内距（工具栏按钮统一用这一档） */
+.pc-btn-sm { height: 30px; padding: 0 10px; font-size: 12px; border-radius: 2px; }
 .pc-btn:disabled { opacity: 0.55; cursor: default; }
 .pc-btn:disabled:hover { background: var(--c-primary); border-color: var(--c-primary); }
 .pc-btn-ghost:disabled:hover { background: #fff; color: var(--c-text-2); border-color: #dfe3ea; }
 .pc-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+
+/* 原站表格内的 layui-btn-xs：实心小按钮（22px 高 / 12px 字 / 白字），
+   配色：normal=#1e9fff、default=#16baaa、danger=#ff5722 —— 用于货号列预览/下载与操作列复制/编辑/删除 */
+.pc-xs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 2px;
+  font-size: 12px;
+  line-height: 22px;
+  color: #fff;
+  border: 1px solid transparent;
+  background: #16baaa;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.pc-xs-btn:hover { opacity: 0.86; }
+.pc-xs-blue { background: #1e9fff; border-color: #1e9fff; }
+.pc-xs-cyan { background: #16baaa; border-color: #16baaa; }
+.pc-xs-danger { background: #ff5722; border-color: #ff5722; }
 
 /* ---------- 勾选框 ---------- */
 .pc-check { width: 15px; height: 15px; accent-color: var(--c-primary); cursor: pointer; vertical-align: middle; }
