@@ -47,6 +47,99 @@ fs.mkdirSync(outDir, { recursive: true });
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const money = (n) => r2(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const round1 = (n) => Math.round((Number(n) || 0) * 10) / 10;
+
+/* ---------------- 价格解析（与 src/core/quoteStore.ts 的 parsePrices 同逻辑） ----------------
+ * 为什么脚本里要再写一份：收藏夹数据存在浏览器 localStorage，脚本读的是导出的 JSON。
+ * 旧版本存进去的条目 prices 可能为空（当时解析器不认抗体的无标签格式），
+ * 因此这里「prices 为空但 priceRaw 有值」时，用原文重新解析，把老数据救回来。 */
+const isNum = (x) => /^\d+(\.\d+)?$/.test(x);
+const looksSpec = (x) => /\d/.test(x) && /[a-z]/i.test(x);
+const UNIT_SRC = '(ul|μl|µl|ml|mg|ug|μg|µg|ng|g|kg|l|t\\b|tests?)';
+
+function parseUnlabeled(s) {
+  const out = [];
+  const parts = s.split(/[;；,，\s]+/).map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return out;
+  // D) 交替序列：100UL;2230;53ul;1560;10ul;368
+  if (parts.length >= 2 && parts.length % 2 === 0) {
+    let ok = true;
+    for (let i = 0; i < parts.length; i++) {
+      if (!(i % 2 === 0 ? looksSpec(parts[i]) : isNum(parts[i]))) { ok = false; break; }
+    }
+    if (ok) {
+      for (let i = 0; i < parts.length; i += 2) {
+        out.push({ spec: parts[i], dir: parseFloat(parts[i + 1]) || 0, dist: 0 });
+      }
+      return out;
+    }
+  }
+  // E) 斜杠配对：0.1/0.5/1mg;280/500/710;7折
+  if (parts.length >= 2 && parts[0].includes('/') && parts[1].includes('/')) {
+    const sr = parts[0].split('/').map((x) => x.trim()).filter(Boolean);
+    const pr = parts[1].split('/').map((x) => x.trim()).filter(Boolean);
+    if (sr.length === pr.length && pr.every(isNum)) {
+      const um = sr[sr.length - 1].match(/^[\d.]+\s*([a-zμµ].*)$/i);
+      const unit = um ? um[1] : '';
+      sr.forEach((sp, i) => {
+        const full = i === sr.length - 1 || looksSpec(sp) ? sp : `${sp}${unit}`;
+        out.push({ spec: full, dir: parseFloat(pr[i]) || 0, dist: 0 });
+      });
+      return out;
+    }
+  }
+  // F) 完全粘连：0.5mg2500经销商7折
+  const scan = new RegExp(`([\\d.]+)\\s*${UNIT_SRC}\\s*(\\d+(?:\\.\\d+)?)`, 'gi');
+  let m;
+  while ((m = scan.exec(s))) {
+    out.push({ spec: `${m[1]}${m[2] || ''}`.trim(), dir: parseFloat(m[3]) || 0, dist: 0 });
+  }
+  if (out.length) return out;
+  if (parts.length === 2 && looksSpec(parts[0]) && isNum(parts[1])) {
+    out.push({ spec: parts[0], dir: parseFloat(parts[1]) || 0, dist: 0 });
+  }
+  return out;
+}
+
+function parsePrices(desc) {
+  const s = String(desc || '').replace(/&nbsp;/g, ' ').trim();
+  if (!s) return [];
+  const labeled = /规格|型号|包装|目录价|经销价|市场价|零售价|代理价|渠道价|批发价|价格|[:：]/.test(s);
+  if (!labeled) return parseUnlabeled(s);
+  const out = [];
+  const parts = s.split(/[;；,，\r\n]+/).map((x) => x.trim()).filter(Boolean);
+  for (const part of parts) {
+    const segs = part.split(/[-—–/／|]+/).map((x) => x.trim()).filter(Boolean);
+    let spec = '', dir = 0, dist = 0, other = 0;
+    const flush = () => {
+      if (!dir && !dist && other) { dir = other; dist = other; }
+      if (spec || dir || dist) out.push({ spec: spec || '标准', dir, dist });
+      spec = ''; dir = 0; dist = 0; other = 0;
+    };
+    for (const seg of segs) {
+      const m = seg.match(/^([^:：]+)[:：]\s*(.*)$/);
+      if (m) {
+        const k = m[1].trim(), v = m[2].trim();
+        const num = parseFloat(v.replace(/[^\d.\-]/g, '')) || 0;
+        if (/规格|型号|包装/.test(k)) { flush(); spec = v.replace(/元/g, '').trim(); }
+        else if (/目录|市场|标价|零售/.test(k)) dir = num;
+        else if (/经销|代理|渠道|批发/.test(k)) dist = num;
+        else if (/价/.test(k)) other = other || num;
+        continue;
+      }
+      const km = seg.match(/^(目录价|经销价|市场价|零售价|代理价|渠道价|批发价|价格)\s*[（(]?\s*元?\s*[)）]?\s*([\d.]+)/);
+      if (km) {
+        const num = parseFloat(km[2]) || 0;
+        if (/目录|市场|零售|标价/.test(km[1])) dir = num;
+        else if (/经销|代理|渠道|批发/.test(km[1])) dist = num;
+        else other = other || num;
+        continue;
+      }
+      if (looksSpec(seg)) { flush(); spec = seg; }
+    }
+    flush();
+  }
+  return out;
+}
 /** 数量档位 → 折扣比例（示例梯度，仅当数量明确时给出；最终折扣以商务确认为准） */
 function tierDiscount(qty) {
   const q = Number(qty) || 0;
@@ -78,7 +171,10 @@ for (const f of folders) {
   const items = Array.isArray(f.items) ? f.items : [];
   for (const it of items) {
     totalRows++;
-    const prices = Array.isArray(it.prices) ? it.prices : [];
+    // prices 为空（旧版存储的条目）时，用原站原文重新解析，把老数据救回来
+    let prices = Array.isArray(it.prices) ? it.prices : [];
+    const rawDesc = String(it.priceRaw ?? '').trim();
+    if (!prices.length && rawDesc) prices = parsePrices(rawDesc);
     const spec = prices[it.specIndex] || prices[0] || null;
     const hasDir = !!(spec && spec.dir > 0);
     const hasDist = !!(spec && spec.dist > 0);
@@ -106,10 +202,23 @@ for (const f of folders) {
     const docCount = Array.isArray(it.docs) ? it.docs.length : 0;
     if (docCount === 0) totalDocsMissing++;
 
+    // 价格口径：原站无标签格式（抗体主流写法）只写一个价，无法区分目录价/经销价
+    const raw = String(it.priceRaw ?? '').trim();
+    const unlabeled = !!raw && !/规格|型号|包装|目录价|经销价|市场价|零售价|代理价|渠道价|批发价|价格|[:：]/.test(raw);
+
     // 问题检测
     if (!prices.length) addIssue(f, it, 'warn', '无价格数据（原站 price_desc 为空或解析失败）——单价未知，需人工补充');
     else {
       if (!hasDir && !hasDist) addIssue(f, it, 'warn', `规格「${spec?.spec || '标准'}」价格解析为 0/缺失——需回原站核实`);
+    }
+    if (unlabeled) {
+      addIssue(
+        f,
+        it,
+        'info',
+        `原站价格无标签格式（如 "${raw.slice(0, 40)}"），现按目录价计价；` +
+          `经销价未知，若报经销价需商务提供该货号经销价（原站数据里没有）`,
+      );
     }
     if (isCustom) addIssue(f, it, 'info', `采用自定义单价 ¥${money(custom)}（来源：销售手动录入，未经原站价格核对）——需在报价单备注中说明`);
     if (it.priceType !== 'custom' && !unit) addIssue(f, it, 'warn', `单价=0（规格「${spec?.spec || '标准'}」${hasDist ? '经销价' : hasDir ? '目录价' : '价格'}缺失）`);
@@ -138,6 +247,8 @@ for (const f of folders) {
       docs: docCount,
       note: it.note || '',
       basisFlag,
+      raw,
+      unlabeled,
     });
   }
 }
@@ -187,15 +298,15 @@ md('');
 
 md('## 二、产品清单与逐项价格明细');
 md('');
-md('| # | 收藏夹 | 货号 | 产品名称 | 规格 | 取价口径 | 单价 | 数量 | 计价单位 | 小计 | 说明书 |');
-md('| ---: | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | :---: |');
-    rows.forEach((x, i) => {
-      const u = x.custom ? `¥${money(x.custom)}*` : `¥${money(x.unit)}`;
-      const flag = x.basisFlag || '';
-      md(
-        `| ${i + 1} | ${x.folder} | ${x.goods_no} | ${x.title} | ${x.spec || '—'} | ${x.basis}${flag} | ${u} | ${x.qty || '—'} | ${x.unit2} | ¥${money(x.line)} | ${x.docs ? '✓' : '—'} |`,
-      );
-    });
+md('| # | 收藏夹 | 货号 | 产品名称 | 规格 | 取价口径 | 单价 | 数量 | 计价单位 | 小计 | 说明书 | 原站原始价格串 |');
+md('| ---: | --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | :---: | --- |');
+rows.forEach((x, i) => {
+  const u = x.custom ? `¥${money(x.custom)}*` : `¥${money(x.unit)}`;
+  const flag = x.basisFlag || '';
+  md(
+    `| ${i + 1} | ${x.folder} | ${x.goods_no} | ${x.title} | ${x.spec || '—'} | ${x.basis}${flag} | ${u} | ${x.qty || '—'} | ${x.unit2} | ¥${money(x.line)} | ${x.docs ? '✓' : '—'} | ${x.raw ? `\`${x.raw}\`` : '—'} |`,
+  );
+});
 md('');
 md('（`*` = 自定义单价，销售录入；⚠️ = 价格口径不确定，见待确认清单）');
 md('');
@@ -208,7 +319,30 @@ md('| 目录价 | 单价 = 原站 price_desc 中该规格的「目录价/市场/
 md('| 经销价 | 单价 = 原站 price_desc 中该规格的「经销价/代理价」 | 同上；无经销价时回退目录价并标注「(回退)」 |');
 md('| 自定义 | 单价 = 销售手填 custom 字段 | **未经原站核对**，须备注说明 |');
 md('| 行小计 | 单价 × 数量（行级折扣为 100% 时即原金额） | — |');
+md('| 目录价(回退) | 本行按经销价计价，但原站该规格无经销价 → 回退目录价 | 原站 price_desc 缺失，需商务确认 |');
 md('');
+md('**原站 `price_desc` 的多种格式**（本方案已逐一实测覆盖）：');
+md('');
+md('| 格式 | 样例 | 出现在 |');
+md('| --- | --- | --- |');
+md('| A 带标签·分号 | `规格:10mg-目录价:200元-经销价:300元;…` | 部分旧品 |');
+md('| B 带标签·斜杠 | `规格：96T-目录价：3000元/经销价：1200元,…` | ELISA 现行主流 |');
+md('| C 单一价 | `规格:10mg-价格:200元` | 部分旧品 |');
+md('| D 无标签·交替序列 | `100UL;2230;53ul;1560;10ul;368` | **抗体主流**（一抗/兔单抗/内参抗体） |');
+md('| E 无标签·斜杠配对 | `0.1/0.5/1mg;280/500/710;7折` | 二抗部分 |');
+md('| F 无标签·完全粘连 | `0.5mg2500经销商7折` | 抗体对部分 |');
+md('| G 标签+斜杠嵌套 | `规格：53UL-目录价（元）1340元-规格/100UL-…` | 一抗（没验证图） |');
+md('');
+md('> ⚠️ **重要**：D/E/F 三种无标签格式的原站数据**只提供一个价格**，无法区分目录价与经销价。');
+md('> 本方案统一按**目录价**计入，并把这些行列入下方待确认清单的 ℹ️ 项——');
+md('> 若要报经销价，必须由商务提供该货号经销价（原站数据里没有，我不做推算）。');
+md('');
+
+const unlabeledCount = rows.filter((x) => x.unlabeled).length;
+if (unlabeledCount) {
+  md(`> 本次共 **${unlabeledCount} 行** 属于无标签格式（原站只给单一价），详见待确认清单。`);
+  md('');
+}
 
 md('## 三、梯度报价模拟（按数量档位，示例）');
 md('');
@@ -362,7 +496,7 @@ const detailSheet = {
   name: '明细',
   widths: [6, 14, 16, 32, 12, 12, 12, 8, 10, 14, 8],
   rows: [
-    ['收藏夹', '货号', '产品名称', '规格', '取价口径', '单价(¥)', '数量', '计价单位', '小计(¥)', '说明书', '备注'],
+    ['收藏夹', '货号', '产品名称', '规格', '取价口径', '单价(¥)', '数量', '计价单位', '小计(¥)', '说明书', '备注', '原站原始价格串(溯源)'],
     ...rows.map((x) => [
       x.folder,
       x.goods_no,
@@ -375,6 +509,7 @@ const detailSheet = {
       x.line,
       x.docs ? '✓' : '',
       x.note,
+      x.raw || '',
     ]),
   ],
 };
