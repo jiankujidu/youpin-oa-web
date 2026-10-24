@@ -11,7 +11,7 @@
  * 不吃快照里写死的域名 —— 换部署（pages.dev / 本机 / GitHub Pages）都不会失效。
  * 旧存档条目没有说明书快照时，按货号回原站列表接口查一次补齐（兜底）。
  */
-import { absOaUrl, oaFileUrl } from './fileurl';
+import { absOaUrl, oaDownUrl, oaFileUrl, toProxyUrl } from './fileurl';
 import { downloadBlob, downloadZip, utf8, type ZipFile } from './zip';
 import { docsOf, type DocSnap, type QuoteItem } from './quoteStore';
 import { fetchProductPage } from './api';
@@ -67,15 +67,38 @@ async function resolveDocs(it: QuoteItem): Promise<DocSnap[]> {
  *   两条都试，任一成功即可。
  */
 async function fetchDoc(d: DocSnap): Promise<{ name: string; data: Uint8Array } | null> {
-  const urls = [
-    d.ossPath ? absOaUrl('/oss/' + d.ossPath) : '',
-    d.id ? oaFileUrl(d.id, d.fileName) : '',
-  ].filter(Boolean);
   const name =
     d.fileName && /\.pdf$/i.test(d.fileName) ? d.fileName : `${d.fileName || d.no}.pdf`;
-  for (const url of urls) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+
+  /**
+   * ★ 三条通道，顺序很重要（2026-10-25 实测排定）：
+   *   1) /oss/<年月>/<md5>.pdf —— 原站 nginx 直出，最快；但**只覆盖部分文件**，
+   *      查不到时会回落 ThinkPHP 返回 404 JSON。
+   *   2) /api/index/down_oss_file.html?id=N —— **返回明文直链**（仍指向 oa 主机 /oss/），
+   *      实测对所有文件都通，且绕开了 static.upingbio.cn 的过期证书 → **主通道**。
+   *   3) /api/index/get_oss_file.html?id=N —— 302 跳 static.upingbio.cn，
+   *      证书过期时边缘报 526；只在上面两条都失败时兜底，等原站续签后即恢复。
+   */
+  const channels: (() => Promise<string>)[] = [];
+  if (d.ossPath) channels.push(async () => absOaUrl('/oss/' + d.ossPath));
+  if (d.id) {
+    let cached = '';
+    channels.push(async () => {
+      if (cached) return cached;
+      const r = await fetch(oaDownUrl(d.id!));
+      if (!r.ok) return '';
+      const t = (await r.text()).trim();
+      cached = t ? toProxyUrl(t) : '';
+      return cached;
+    });
+  }
+  if (d.id) channels.push(async () => oaFileUrl(d.id!, d.fileName));
+
+  for (const mkUrl of channels) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
+        const url = await mkUrl();
+        if (!url) break;
         const resp = await fetch(url);
         // ★ Cloudflare 526：边缘跟随时站静态主机（static.upingbio.cn）时校验证书失败。
         //   根因是原站通配证书 *.upingbio.cn 过期（2026-10-24 19:43 到期），
@@ -85,16 +108,16 @@ async function fetchDoc(d: DocSnap): Promise<{ name: string; data: Uint8Array } 
           break;
         }
         if (!resp.ok) {
-          await new Promise((r) => setTimeout(r, 500 + attempt * 700));
+          await new Promise((r) => setTimeout(r, 600 + attempt * 900));
           continue;
         }
         const buf = new Uint8Array(await resp.arrayBuffer());
         if (!buf.length) {
-          await new Promise((r) => setTimeout(r, 500 + attempt * 700));
+          await new Promise((r) => setTimeout(r, 600 + attempt * 900));
           continue;
         }
-        // ★ 必须是真 PDF：原站偶发返回 88 字节的 {"code":…} 错误体（限流/会话抖动），
-        //   也可能返回 404 HTML 页——只看 resp.ok 会把错误页当说明书打进 zip。
+        // ★ 必须是真 PDF：原站偶发返回 93 字节的 {"code":1,...} 错误体（限流/会话抖动），
+        //   也可能返回 404 页——只看 resp.ok 会把错误页当说明书打进 zip。
         const magic = String.fromCharCode(buf[0], buf[1], buf[2], buf[3]);
         if (magic !== '%PDF') {
           const head = new TextDecoder().decode(buf.slice(0, 400));
@@ -107,7 +130,7 @@ async function fetchDoc(d: DocSnap): Promise<{ name: string; data: Uint8Array } 
         }
         return { name: safeName(name), data: buf };
       } catch {
-        await new Promise((r) => setTimeout(r, 500 + attempt * 700));
+        await new Promise((r) => setTimeout(r, 600 + attempt * 900));
       }
     }
   }
@@ -178,7 +201,9 @@ export async function resolveItemDocs(
       onProgress?.(done, total, '解析');
     }
   };
-  await Promise.all([resolveWorker(), resolveWorker(), resolveWorker(), resolveWorker()]);
+  // ★ 并发压到 2：原站列表接口有频控，4 并发时会被限流，
+  //   表现为后续说明书下载大面积 404（打包少文件的元凶）。
+  await Promise.all([resolveWorker(), resolveWorker()]);
   return resolved;
 }
 
@@ -239,9 +264,10 @@ export interface PackGroup {
 
 /**
  * 逐条抓说明书。
- * ★ 分两阶段，避免把原站打爆导致限流（4 并发下载时实测会丢文件）：
- *   阶段 1 解析（查原站列表接口拿说明书地址）——并发 4
- *   阶段 2 下载（取 PDF 字节）——并发 3
+ * ★ 分两阶段，且**并发都压到 2**：原站有频控，并发高了会被限流，
+ *   表现为说明书下载大面积 404（"勾 5 个只出 1 份"的元凶）。
+ *   阶段 1 解析（查原站列表接口拿说明书地址）
+ *   阶段 2 下载（取 PDF 字节）
  *
  * ★ 任一产品拿不到说明书都要**记进 missing 并写明原因**，
  *   这样 zip 里附的缺失清单能直接回答「为什么没全部打包」。
@@ -319,7 +345,7 @@ async function collectFiles(
       }
     }
   };
-  await Promise.all([dlWorker(), dlWorker(), dlWorker()]);
+  await Promise.all([dlWorker(), dlWorker()]);
   return { files, ok, miss, missing };
 }
 

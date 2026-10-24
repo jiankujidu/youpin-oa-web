@@ -36,6 +36,38 @@ export function oaFileUrl(id: string | number, rename?: string): string {
 }
 
 /**
+ * OA 文件「强制下载」端点：**返回明文直链**（不是 302）。
+ *
+ * ★ 实测（2026-10-25）：原站静态主机 static.upingbio.cn 的 *.upingbio.cn 证书已过期，
+ *   预览端点 get_oss_file 会 302 过去 → Cloudflare 边缘回源失败 → **526**。
+ *   而 down_oss_file 直接把最终直链（`https://oa.upingbio.com/oss/<年月>/<md5>.<ext>`，
+ *   **不带签名**、走原站自己的 nginx）以纯文本返回 —— 不受 static 证书问题影响，
+ *   是目前**唯一对所有文件都通**的通道，所以在打包链路里作为主通道使用。
+ */
+export function oaDownUrl(id: string | number): string {
+  if (!CONFIG.oaProxy || id === undefined || id === null || id === '') return '';
+  const sid = currentAccountSid();
+  let u = `${CONFIG.oaProxy}/api/index/down_oss_file.html?id=${encodeURIComponent(String(id))}`;
+  if (sid) u += `&__sid=${encodeURIComponent(sid)}`;
+  return u;
+}
+
+/**
+ * 任意 OA 文件地址 → 走同源代理的可访问地址。
+ *  - `https://oa.upingbio.com/oss/...` / `/oss/...` → 代理 /oss/
+ *  - `//static.upingbio.cn/oa/...?签名`             → 代理 /oss/（去掉签名）
+ *  - 其余原样返回
+ */
+export function toProxyUrl(url: string): string {
+  if (!url) return '';
+  const s = String(url).trim();
+  const m = s.match(/^(?:https?:\/\/oa\.upingbio\.com)?(\/(?:api|oss)\/[^?#]*)/i);
+  if (m) return absOaUrl(m[1]);
+  const p = signedOssToProxy(s);
+  return p || s;
+}
+
+/**
  * OA 返回的文件地址 → 可直接访问的绝对地址。
  *  - `//static.upingbio.cn/...`（协议相对）→ 补 https:（注意：签名链会过期，仅兜底）
  *  - `/api/...`、`/oss/...`（原站相对路径）→ 前缀代理

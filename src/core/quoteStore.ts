@@ -195,7 +195,9 @@ export async function refreshItemPrices(
   if (!targets.length) return { fixed: 0, still: 0 };
 
   /* ---- 阶段 1：并发回原站取（只读） ---- */
-  const got = new Array<{ desc: string; prices: QuoteSpec[] }>(targets.length);
+  const got = new Array<{ desc: string; prices: QuoteSpec[]; unit?: string; docs?: DocSnap[] }>(
+    targets.length,
+  );
   let done = 0;
   let cursor = 0;
   const worker = async () => {
@@ -208,15 +210,25 @@ export async function refreshItemPrices(
         got[i] = { desc: own, prices: parsePrices(own) };
       } else if (t.item.goods_no) {
         let desc = '';
+        let unit: string | undefined;
+        let docs: DocSnap[] | undefined;
         try {
           const { rows: list } = await fetchProductPage(t.item.goods_no, 1, 10);
           const m =
             list.find((p) => (p.goods_no || '').split(/[;；]/)[0] === t.item.goods_no) || list[0];
-          if (m) desc = String(m.price_desc ?? '');
+          if (m) {
+            desc = String(m.price_desc ?? '');
+            unit = m.unit || undefined;
+            // ★ 顺带把说明书快照写回条目：下次打包不必再回原站查，
+      //   既快又避免再次触发原站频控导致别的说明书下不下来。
+            const all = docsOf(m);
+            const hit = all.filter((d) => d.no === t.item.goods_no);
+            docs = hit.length ? hit : all.length === 1 ? all : undefined;
+          }
         } catch {
           /* 单条失败不影响整体 */
         }
-        got[i] = { desc, prices: desc.trim() ? parsePrices(desc) : [] };
+        got[i] = { desc, prices: desc.trim() ? parsePrices(desc) : [], unit, docs };
       } else {
         got[i] = { desc: '', prices: [] };
       }
@@ -224,14 +236,18 @@ export async function refreshItemPrices(
       onProgress?.(done, targets.length, '刷新价格');
     }
   };
-  await Promise.all([worker(), worker(), worker(), worker()]);
+  // ★ 并发压到 2：原站列表接口有频控，并发高了会被限流
+  await Promise.all([worker(), worker()]);
 
   /* ---- 阶段 2：串行写库 ---- */
   let fixed = 0;
   targets.forEach((t, i) => {
     const g = got[i];
     if (!g) return;
-    updateItem(t.folderId, t.item.id, { priceRaw: g.desc, prices: g.prices });
+    const patch: Partial<QuoteItem> = { priceRaw: g.desc, prices: g.prices };
+    if (g.unit) patch.unit = g.unit;
+    if (g.docs && g.docs.length) patch.docs = g.docs;
+    updateItem(t.folderId, t.item.id, patch);
     if (g.prices.length) fixed++;
   });
   return { fixed, still: targets.length - fixed };
