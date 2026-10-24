@@ -349,7 +349,7 @@ export default function DesktopQuote() {
   /** 打包进度提示（浮条右侧） */
   const [packing, setPacking] = useState<{ done: number; total: number } | null>(null);
 
-  /** 批量下载说明书：优先用勾选行，没勾就下载当前夹全部 */
+  /** 批量下载说明书：逐个文件落盘（不是 zip）。优先用勾选行，没勾就下当前夹全部 */
   async function downloadManualsNow() {
     const target = selRows.length ? selRows : rows;
     if (!target.length) return toast('当前没有可下载的产品');
@@ -363,16 +363,16 @@ export default function DesktopQuote() {
         (itemId, docs) => persistDocs(target, itemId, docs),
       );
       if (!r.ok) {
-        toast(
-          r.miss
-            ? `没有可下载的说明书（${r.total} 个产品都没有说明书文件）`
-            : '没有可下载的说明书',
-        );
+        toast(r.error || (r.miss ? `没有可下载的说明书（${r.total} 个产品都没有说明书文件）` : '没有可下载的说明书'));
       } else {
-        toast(`已打包 ${r.ok} 份说明书${r.miss ? `，${r.miss} 份缺失` : ''}`);
+        toast(
+          `已下载 ${r.ok} 份说明书${r.miss ? `，${r.miss} 个产品原站没有说明书` : ''}${
+            r.ok > 1 ? '（浏览器首次会询问是否允许多个文件下载，需点「允许」）' : ''
+          }`,
+        );
       }
     } catch (e) {
-      toast('打包失败：' + String(e).slice(0, 60));
+      toast('下载失败：' + String(e).slice(0, 60));
     } finally {
       setPacking(null);
       refresh();
@@ -405,7 +405,7 @@ export default function DesktopQuote() {
         (done, total) => setPacking({ done, total }),
         (itemId, docs) => persistDocs(scope, itemId, docs),
       );
-      if (!r.ok) toast(`「${f.name}」里没有可下载的说明书`);
+      if (!r.ok) toast(r.error || `「${f.name}」里没有可下载的说明书`);
       else toast(`已打包「${f.name}」：${r.ok} 份说明书 + 产品清单${r.miss ? `，${r.miss} 份缺失` : ''}`);
       refresh();
     } catch (e) {
@@ -1034,8 +1034,8 @@ export default function DesktopQuote() {
                     className="pc-btn pc-btn-sm pc-btn-ghost"
                     title={
                       selRows.length
-                        ? `下载勾选的 ${selRows.length} 个产品的说明书（打成一个 zip）`
-                        : '下载当前收藏夹全部产品的说明书（打成一个 zip）'
+                        ? `逐个下载勾选的 ${selRows.length} 个产品的说明书（每个 PDF 一个文件）`
+                        : '逐个下载当前收藏夹全部产品的说明书（每个 PDF 一个文件）'
                     }
                     disabled={!!packing}
                     onClick={() => void downloadManualsNow()}

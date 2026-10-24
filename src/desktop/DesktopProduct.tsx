@@ -26,7 +26,8 @@ import { editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { type EditField } from '../core/opsFields';
 import { type CateNode } from '../core/productCates';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
-import { addProducts, addVariants, createFolder as createQuoteFolder, getFolders as getQuoteFolders } from '../core/quoteStore';
+import { addProducts, addVariants, createFolder as createQuoteFolder, docsOf, getFolders as getQuoteFolders, type DocSnap } from '../core/quoteStore';
+import { downloadDocFiles } from '../core/folderPack';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { fmtTime, plain, sanitizeName, toast } from '../core/util';
@@ -444,8 +445,30 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     if (andQuote) onNavigate?.('quote');
   }
 
-  /** 复制产品（打开编辑弹窗，去掉 id 即「另存为新品」真实提交原站） */
-  function copyProduct(p: Product) {
+  /**
+   * 批量下载已勾货号的说明书（逐个文件落盘，每个 PDF 一个文件）。
+   * 说明书地址从产品行的 goods_no_list 取（只取该货号对应的那条）。
+   */
+  async function downloadCheckedDocs() {
+    if (!selEntries.length) return toast('请先勾选货号');
+    const docs: DocSnap[] = [];
+    for (const e of selEntries) {
+      const d = docsOf(e.product).find((x) => x.no === e.goodsNo);
+      if (d && (d.id || d.ossPath)) docs.push(d);
+    }
+    if (!docs.length) return toast('勾选的货号原站没有说明书文件');
+    toast(`正在下载 ${docs.length} 份说明书…`);
+    const r = await downloadDocFiles(docs);
+    toast(
+      r.ok
+        ? `已下载 ${r.ok} 份说明书${r.miss ? `，${r.miss} 份缺失` : ''}${
+            r.ok > 1 ? '（浏览器首次会询问是否允许多个文件下载，需点「允许」）' : ''
+          }`
+        : '说明书下载失败',
+    );
+  }
+
+  /** 复制产品（打开编辑弹窗，去掉 id 即「另存为新品」真实提交原站） */  function copyProduct(p: Product) {
     const { id: _drop, ...rest } = p as any;
     setEditKind('copy');
     setEditing({ ...rest, title: `${plain(p.title || '')}（副本）` } as Product);
@@ -1261,6 +1284,13 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             onClick={() => setKeys(pageVariants, true)}
           >
             全选本页货号
+          </button>
+          <button
+            className="pc-btn pc-btn-sm pc-btn-ghost"
+            title="逐个下载已勾货号的说明书（每个 PDF 一个文件）"
+            onClick={() => void downloadCheckedDocs()}
+          >
+            ⤓ 下载说明书
           </button>
           <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => addCheckedToFolder(false)}>
             加入收藏夹

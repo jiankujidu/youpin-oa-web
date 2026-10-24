@@ -9,7 +9,7 @@
  *     内含「产品清单.csv」+ N 份说明书 PDF（PDF 头 %PDF-）
  *  3) 清单 CSV 内容含货号 / 名称 / 规格 / 报价 / 数量 / 小计
  *  4) 旧存档条目（没有说明书快照）也能按货号回原站补齐后打包
- *  5) 「批量下载说明书」只含 PDF（无 CSV）
+ *  5) 「批量下载说明书」= **逐个 PDF 文件落盘**（不是一个 zip）
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -69,7 +69,16 @@ try {
   page.on('dialog', (d) => d.accept());
 
   const client = await page.createCDPSession();
-  await client.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DL });
+  await client.send('Browser.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath: DL,
+    eventsEnabled: true,
+  });
+  // ★ Chrome「多文件下载」策略：无头环境下多余的自动下载会被 cancel，
+  //   所以用 downloadWillBegin 事件断言「每个说明书都真的触发了下载」，
+  //   而不是断言磁盘上落了几个文件。
+  const dlBegins = [];
+  client.on('Browser.downloadWillBegin', (e) => dlBegins.push(e.suggestedFilename));
 
   await page.goto(`${BASE}/?t=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await sleep(3500);
@@ -109,14 +118,24 @@ try {
           parentId: null,
           create_time: Date.now(),
           items: [
-            mk('a1', 'RXTAN87948', '科研 猴抗S蛋白IgG抗体(SIgG)定性检测试剂盒', [
+            // 2026-10 的新文件：原站 /oss/ 路由可直出（不依赖 static.upingbio.cn）
+            mk('a1', 'SM91888', '科研 人整合素α3(ITG α3)检测试剂盒', [
+              {
+                no: 'SM91888',
+                id: '1030227',
+                ossPath: '202610/1bbc2b2176308a03b84c6202186ca5c3.pdf',
+                fileName: 'SM91888科研 人整合素α3(ITG α3)检测试剂盒.pdf',
+              },
+            ]),
+            // 2025-02 的老文件：只能靠 get_oss_file?id= 通道（该通道目前被原站过期证书挡住）
+            mk('a2', 'RXTAN87948', '科研 猴抗S蛋白IgG抗体(SIgG)定性检测试剂盒', [
               {
                 no: 'RXTAN87948',
                 id: '355370',
+                ossPath: '202502/d15cf1f27216fff085baa1bba8e9090c.pdf',
                 fileName: 'RXTAN87948科研 猴抗S蛋白IgG抗体(SIgG)定性检测试剂盒(ELISA).pdf',
               },
             ]),
-            mk('a2', 'TX507948', '科研 猴抗S蛋白IgG抗体(SIgG)定性检测试剂盒', []),
           ],
         },
       ]),
@@ -193,29 +212,38 @@ try {
     }
   }
 
-  // ---- 3) 批量下载说明书（只含 PDF）----
+  // ---- 3) 批量下载说明书：逐个 PDF 文件落盘（不是一个 zip）----
   fs.readdirSync(DL).forEach((f) => fs.rmSync(path.join(DL, f), { force: true }));
   await page.evaluate(() => {
     Array.from(document.querySelectorAll('button'))
       .find((b) => (b.textContent || '').includes('批量下载说明书'))
       ?.click();
   });
-  let zips2 = [];
+  await sleep(3000);
+  out.bulkToast = await page.evaluate(
+    () => document.querySelector('.pc-toast, .toast, [class*="toast"]')?.textContent?.trim() || null,
+  );
+  let bulk = [];
   for (let i = 0; i < 60; i++) {
     await sleep(1000);
-    zips2 = fs.readdirSync(DL).filter((f) => f.endsWith('.zip'));
-    if (zips2.length) {
+    bulk = fs.readdirSync(DL);
+    if (bulk.length) {
       await sleep(2500);
       break;
     }
   }
-  out.bulkZip = zips2;
-  if (zips2.length) {
-    const entries = readZipEntries(fs.readFileSync(path.join(DL, zips2[0])));
-    out.bulkEntries = entries;
-    out.bulkHasCsv = !!entries?.some((e) => e.name === '产品清单.csv');
-    out.bulkPdfCount = entries?.filter((e) => e.name.endsWith('.pdf')).length || 0;
-  }
+  out.bulkFiles = bulk;
+  out.bulkTriggers = dlBegins.filter((n) => n.endsWith('.pdf'));
+  out.bulkIsZip = bulk.some((f) => f.endsWith('.zip'));
+  const bulkPdfs = bulk.filter((f) => f.endsWith('.pdf'));
+  out.bulkPdfCount = bulkPdfs.length;
+  out.bulkPdfHeadOk = bulkPdfs.every((f) => {
+    const fd = fs.openSync(path.join(DL, f), 'r');
+    const b = Buffer.alloc(5);
+    fs.readSync(fd, b, 0, 5, 0);
+    fs.closeSync(fd);
+    return b.toString('latin1') === '%PDF-';
+  });
 
   await page.screenshot({ path: '.tmp-folder-pack.png' });
   out.jsErrors = errors;
