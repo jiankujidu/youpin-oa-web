@@ -451,6 +451,10 @@ export default function DesktopQuote() {
     refresh();
   }
 
+  /** 规格下拉显示文本：有品牌时带品牌前缀（多品牌报价必须能区分） */
+  const specLabel = (p?: { spec?: string; brand?: string }) =>
+    !p ? '—' : p.brand ? `${p.brand} / ${p.spec || ''}` : (p.spec || '—');
+
   /** 详情行「标签-值」：主行放不下的次要属性都在这里平铺 */
   function detailKvs(r: Row, i: number): { k: string; v: string; edit?: 'unit' | 'discount' | 'note' }[] {
     const it = r.item;
@@ -516,13 +520,15 @@ export default function DesktopQuote() {
             onChange={(e) => patch(r, { specIndex: Number(e.target.value) })}
           >
             {it.prices.map((p, k) => (
-              <option key={k} value={k} title={p.dir ? `${p.spec}（目录价 ¥${money(p.dir)}）` : p.spec}>
-                {p.spec}
+              <option key={k} value={k} title={p.dir ? `${specLabel(p)}（目录价 ¥${money(p.dir)}）` : specLabel(p)}>
+                {specLabel(p)}
               </option>
             ))}
           </select>
         ) : (
-          <span title={it.prices[it.specIndex]?.spec || ''}>{it.prices[it.specIndex]?.spec || '—'}</span>
+          <span title={specLabel(it.prices[it.specIndex] || it.prices[0])}>
+            {specLabel(it.prices[it.specIndex] || it.prices[0])}
+          </span>
         );
       case 'basis':
         return (

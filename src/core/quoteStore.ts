@@ -7,15 +7,13 @@
  */
 import type { Product } from './types';
 import { buildXlsx, downloadXlsx, S, type XCell, type XRow } from './xlsx';
+import { parsePrices, priceBasisNote, hasAnyPrice } from './priceParse';
+import type { QuoteSpec, Basis } from './priceParse';
+
+export type { QuoteSpec, Basis } from './priceParse';
+export { parsePrices, priceBasisNote, hasAnyPrice } from './priceParse';
 
 /** 价格解析结果：一个规格对应「目录价 / 经销价」 */
-export interface QuoteSpec {
-  spec: string;
-  /** 目录价 */
-  dir: number;
-  /** 经销价 */
-  dist: number;
-}
 
 /**
  * 说明书快照（收藏夹条目自带，用于「批量下载说明书 / 打包收藏夹」）。
@@ -397,170 +395,6 @@ export function moveItems(fromId: string, itemIds: string[], toId: string): void
 function isNum(x: string): boolean {
   return /^\d+(\.\d+)?$/.test(x);
 }
-/** 像规格：既含数字又含字母（如 100UL / 0.5mg / 96T） */
-function looksSpec(x: string): boolean {
-  return /\d/.test(x) && /[a-z]/i.test(x);
-}
-/** 规格里常用的单位后缀（捕获组：m[1]=数值、m[2]=单位、m[3]=价格） */
-const UNIT_RE = /(ul|μl|µl|ml|mg|ug|μg|µg|ng|g|kg|l|t\b|tests?)/i;
-
-/**
- * 解析「无标签」格式的 price_desc——抗体类产品的主流写法。
- * 这类原站数据里没有「规格:」「目录价:」这类冒号标签，只有一串交替出现的值：
- *
- *  D) 交替序列（抗体最常见）
- *     '100UL;2230;53ul;1560;10ul;368' → (100UL,2230) (53ul,1560) (10ul,368)
- *  E) 斜杠配对（规格与价格各自用 / 连写，单位只在最后一段）
- *     '0.1/0.5/1mg;280/500/710;7折'   → (0.1mg,280) (0.5mg,500) (1mg,710)
- *     '100UL/500UL;458/1143;经销商7折'  → (100UL,458) (500UL,1143)
- *  F) 完全粘连
- *     '0.5mg2500经销商7折'              → (0.5mg,2500)
- *
- * 只提取原站「确实写了」的数字，不做任何推算；单一价格一律落 dir，dist 留 0，
- * 由「待确认清单」提示口径需商务确认（经销价未知时 UI 会回退到 dir 并标注）。
- */
-export function parseUnlabeledPrices(s: string): QuoteSpec[] {
-  const out: QuoteSpec[] = [];
-  const parts = s.split(/[;；,，\s]+/).map((x) => x.trim()).filter(Boolean);
-  if (!parts.length) return out;
-
-  /* D) 交替序列：偶数个片段，且偶数位像规格、奇数位是纯数字 */
-  if (parts.length >= 2 && parts.length % 2 === 0) {
-    let ok = true;
-    for (let i = 0; i < parts.length; i++) {
-      if (!(i % 2 === 0 ? looksSpec(parts[i]) : isNum(parts[i]))) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) {
-      for (let i = 0; i < parts.length; i += 2) {
-        out.push({ spec: parts[i], dir: parseFloat(parts[i + 1]) || 0, dist: 0 });
-      }
-      return out;
-    }
-  }
-
-  /* E) 斜杠配对：'规格1/规格2/规格3;价1/价2/价3;折扣说明' */
-  if (parts.length >= 2 && parts[0].includes('/') && parts[1].includes('/')) {
-    const specsRaw = parts[0].split('/').map((x) => x.trim()).filter(Boolean);
-    const prices = parts[1].split('/').map((x) => x.trim()).filter(Boolean);
-    if (specsRaw.length === prices.length && prices.every(isNum)) {
-      // 单位只写在最后一段（如 '1mg'），补到前面各段上
-      const um = specsRaw[specsRaw.length - 1].match(/^[\d.]+\s*([a-zμµ].*)$/i);
-      const unit = um ? um[1] : '';
-      specsRaw.forEach((sp, i) => {
-        const full = i === specsRaw.length - 1 || looksSpec(sp) ? sp : `${sp}${unit}`;
-        out.push({ spec: full, dir: parseFloat(prices[i]) || 0, dist: 0 });
-      });
-      return out;
-    }
-  }
-
-  /* F) 完全粘连：'0.5mg2500经销商7折' —— 扫描「数字+单位」后紧跟的数字 */
-  const scan = new RegExp(`([\\d.]+)\\s*${UNIT_RE.source}\\s*(\\d+(?:\\.\\d+)?)`, 'gi');
-  let m: RegExpExecArray | null;
-  while ((m = scan.exec(s))) {
-    // m[1]=规格数值  m[2]=单位  m[3]=价格
-    out.push({ spec: `${m[1]}${m[2] || ''}`.trim(), dir: parseFloat(m[3]) || 0, dist: 0 });
-  }
-  if (out.length) return out;
-
-  /* 兜底：整串就是「规格 价格」两个片段 */
-  if (parts.length === 2 && looksSpec(parts[0]) && isNum(parts[1])) {
-    out.push({ spec: parts[0], dir: parseFloat(parts[1]) || 0, dist: 0 });
-  }
-  return out;
-}
-
-/**
- * 解析原站 price_desc（同一字段存在多种历史格式）：
- *  A) 规格:10mg-目录价:200元-经销价:300元;规格:20mg-目录价:300元-经销价:400元
- *  B) 规格：96T-目录价：3000元/经销价：1200元,规格：48T-目录价：2400元/经销价：1000元
- *  C) 规格:10mg-价格:200元（只有单一价）
- *  D) 100UL;2230;53ul;1560;10ul;368（抗体主流，无标签交替序列）
- *  E) 0.1/0.5/1mg;280/500/710;7折（斜杠配对）
- *  F) 0.5mg2500经销商7折（完全粘连）
- */
-export function parsePrices(desc?: string): QuoteSpec[] {
-  const s = String(desc || '').replace(/&nbsp;/g, ' ').trim();
-  if (!s) return [];
-
-  /* 没有任何标签关键词、也不含冒号 → 走无标签解析（抗体等） */
-  const labeled = /规格|型号|包装|目录价|经销价|市场价|零售价|代理价|渠道价|批发价|价格|[:：]/.test(s);
-  if (!labeled) return parseUnlabeledPrices(s);
-
-  const out: QuoteSpec[] = [];
-  const parts = s.split(/[;；,，\r\n]+/).map((x) => x.trim()).filter(Boolean);
-  for (const part of parts) {
-    const segs = part.split(/[-—–/／|]+/).map((x) => x.trim()).filter(Boolean);
-    let spec = '';
-    let dir = 0;
-    let dist = 0;
-    let other = 0;
-    /** 结算当前这条规格（遇到新「规格」段时调用） */
-    const flush = () => {
-      if (!dir && !dist && other) {
-        dir = other;
-        dist = other;
-      }
-      if (spec || dir || dist) out.push({ spec: spec || '标准', dir, dist });
-      spec = '';
-      dir = 0;
-      dist = 0;
-      other = 0;
-    };
-    for (const seg of segs) {
-      const m = seg.match(/^([^:：]+)[:：]\s*(.*)$/);
-      if (m) {
-        const k = m[1].trim();
-        const v = m[2].trim();
-        const num = parseFloat(v.replace(/[^\d.\-]/g, '')) || 0;
-        if (/规格|型号|包装/.test(k)) {
-          flush();
-          spec = v.replace(/元/g, '').trim();
-        } else if (/目录|市场|标价|零售/.test(k)) {
-          dir = num;
-        } else if (/经销|代理|渠道|批发/.test(k)) {
-          dist = num;
-        } else if (/价/.test(k)) {
-          other = other || num;
-        }
-        continue;
-      }
-      /* 无冒号但带价格关键词：'目录价（元）1340元' */
-      const km = seg.match(/^(目录价|经销价|市场价|零售价|代理价|渠道价|批发价|价格)\s*[（(]?\s*元?\s*[)）]?\s*([\d.]+)/);
-      if (km) {
-        const num = parseFloat(km[2]) || 0;
-        if (/目录|市场|零售|标价/.test(km[1])) dir = num;
-        else if (/经销|代理|渠道|批发/.test(km[1])) dist = num;
-        else other = other || num;
-        continue;
-      }
-      /* 裸规格段：'100UL' —— 结算上一条，开新规格
-         （原站 G 格式会把 '规格/100UL' 切成 ['规格','100UL']，
-           纯中文的 '规格' 二字不算规格，直接跳过） */
-      if (looksSpec(seg)) {
-        flush();
-        spec = seg;
-      }
-    }
-    flush();
-  }
-  return out;
-}
-
-/**
- * 价格口径说明（用于报价方案「数据来源」列 / 待确认清单）：
- * 无标签格式的原站数据只写一个价，无法区分目录价与经销价，需商务确认。
- */
-export function priceBasisNote(desc?: string): '' | 'unlabeled' {
-  const s = String(desc || '').replace(/&nbsp;/g, ' ').trim();
-  if (!s) return '';
-  const labeled = /规格|型号|包装|目录价|经销价|市场价|零售价|代理价|渠道价|批发价|价格|[:：]/.test(s);
-  return labeled ? '' : 'unlabeled';
-}
-
 /** 单价：按计价方式取（目录价 / 经销价 / 自定义） */
 export function unitPrice(it: QuoteItem): number {
   if (it.priceType === 'custom') return Number(it.custom) || 0;
