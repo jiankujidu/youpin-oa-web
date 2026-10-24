@@ -6,6 +6,7 @@
  * 产品数据本身仍来自原站 /product/index/list 实时接口（加入收藏夹时快照）。
  */
 import type { Product } from './types';
+import { fetchProductPage } from './api';
 import { buildXlsx, downloadXlsx, S, type XCell, type XRow } from './xlsx';
 import { parsePrices, priceBasisNote, hasAnyPrice } from './priceParse';
 import type { QuoteSpec, Basis } from './priceParse';
@@ -156,9 +157,84 @@ function emit(): void {
 }
 
 /* ------------------------------ 收藏夹 CRUD ------------------------------ */
+
+/**
+ * ★ 条目自愈：解析能力升级后，旧收藏条目的 prices 还是**旧解析器**留下的空数组，
+ *   页面就会显示「规格 — / 报价 0」。只要条目存了原站原文 priceRaw，这里就地重解析，
+ *   不需要用户重新收藏一遍。
+ */
+const rehydrated = new Map<string, QuoteSpec[]>();
+
+function rehydrate(it: QuoteItem): QuoteItem {
+  if (it.prices && it.prices.length) return it;
+  const raw = String(it.priceRaw || '');
+  if (!raw.trim()) return it;
+  const cached = rehydrated.get(it.id);
+  const prices = cached ?? parsePrices(raw);
+  if (!cached) rehydrated.set(it.id, prices);
+  return prices.length ? { ...it, prices } : it;
+}
+
 export function getFolders(): QuoteFolder[] {
   const list = read<QuoteFolder[]>(KEY_FOLDERS, []);
-  return Array.isArray(list) ? list : [];
+  if (!Array.isArray(list)) return [];
+  return list.map((f) => ({ ...f, items: (f.items || []).map(rehydrate) }));
+}
+
+/**
+ * 回原站按货号重拉 price_desc，补齐「没有价格」的条目（更老的数据连 priceRaw 都没存）。
+ *
+ * ★ 分两段：先**并发只读**回原站取（不写库），再**串行**写库 ——
+ *   updateItem 是 read-modify-write，并发写会互相覆盖。
+ */
+export async function refreshItemPrices(
+  rows: { folderId: string; item: QuoteItem }[],
+  onProgress?: (done: number, total: number, stage?: '刷新价格') => void,
+): Promise<{ fixed: number; still: number }> {
+  const targets = rows.filter((r) => !(r.item.prices && r.item.prices.length));
+  if (!targets.length) return { fixed: 0, still: 0 };
+
+  /* ---- 阶段 1：并发回原站取（只读） ---- */
+  const got = new Array<{ desc: string; prices: QuoteSpec[] }>(targets.length);
+  let done = 0;
+  let cursor = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= targets.length) return;
+      const t = targets[i];
+      const own = String(t.item.priceRaw || '');
+      if (own.trim()) {
+        got[i] = { desc: own, prices: parsePrices(own) };
+      } else if (t.item.goods_no) {
+        let desc = '';
+        try {
+          const { rows: list } = await fetchProductPage(t.item.goods_no, 1, 10);
+          const m =
+            list.find((p) => (p.goods_no || '').split(/[;；]/)[0] === t.item.goods_no) || list[0];
+          if (m) desc = String(m.price_desc ?? '');
+        } catch {
+          /* 单条失败不影响整体 */
+        }
+        got[i] = { desc, prices: desc.trim() ? parsePrices(desc) : [] };
+      } else {
+        got[i] = { desc: '', prices: [] };
+      }
+      done++;
+      onProgress?.(done, targets.length, '刷新价格');
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+
+  /* ---- 阶段 2：串行写库 ---- */
+  let fixed = 0;
+  targets.forEach((t, i) => {
+    const g = got[i];
+    if (!g) return;
+    updateItem(t.folderId, t.item.id, { priceRaw: g.desc, prices: g.prices });
+    if (g.prices.length) fixed++;
+  });
+  return { fixed, still: targets.length - fixed };
 }
 
 export function saveFolders(list: QuoteFolder[]): void {

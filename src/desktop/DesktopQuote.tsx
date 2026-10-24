@@ -7,10 +7,11 @@
  *          可存档、导出 CSV、打印正式报价单（A4）
  *  · 数据：localStorage（本模块为系统新增能力，OA 原站无对应接口）
  */
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchProductPage } from '../core/api';
 import { getDisplayName } from '../core/session';
 import { downloadManuals, folderManifest, packFolders } from '../core/folderPack';
+import { refreshItemPrices } from '../core/quoteStore';
 import {
   addProducts,
   createFolder,
@@ -282,6 +283,66 @@ export default function DesktopQuote() {
       (k) => !String(r.item[k] || '').trim(),
     ),
   ).length;
+
+  /**
+   * 无价格条目数：规格/价格都解析不出来（旧快照是旧解析器产物，或原站本就没标价）。
+   * ★ 这类行不能静默显示 ¥0.00 —— 要能被看见、能一键回原站补齐。
+   */
+  const missingPrices = rows.filter((r) => !(r.item.prices && r.item.prices.length)).length;
+
+  /**
+   * 进入报价页时**自动静默补齐**没有价格的条目（每个条目只尝试一次，避免死循环）。
+   * ★ 旧存档条目收藏时用的是旧解析器（无标签/按样计价格式解析不出来），
+   *   不自愈的话页面上就一直显示「— / ¥0.00」，看着像是我瞎认的价。
+   */
+  const triedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const miss = rows.filter(
+      (r) => !(r.item.prices && r.item.prices.length) && !triedRef.current.has(r.item.id),
+    );
+    if (!miss.length) return;
+    miss.forEach((r) => triedRef.current.add(r.item.id));
+    let alive = true;
+    void (async () => {
+      const r = await refreshItemPrices(
+        miss.slice(0, 60).map((x) => ({ folderId: x.folder.id, item: x.item })),
+        (done, total) => setPacking({ done, total, stage: '刷新价格' }),
+      );
+      if (alive) {
+        refresh();
+        if (r.fixed) toast(`已自动补齐 ${r.fixed} 个产品的价格`);
+      }
+    })();
+    return () => {
+      alive = false;
+      setPacking(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
+  /** 回原站按货号重拉 price_desc 并重新解析价格（补齐「— / ¥0.00」的行） */
+  async function fillPrices() {
+    const targets = rows.filter((r) => !(r.item.prices && r.item.prices.length));
+    if (!targets.length) return toast('价格已齐全');
+    toast(`正在回原站补齐 ${targets.length} 个产品的价格…`);
+    setPacking({ done: 0, total: targets.length, stage: '刷新价格' });
+    try {
+      const r = await refreshItemPrices(
+        targets.map((x) => ({ folderId: x.folder.id, item: x.item })),
+        (done, total, stage) => setPacking({ done, total, stage }),
+      );
+      refresh();
+      toast(
+        `已补齐 ${r.fixed} 个产品的价格${
+          r.still ? `；${r.still} 个原站本身未标价（标「需询价」，需商务提供）` : ''
+        }`,
+      );
+    } catch (e) {
+      toast('刷新失败：' + String(e).slice(0, 60));
+    } finally {
+      setPacking(null);
+    }
+  }
 
   /** 从原站产品库按货号回填种属/应用场景/方法学等属性（原站有的必须体现） */
   async function fillAttrs() {
@@ -575,6 +636,20 @@ export default function DesktopQuote() {
           </div>
         );
       case 'spec':
+        // ★ 解析不出规格/价格时明确标「需询价」，不再静默显示「—」+ ¥0.00 让人以为是真价
+        if (!it.prices.length)
+          return (
+            <span
+              style={{ color: '#c0392b', fontSize: 12.5 }}
+              title={
+                it.priceRaw
+                  ? `原站原文：${it.priceRaw}（未能解析出价格，需商务确认）`
+                  : '该货号在本机存档中没有原站价格原文，点「↻ 刷新价格」回原站重取'
+              }
+            >
+              需询价
+            </span>
+          );
         return it.prices.length > 1 ? (
           <select
             className="q-sel"
@@ -611,6 +686,12 @@ export default function DesktopQuote() {
           <input
             className="q-inp r"
             type="number"
+            style={unitPrice(it) > 0 ? undefined : { color: '#c0392b' }}
+            title={
+              unitPrice(it) > 0
+                ? '报价单价（可改，改后自动切为「自定义」）'
+                : '原站未标价或标注询价/咨询 —— 这里保持 0，**不要当成真实价格**，需商务确认后手填'
+            }
             value={it.priceType === 'custom' ? it.custom : unitPrice(it)}
             onChange={(e) => patch(r, { priceType: 'custom', custom: Number(e.target.value) || 0 })}
           />
@@ -1174,6 +1255,16 @@ export default function DesktopQuote() {
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setPickOpen(true)}>
                     ＋ 添加产品
                   </button>
+                  {missingPrices ? (
+                    <button
+                      className="pc-btn pc-btn-sm pc-btn-ghost"
+                      title={`有 ${missingPrices} 个产品解析不出规格/价格（多为旧存档：收藏时用的旧解析器不支持该写法）。点此按货号回原站重取 price_desc 并重新解析`}
+                      disabled={!!packing}
+                      onClick={() => void fillPrices()}
+                    >
+                      ↻ 刷新价格({missingPrices})
+                    </button>
+                  ) : null}
                   {missingAttrs ? (
                     <button
                       className="pc-btn pc-btn-sm pc-btn-ghost"
