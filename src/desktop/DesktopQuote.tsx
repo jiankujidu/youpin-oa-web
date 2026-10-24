@@ -13,6 +13,7 @@ import { getDisplayName } from '../core/session';
 import {
   addProducts,
   createFolder,
+  effQuoteOpts,
   exportQuoteCsv,
   exportQuoteXlsx,
   EXTRA_COLS,
@@ -254,18 +255,37 @@ export default function DesktopQuote() {
     }),
     [setting.mode, setting.showDiscount, setting.extra, setting.showNote],
   );
+  /**
+   * 生效的输出选项（用户定稿：「没有不体现，有的一定要体现」）：
+   * 勾选了但本单所有产品都没有值的附加属性列不出现，有值的列才体现。
+   */
+  const effOpts = useMemo(
+    () => effQuoteOpts(opts, selRows.map((r) => r.item)),
+    [opts, selRows],
+  );
   /** 明细表 / 预览 / Excel 共用的列（预览与导出不变；明细表主行改用 MAIN_COLS） */
-  const cols = useMemo(() => quoteColumns(opts), [opts]);
+  const cols = useMemo(() => quoteColumns(effOpts), [effOpts]);
   /** 行展开状态（展开显示次要属性详情） */
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
   const toggleRow = (id: string) => setOpenRows((s) => ({ ...s, [id]: !s[id] }));
 
-  /** 属性缺失（旧条目没有种属/应用场景）的条数 */
-  const missingAttrs = rows.filter((r) => !r.item.species && !r.item.application).length;
+  /**
+   * 属性缺失条数：种属/应用场景/方法学/基因名称/分子量/来源 任一为空都算缺
+   * （旧存档只快照了部分字段；原站有的字段一定要体现，缺的按货号回原站补）
+   */
+  const missingAttrs = rows.filter((r) =>
+    (['species', 'application', 'method', 'gene', 'mw', 'source'] as const).some(
+      (k) => !String(r.item[k] || '').trim(),
+    ),
+  ).length;
 
-  /** 从原站产品库按货号回填种属/应用场景等属性 */
+  /** 从原站产品库按货号回填种属/应用场景/方法学等属性（原站有的必须体现） */
   async function fillAttrs() {
-    const targets = rows.filter((r) => !r.item.application || !r.item.species);
+    const targets = rows.filter((r) =>
+      (['species', 'application', 'method', 'gene', 'mw', 'source'] as const).some(
+        (k) => !String(r.item[k] || '').trim(),
+      ),
+    );
     if (!targets.length) return toast('产品属性已齐全');
     toast(`正在补全 ${targets.length} 个产品的属性…`);
     let n = 0;
@@ -374,10 +394,11 @@ export default function DesktopQuote() {
     if (setting.showDiscount) {
       kvs.push({ k: '折扣(%)', v: `${Number(it.discount) || 0}`, edit: 'discount' });
     }
+    // 附加属性列：只体现「本单里至少一行有值」的列（没有的不体现，有的一定要体现）
     for (const c of EXTRA_COLS) {
-      if (setting.extra.includes(c.key)) kvs.push({ k: c.title, v: c.get(it) });
+      if (effOpts.extra.includes(c.key)) kvs.push({ k: c.title, v: c.get(it) });
     }
-    if (setting.showNote) kvs.push({ k: '备注', v: it.note || '', edit: 'note' });
+    if (effOpts.showNote) kvs.push({ k: '备注', v: it.note || '', edit: 'note' });
     kvs.push({ k: '所属收藏夹', v: r.folder.name });
     return kvs;
   }
@@ -539,7 +560,7 @@ export default function DesktopQuote() {
     exportQuoteXlsx(
       selRows.map((r) => r.item),
       sheetInfo,
-      opts,
+      effOpts,
     );
     toast('已导出 Excel 报价单');
   }
@@ -549,7 +570,7 @@ export default function DesktopQuote() {
     exportQuoteCsv(
       selRows.map((r) => r.item),
       sheetInfo,
-      opts,
+      effOpts,
     );
     toast('已导出 CSV');
   }
@@ -1018,39 +1039,42 @@ export default function DesktopQuote() {
                               <tr className="q-detail">
                                 <td colSpan={MAIN_COLS.length + 2}>
                                   <div className="q-detail-grid">
-                                    {detailKvs(r, i).map((kv) => (
-                                      <span className="q-detail-kv" key={kv.k}>
-                                        <span className="k">{kv.k}</span>
-                                        {kv.edit === 'unit' ? (
-                                          <input
-                                            className="q-detail-inp"
-                                            style={{ width: 76 }}
-                                            value={it.unit}
-                                            onChange={(e) => patch(r, { unit: e.target.value })}
-                                          />
-                                        ) : kv.edit === 'discount' ? (
-                                          <input
-                                            className="q-detail-inp r"
-                                            style={{ width: 64 }}
-                                            type="number"
-                                            value={it.discount}
-                                            onChange={(e) => patch(r, { discount: Number(e.target.value) || 0 })}
-                                          />
-                                        ) : kv.edit === 'note' ? (
-                                          <input
-                                            className="q-detail-inp"
-                                            style={{ width: 220 }}
-                                            value={it.note}
-                                            placeholder="选填"
-                                            onChange={(e) => patch(r, { note: e.target.value })}
-                                          />
-                                        ) : (
-                                          <span className={`v${kv.v ? '' : ' na'}`} title={kv.v || '—'}>
-                                            {kv.v || '—'}
-                                          </span>
-                                        )}
-                                      </span>
-                                    ))}
+                                    {detailKvs(r, i)
+                                      // 没有的不体现：空值且不可编辑的标签-值直接不出现
+                                      .filter((kv) => kv.edit || kv.v)
+                                      .map((kv) => (
+                                        <span className="q-detail-kv" key={kv.k}>
+                                          <span className="k">{kv.k}</span>
+                                          {kv.edit === 'unit' ? (
+                                            <input
+                                              className="q-detail-inp"
+                                              style={{ width: 76 }}
+                                              value={it.unit}
+                                              onChange={(e) => patch(r, { unit: e.target.value })}
+                                            />
+                                          ) : kv.edit === 'discount' ? (
+                                            <input
+                                              className="q-detail-inp r"
+                                              style={{ width: 64 }}
+                                              type="number"
+                                              value={it.discount}
+                                              onChange={(e) => patch(r, { discount: Number(e.target.value) || 0 })}
+                                            />
+                                          ) : kv.edit === 'note' ? (
+                                            <input
+                                              className="q-detail-inp"
+                                              style={{ width: 220 }}
+                                              value={it.note}
+                                              placeholder="选填"
+                                              onChange={(e) => patch(r, { note: e.target.value })}
+                                            />
+                                          ) : (
+                                            <span className="v" title={kv.v}>
+                                              {kv.v}
+                                            </span>
+                                          )}
+                                        </span>
+                                      ))}
                                   </div>
                                 </td>
                               </tr>
@@ -1272,7 +1296,7 @@ export default function DesktopQuote() {
                                 className="pc-xs-btn pc-xs-green"
                                 title="按该单保存时的口径导出 Excel"
                                 onClick={() => {
-                                  exportQuoteXlsx(d.rows, docSheetInfo(d), docOpts(d));
+                                  exportQuoteXlsx(d.rows, docSheetInfo(d), effQuoteOpts(docOpts(d), d.rows));
                                   toast('已导出 Excel 报价单');
                                 }}
                               >

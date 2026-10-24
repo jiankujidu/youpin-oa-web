@@ -292,9 +292,36 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   /** 产品详情弹窗里展开内联预览的说明书货号 */
   const [inlineDoc, setInlineDoc] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
-  /** 勾选的货号（按货号维度，而非整行产品）。元素 = `${productId}::${goodsNo}`。
-   *  一个产品含多个公司货号时，每个货号独立可勾，避免「同个指标乱勾」「分不清选的是哪个公司的货号」。 */
-  const [checked, setChecked] = useState<string[]>([]);
+  /**
+   * 勾选的货号（按货号维度，而非整行产品）。key = `${productId}::${goodsNo}`。
+   * 一个产品含多个公司货号时，每个货号独立可勾，避免「同个指标乱勾」「分不清选的是哪个公司的货号」。
+   *
+   * ★ 存的是「key → {product, goodsNo} 快照字典」而不仅是 key 数组（用户原话：「搜勾选后不丢弃勾」）：
+   *   换关键词搜索 / 翻页后，之前勾选的产品已不在当前结果里，但勾选项必须保留。
+   *   若只存 key，加入收藏夹时只能从当前页 displayRows 反查产品对象，之前勾的会被静默丢弃
+   *   （表现为「我勾了，再搜别的，刚勾的就不在了」）。
+   */
+  const [checkedMap, setCheckedMap] = useState<Record<string, { product: Product; goodsNo: string }>>(
+    {},
+  );
+  /** 勾选 key 列表（渲染用；字典的键序即勾选顺序） */
+  const checked = useMemo(() => Object.keys(checkedMap), [checkedMap]);
+  /** 批量勾选 / 取消（带产品快照写入，跨搜索保留） */
+  const setKeys = useCallback(
+    (keys: { key: string; entry: { product: Product; goodsNo: string } }[], on: boolean) => {
+      setCheckedMap((prev) => {
+        const next = { ...prev };
+        for (const { key, entry } of keys) {
+          if (on) next[key] = entry;
+          else delete next[key];
+        }
+        return next;
+      });
+    },
+    [],
+  );
+  /** 清空全部勾选 */
+  const clearChecked = useCallback(() => setCheckedMap({}), []);
   /** 新增 / 编辑产品弹窗（真实提交 POST /product/index/add） */
   const [editing, setEditing] = useState<Product | null>(null);
   /** 编辑弹窗形态：edit=编辑既有 / copy=复制为新品 / new=添加产品 */
@@ -389,20 +416,15 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     return no ? [{ no, has: false }] : [];
   }, []);
 
-  /** 勾选的货号 → {product, goodsNo} 列表，供收藏夹 / 报价按具体货号落库 */
-  const selEntries = useMemo(() => {
-    const byId = new Map<string, Product>();
-    displayRows.forEach((p) => byId.set(String((p as any).id ?? ''), p));
-    const out: { product: Product; goodsNo: string }[] = [];
-    for (const k of checked) {
-      const idx = k.indexOf('::');
-      const pid = idx >= 0 ? k.slice(0, idx) : k;
-      const no = idx >= 0 ? k.slice(idx + 2) : '';
-      const p = byId.get(pid);
-      if (p) out.push({ product: p, goodsNo: no });
-    }
-    return out;
-  }, [checked, displayRows]);
+  /**
+   * 勾选的货号 → {product, goodsNo} 列表，供收藏夹 / 报价按具体货号落库。
+   * ★ 直接取勾选字典里的产品快照，**不依赖当前页 displayRows**——
+   *   这样换关键词搜索后，之前勾选（已不在当前结果里）的货号依然会一起加入收藏夹。
+   */
+  const selEntries = useMemo(
+    () => Object.entries(checkedMap).map(([, v]) => v),
+    [checkedMap],
+  );
 
   /* ---- 收藏夹 / 报价（本系统新增能力，数据落本机，不改动原站结构） ---- */
   const [favFolders, setFavFolders] = useState(() => getQuoteFolders());
@@ -418,7 +440,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     toast(`已加入收藏夹 ${added} 个货号${updated ? `，更新 ${updated} 个` : ''}`);
     setFavNew('');
     setFavFolders(getQuoteFolders());
-    setChecked([]);
+    clearChecked();
     if (andQuote) onNavigate?.('quote');
   }
 
@@ -445,22 +467,36 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
-  /** 单个货号勾选 / 取消；key = `${productId}::${goodsNo}` */
-  function toggleKey(key: string) {
-    setChecked((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
+  /** 单个货号勾选 / 取消；key = `${productId}::${goodsNo}`（带产品快照，跨搜索保留） */
+  function toggleKey(key: string, product: Product, goodsNo: string) {
+    setCheckedMap((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key];
+      else next[key] = { product, goodsNo };
+      return next;
+    });
   }
-  /** 本页所有可勾选货号的 key 列表（每个产品 × 其每个货号变体） */
-  const pageVariantKeys = useMemo(() => {
-    const arr: string[] = [];
+  /** 本页所有可勾选货号（每个产品 × 其每个货号变体），带产品快照 */
+  const pageVariants = useMemo(() => {
+    const arr: { key: string; entry: { product: Product; goodsNo: string } }[] = [];
     for (const p of displayRows) {
       const pid = String((p as any).id ?? '');
-      for (const e of goodsEntriesOf(p as any)) arr.push(`${pid}::${e.no}`);
+      for (const e of goodsEntriesOf(p as any)) {
+        arr.push({ key: `${pid}::${e.no}`, entry: { product: p, goodsNo: e.no } });
+      }
     }
     return arr;
   }, [displayRows, goodsEntriesOf]);
+  /** 本页所有可勾选货号的 key 列表 */
+  const pageVariantKeys = useMemo(() => pageVariants.map((v) => v.key), [pageVariants]);
   /** 本页是否全选 / 部分选中（表头复选框的 indeterminate 半选态） */
   const pageAllOn = pageVariantKeys.length > 0 && pageVariantKeys.every((k) => checked.includes(k));
   const pageSomeOn = !pageAllOn && pageVariantKeys.some((k) => checked.includes(k));
+  /** 已勾选但不在当前结果页里的货号数（提示用：这些也会一起加入收藏夹，不会被丢掉） */
+  const offPageSel = useMemo(() => {
+    const onPage = new Set(pageVariantKeys);
+    return checked.filter((k) => !onPage.has(k)).length;
+  }, [checked, pageVariantKeys]);
 
   /**
    * 列顺序（用户指定，这 12 列必须在一屏内完整显示、不被右侧常驻「操作」列压住）：
@@ -490,13 +526,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             ref={(el) => {
               if (el) el.indeterminate = pageSomeOn;
             }}
-            onChange={() =>
-              setChecked((prev) =>
-                pageAllOn
-                  ? prev.filter((k) => !pageVariantKeys.includes(k))
-                  : Array.from(new Set([...prev, ...pageVariantKeys])),
-              )
-            }
+            onChange={() => setKeys(pageVariants, !pageAllOn)}
           />
           <span>产品货号/说明书</span>
         </label>
@@ -522,7 +552,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
                       checked={on}
                       title={on ? '取消勾选此货号' : '勾选此货号（加入收藏夹 / 报价）'}
                       onClick={(ev) => ev.stopPropagation()}
-                      onChange={() => toggleKey(key)}
+                      onChange={() => toggleKey(key, r, e.no)}
                     />
                     <span className={`pc-goods-no${e.has ? ' pc-c-blue' : ' pc-c-red'}`}>{e.no}</span>
                     {e.has && e.url ? (
@@ -760,7 +790,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             >
               导出选中行数据({checked.length})
             </button>
-            <button className="pc-btn pc-btn-sm pc-btn-danger" onClick={() => setChecked([])}>
+            <button className="pc-btn pc-btn-sm pc-btn-danger" onClick={() => clearChecked()}>
               清空选中
             </button>
             <button className="pc-btn pc-btn-sm pc-btn-purple" onClick={() => { setInstrKind('up2'); setUploadNote(''); }}>
@@ -928,13 +958,14 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
               },
               onToggle: (r) => {
                 const id = String((r as any).id ?? '');
-                const keys = goodsEntriesOf(r as any).map((e) => `${id}::${e.no}`);
-                const allOn = keys.length > 0 && keys.every((k) => checked.includes(k));
-                setChecked((prev) =>
-                  allOn ? prev.filter((k) => !keys.includes(k)) : Array.from(new Set([...prev, ...keys])),
-                );
+                const vs = goodsEntriesOf(r as any).map((e) => ({
+                  key: `${id}::${e.no}`,
+                  entry: { product: r, goodsNo: e.no },
+                }));
+                const allOn = vs.length > 0 && vs.every((v) => checked.includes(v.key));
+                setKeys(vs, !allOn);
               },
-              onAll: (on) => setChecked(on ? pageVariantKeys : []),
+              onAll: (on) => (on ? setKeys(pageVariants, true) : setKeys(pageVariants, false)),
               allOn: pageVariantKeys.length > 0 && pageVariantKeys.every((k) => checked.includes(k)),
               selCount: checked.length,
             }}
@@ -1198,6 +1229,11 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
         <div className="pc-fav-bar">
           <span>
             已选 <b>{checked.length}</b> 个货号
+            {offPageSel ? (
+              <span className="pc-fav-bar-tip" title="换关键词 / 翻页不会丢弃已勾货号，加入收藏夹时一并带上">
+                （其中 {offPageSel} 个不在当前结果，会一并加入）
+              </span>
+            ) : null}
           </span>
           <select
             className="pc-input"
@@ -1222,7 +1258,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
           <button
             className="pc-btn pc-btn-sm pc-btn-ghost"
             title="选中本页所有货号"
-            onClick={() => setChecked(Array.from(new Set([...checked, ...pageVariantKeys])))}
+            onClick={() => setKeys(pageVariants, true)}
           >
             全选本页货号
           </button>
@@ -1232,7 +1268,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
           <button className="pc-btn pc-btn-sm" onClick={() => addCheckedToFolder(true)}>
             加入并去报价
           </button>
-          <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setChecked([])}>
+          <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => clearChecked()}>
             取消选择
           </button>
         </div>

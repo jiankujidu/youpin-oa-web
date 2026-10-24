@@ -716,6 +716,12 @@
   color: #3c4858;
 }
 .pc-fav-bar b { color: #1e6fff; font-variant-numeric: tabular-nums; }
+/* 「其中 N 个不在当前结果」提示：换关键词/翻页不丢勾，提示用户这些也会一并加入 */
+.pc-fav-bar-tip {
+  margin-left: 6px;
+  font-size: 12px;
+  color: #98a2b3;
+}
 
 /* ---------- 行勾选（「勾选货号」方案：复选框常驻货号列内，不再用 hover 圆点） ---------- */
 .pc-table td:first-child { position: relative; }

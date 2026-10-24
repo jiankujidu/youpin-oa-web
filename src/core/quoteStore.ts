@@ -552,6 +552,25 @@ export function quoteColumns(opts: QuoteOpts): QuoteCol[] {
   return cols;
 }
 
+/**
+ * 按「实际数据」收敛输出选项——用户原话：「没有不体现，有的一定要体现」。
+ *
+ * 用户在「报价单输出选项」里勾选的附加属性列（分类/方法学/基因名称/分子量/来源），
+ * 如果本次勾选的产品里**没有任何一行**有值（原站该字段本就是空的），
+ * 这一列在预览/Excel/CSV 里直接不出现；至少一行有值的列才保留，
+ * 列内没有值的单元格留空（不填「—」占位）。备注列同理。
+ */
+export function effQuoteOpts(opts: QuoteOpts, items: QuoteItem[]): QuoteOpts {
+  const picked = opts.extra || [];
+  const extra = picked.filter((k) => {
+    const d = EXTRA_COLS.find((x) => x.key === k);
+    return d ? items.some((it) => String(d.get(it) ?? '').trim() !== '') : false;
+  });
+  const showNote = !!opts.showNote && items.some((it) => String(it.note || '').trim() !== '');
+  if (extra.length === picked.length && showNote === !!opts.showNote) return opts;
+  return { ...opts, extra, showNote };
+}
+
 /** 报价单抬头 + 汇总（Excel / CSV 共用） */
 export interface QuoteSheetInfo {
   no: string;
