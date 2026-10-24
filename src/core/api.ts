@@ -9,6 +9,7 @@
  */
 import { CONFIG, IS_DEMO_DATA } from './config';
 import * as DEMO from './demoData';
+import { PRODUCT_CATES_LEAF, PRODUCT_CATES_PARENT } from './productCates';
 import { getDisplayName } from './session';
 import { currentAccountSid } from './accounts';
 import { SUB_PAGES, mapRemoteRow } from './biz';
@@ -624,33 +625,52 @@ export function fetchProductPage(keyword = '', page = 1, limit = 50, filter?: Pr
   return fetchProducts(keyword).then((rows) => ({ rows, total: rows.length }));
 }
 
-/** 收集产品分类 id/title 映射（取前 2000 条去重，缓存 sessionStorage；用于分类筛选下拉） */
-export async function fetchProductCateOptions(): Promise<{ id: string; title: string }[]> {
+/**
+ * 产品分类下拉选项（完整清单）。
+ *
+ * 历史：早期靠「拉前 2000 条产品去重」推导分类，既慢（两次 1000 条请求）又不全
+ * （12 万+ 产品里排后面的分类永远不出现，用户反馈「这不齐全」）。
+ * 现改为：src/core/productCates.ts 里的全量探测快照（一级 14 + 二级 75）
+ * + 运行时从已加载产品行中新发现的分类合并（原站新增分类也能出现）。
+ */
+export async function fetchProductCateOptions(): Promise<{ id: string; title: string; count?: number }[]> {
+  const base: { id: string; title: string; count?: number }[] = [
+    ...PRODUCT_CATES_PARENT.map((c) => ({ id: c.id, title: c.title, count: c.count })),
+    ...PRODUCT_CATES_LEAF.map((c) => ({ id: c.id, title: c.title, count: c.count })),
+  ];
   try {
-    const cached = sessionStorage.getItem('youpin_prod_cates');
-    if (cached) return JSON.parse(cached);
+    const extra = sessionStorage.getItem('youpin_prod_cates_extra');
+    if (extra) {
+      const seen = new Set(base.map((c) => c.id));
+      for (const c of JSON.parse(extra) as { id: string; title: string }[]) {
+        if (c.id && c.title && !seen.has(c.id)) {
+          seen.add(c.id);
+          base.push(c);
+        }
+      }
+    }
   } catch {
     /* ignore */
   }
-  if (IS_DEMO_DATA) return [];
+  return base;
+}
+
+/** 把产品行里新出现的分类记进 sessionStorage，供 fetchProductCateOptions 合并（原站新增分类自适应） */
+export function rememberDiscoveredCates(rows: Array<{ cate_id?: unknown; cate_title?: unknown }>): void {
   try {
-    const [a, b] = await Promise.all([
-      oaPage('/product/index/list', { page: 1, limit: 1000 }),
-      oaPage('/product/index/list', { page: 2, limit: 1000 }),
-    ]);
-    const map = new Map<string, string>();
-    for (const r of [...a.rows, ...b.rows] as any[]) {
-      if (r.cate_id && r.cate_title) map.set(String(r.cate_id), String(r.cate_title));
+    const prev: { id: string; title: string }[] = JSON.parse(sessionStorage.getItem('youpin_prod_cates_extra') || '[]');
+    const seen = new Set(prev.map((c) => c.id));
+    for (const r of rows) {
+      const id = String(r.cate_id ?? '');
+      const title = String(r.cate_title ?? '').trim();
+      if (id && title && !seen.has(id)) {
+        seen.add(id);
+        prev.push({ id, title });
+      }
     }
-    const out = [...map.entries()].map(([id, title]) => ({ id, title }));
-    try {
-      sessionStorage.setItem('youpin_prod_cates', JSON.stringify(out));
-    } catch {
-      /* ignore */
-    }
-    return out;
+    sessionStorage.setItem('youpin_prod_cates_extra', JSON.stringify(prev));
   } catch {
-    return [];
+    /* ignore */
   }
 }
 

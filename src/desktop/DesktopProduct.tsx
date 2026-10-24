@@ -12,6 +12,7 @@ import {
   productExportUrl,
   productImport,
   productImportUnder,
+  rememberDiscoveredCates,
   productImportUp,
   productImportUpdate,
   productSave,
@@ -23,13 +24,14 @@ import { CONFIG } from '../core/config';
 import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
 import { editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { type EditField } from '../core/opsFields';
+import { PRODUCT_CATES_PARENT } from '../core/productCates';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
-import { addProducts, createFolder as createQuoteFolder, getFolders as getQuoteFolders } from '../core/quoteStore';
+import { addProducts, addVariants, createFolder as createQuoteFolder, getFolders as getQuoteFolders } from '../core/quoteStore';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { fmtTime, plain, sanitizeName, toast } from '../core/util';
 import { ConfirmDialog, DocPreviewModal, DocPreviewPane, EditModal, Modal } from './ui';
-import { DataTable, PageHead, Panel, StatusTag, type Column } from './pc';
+import { DataTable, PageHead, Panel, PickSelect, StatusTag, type Column } from './pc';
 
 /** 产品编辑 / 复制 表单字段（对齐原站 /product/index/add 主要可填项） */
 const PRODUCT_FIELDS: EditField[] = [
@@ -281,7 +283,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   const [instrKind, setInstrKind] = useState<'up2' | 'productUp' | 'productTemp' | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadNote, setUploadNote] = useState('');
-  const [cateOpts, setCateOpts] = useState<{ id: string; title: string }[]>([]);
+  const [cateOpts, setCateOpts] = useState<{ id: string; title: string; count?: number }[]>([]);
   const [cur, setCur] = useState<Product | null>(null);
   const [folders, setFolders] = useState<FavFolder[]>([]);
   const [saving, setSaving] = useState<{ name: string; url: string; productId: string } | null>(null);
@@ -290,9 +292,9 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   /** 产品详情弹窗里展开内联预览的说明书货号 */
   const [inlineDoc, setInlineDoc] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
-  /** 勾选的产品（对齐原站批量说明书 / getCheckData） */
+  /** 勾选的货号（按货号维度，而非整行产品）。元素 = `${productId}::${goodsNo}`。
+   *  一个产品含多个公司货号时，每个货号独立可勾，避免「同个指标乱勾」「分不清选的是哪个公司的货号」。 */
   const [checked, setChecked] = useState<string[]>([]);
-  /** 复选框常驻「产品货号/说明书」列，随时可勾选（点复选框或货号文字勾选，点标题/行打开详情） */
   /** 新增 / 编辑产品弹窗（真实提交 POST /product/index/add） */
   const [editing, setEditing] = useState<Product | null>(null);
   /** 编辑弹窗形态：edit=编辑既有 / copy=复制为新品 / new=添加产品 */
@@ -343,12 +345,35 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   /** 切换产品时收起上一条的内联说明书预览 */
   useEffect(() => setInlineDoc(null), [cur]);
 
-  /** 分类映射（cate_id → 分类名，后台拉取并缓存）；种属/应用选项取自当前页数据 */
+  /** 分类下拉选项：完整快照（productCates.ts）+ 运行时新发现分类合并，不再扫前 2000 条 */
   useEffect(() => {
     fetchProductCateOptions().then((opts) => {
       if (opts.length) setCateOpts(opts);
     });
   }, []);
+  /** 载入的产品行里若出现快照外的新分类，记录下来供下拉合并（原站新增分类自适应） */
+  useEffect(() => {
+    if (list.length) rememberDiscoveredCates(list as any[]);
+  }, [list]);
+
+  /**
+   * 分类下拉分组：一级（整组筛选，14 个）+ 二级（精确筛选，75 个 + 运行时新发现）。
+   * cate_id 参数对两者都生效——传一级 ID 返回该大类全部产品，传二级 ID 只返回该叶子。
+   */
+  const cateGroups = useMemo(() => {
+    const parentIds = new Set(PRODUCT_CATES_PARENT.map((c) => c.id));
+    const parents: { id: string; title: string; note?: string }[] = [];
+    const leaves: { id: string; title: string; note?: string }[] = [];
+    for (const c of cateOpts) {
+      const note = c.count ? String(c.count) : undefined;
+      (parentIds.has(c.id) ? parents : leaves).push({ id: c.id, title: c.title, note });
+    }
+    const byCount = (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title, 'zh');
+    return [
+      { label: '一级分类（选它 = 筛整个大类）', options: parents.sort(byCount) },
+      { label: '二级分类（选它 = 精确到子类）', options: leaves.sort(byCount) },
+    ];
+  }, [cateOpts]);
   /** 载入行即展示行（筛选已由服务端完成；本地复制的产品仍合并显示） */
   const rows = list;
 
@@ -361,24 +386,54 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
 
   const localCount = useMemo(() => localAdded('product').length, [localVer]);
 
-  /** 勾选行的产品 */
-  const checkedRows = useMemo(
-    () => (displayRows as any[]).filter((p) => checked.includes(String(p.id ?? ''))),
-    [displayRows, checked],
-  );
+  /** 列举一个产品的所有可勾选货号（来自 goods_no_list；无列表则回退到主 goods_no 第一个） */
+  const goodsEntriesOf = useCallback((r: Product): { no: string; has: boolean; url?: string; dlName?: string }[] => {
+    const list = ((r as any).goods_no_list || []) as any[];
+    if (list.length) {
+      return list
+        .map((g) => {
+          const no = g.goods_no || '';
+          const has = !!(g.goods_no_url || g.pc_goods_no_url);
+          return {
+            no,
+            has,
+            url: docUrl(g),
+            dlName: g.goods_no_desc || `${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`,
+          };
+        })
+        .filter((e) => e.no);
+    }
+    const no = String(r.goods_no || '').split(/[;；]/)[0] || '';
+    return no ? [{ no, has: false }] : [];
+  }, []);
+
+  /** 勾选的货号 → {product, goodsNo} 列表，供收藏夹 / 报价按具体货号落库 */
+  const selEntries = useMemo(() => {
+    const byId = new Map<string, Product>();
+    displayRows.forEach((p) => byId.set(String((p as any).id ?? ''), p));
+    const out: { product: Product; goodsNo: string }[] = [];
+    for (const k of checked) {
+      const idx = k.indexOf('::');
+      const pid = idx >= 0 ? k.slice(0, idx) : k;
+      const no = idx >= 0 ? k.slice(idx + 2) : '';
+      const p = byId.get(pid);
+      if (p) out.push({ product: p, goodsNo: no });
+    }
+    return out;
+  }, [checked, displayRows]);
 
   /* ---- 收藏夹 / 报价（本系统新增能力，数据落本机，不改动原站结构） ---- */
   const [favFolders, setFavFolders] = useState(() => getQuoteFolders());
   const [favTarget, setFavTarget] = useState('');
   const [favNew, setFavNew] = useState('');
 
-  /** 把勾选的产品加入收藏夹；andQuote=true 时顺带跳到报价页 */
+  /** 把勾选的货号加入收藏夹（每个货号各成一条）；andQuote=true 时顺带跳到报价页 */
   function addCheckedToFolder(andQuote: boolean) {
-    if (!checked.length) return toast('请先勾选产品（可点表头全选）');
+    if (!checked.length) return toast('请先勾选货号（可点表头全选）');
     const list = favFolders.length ? favFolders : [createQuoteFolder('默认收藏夹')];
     const id = favNew.trim() ? createQuoteFolder(favNew.trim()).id : favTarget || list[0].id;
-    const { added, updated } = addProducts(id, checkedRows as unknown as Product[]);
-    toast(`已加入收藏夹 ${added} 个${updated ? `，更新 ${updated} 个` : ''}`);
+    const { added, updated } = addVariants(id, selEntries);
+    toast(`已加入收藏夹 ${added} 个货号${updated ? `，更新 ${updated} 个` : ''}`);
     setFavNew('');
     setFavFolders(getQuoteFolders());
     setChecked([]);
@@ -408,151 +463,137 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     else if (r.reason !== '已取消') toast('转发失败：' + r.reason);
   }
 
-  /** 单行勾选 / 取消（加入收藏夹、报价、导出选中行都用这套状态） */
-  function toggleChecked(id: string) {
-    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  /** 单个货号勾选 / 取消；key = `${productId}::${goodsNo}` */
+  function toggleKey(key: string) {
+    setChecked((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
   }
+  /** 本页所有可勾选货号的 key 列表（每个产品 × 其每个货号变体） */
+  const pageVariantKeys = useMemo(() => {
+    const arr: string[] = [];
+    for (const p of displayRows) {
+      const pid = String((p as any).id ?? '');
+      for (const e of goodsEntriesOf(p as any)) arr.push(`${pid}::${e.no}`);
+    }
+    return arr;
+  }, [displayRows, goodsEntriesOf]);
   /** 本页是否全选 / 部分选中（表头复选框的 indeterminate 半选态） */
-  const pageIds = displayRows.map((p) => String((p as any).id ?? ''));
-  const pageAllOn = pageIds.length > 0 && pageIds.every((id) => checked.includes(id));
-  const pageSomeOn = !pageAllOn && pageIds.some((id) => checked.includes(id));
+  const pageAllOn = pageVariantKeys.length > 0 && pageVariantKeys.every((k) => checked.includes(k));
+  const pageSomeOn = !pageAllOn && pageVariantKeys.some((k) => checked.includes(k));
 
   /**
    * 列顺序（用户指定，这 12 列必须在一屏内完整显示、不被右侧常驻「操作」列压住）：
-   *   勾选 → 产品货号/说明书 → 产品标题 → 种属 → 应用 → 价格明细 → 基因名称 →
+   *   产品货号/说明书 → 产品标题 → 种属 → 应用 → 价格明细 → 基因名称 →
    *   方法学 → 分子量 → 来源 → 定量/定性 → 分类 → 浓度点
    * 其余列（状态 / 别称 / 种属英文名 / 英文名 / Tag / 表达系统 / 产品代码 /
    *   属性 / 下载量 / 阅读权限 / 操作）往后放，横向滚动查看。
-   * 宽度预算：46(勾选)+240+172+70+70+126+76+76+70+70+72+76+74 = 1238px（首屏可用约 1244px，浓度点不压操作列）。
-   * ★ 勾选方式（用户定稿）：独立「勾选」列在最左常驻，整行一个复选框——与货号无关。
-   *   一个产品含多个货号变体时也只勾一行，杜绝「同个指标多个勾选框分不清」的问题；
-   *   表头全选；点复选框勾选、点整行（除复选框/按钮）打开详情；Ctrl/⌘+点击行也可切换。
+   * 宽度预算：240+172+70+70+126+76+76+70+70+72+76+74 = 1192px（首屏可用约 1244px，12 列完整可见）。
+   * ★ 勾选方式（用户定稿）：按「货号」勾选——每个货号（来自不同公司的变体）各一个复选框，
+   *   整行不再有单一勾选框，避免「同个指标乱勾、分不清选的是哪个公司的货号」。
+   *   表头复选框 = 全选本页所有货号；勾选的货号所在行高亮；右下浮条可加入收藏夹 / 报价。
    */
   const cols: Column<Product>[] = [
-    /** 独立勾选列（「勾线」）——整行一个复选框，最左常驻，与货号无关 */
-    {
-      key: '_sel',
-      title: '',
-      width: 46,
-      align: 'center',
-      freeze: 'left',
-      head: (
-        <input
-          type="checkbox"
-          className="pc-check"
-          checked={pageAllOn}
-          ref={(el) => {
-            if (el) el.indeterminate = pageSomeOn;
-          }}
-          title={pageAllOn ? '取消全选本页' : '全选本页产品'}
-          onChange={() =>
-            setChecked((prev) =>
-              pageAllOn ? prev.filter((id) => !pageIds.includes(id)) : Array.from(new Set([...prev, ...pageIds])),
-            )
-          }
-        />
-      ),
-      render: (r) => {
-        const rid = String(r.id ?? '');
-        const on = checked.includes(rid);
-        return (
-          <input
-            type="checkbox"
-            className="pc-check"
-            checked={on}
-            title={on ? '取消勾选此产品' : '勾选此产品（加入收藏夹 / 报价）'}
-            onClick={(e) => e.stopPropagation()}
-            onChange={() => toggleChecked(rid)}
-          />
-        );
-      },
-    },
     {
       key: 'no',
       title: '产品货号/说明书',
       width: 240,
       align: 'center',
       freeze: 'left',
-      head: <span>产品货号/说明书</span>,
+      /** 表头：全选本页所有货号变体（半选态 indeterminate 直接写 DOM 属性） */
+      head: (
+        <label className="pc-th-pick" title={pageAllOn ? '取消全选本页货号' : '全选本页所有货号'}>
+          <input
+            type="checkbox"
+            className="pc-check"
+            checked={pageAllOn}
+            ref={(el) => {
+              if (el) el.indeterminate = pageSomeOn;
+            }}
+            onChange={() =>
+              setChecked((prev) =>
+                pageAllOn
+                  ? prev.filter((k) => !pageVariantKeys.includes(k))
+                  : Array.from(new Set([...prev, ...pageVariantKeys])),
+              )
+            }
+          />
+          <span>产品货号/说明书</span>
+        </label>
+      ),
       render: (r) => {
+        const rid = String(r.id ?? '');
         // 原站 templet：逐行列出 goods_no_list 每个变体——
         // 有说明书 → 蓝色货号 + 预览(红) + 下载；无 → 红色货号 + 两个「暂无说明书」提示
-        const list = ((r as any).goods_no_list || []) as {
-          goods_no?: string;
-          goods_no_url?: string;
-          pc_goods_no_url?: string;
-          pc_yu_goods_no_url?: string;
-          goods_no_desc?: string;
-        }[];
-        const body = !list.length ? (
-          <span className="pc-td-strong pc-goods-no">
-            {String(r.goods_no || '').split(';')[0] || ''}
-          </span>
-        ) : (
-          <span className="pc-goods-body">
-            {list.map((g, i) => {
-              const no = g.goods_no || '';
-              const has = !!(g.goods_no_url || g.pc_goods_no_url);
-              // ★ 预览与下载都用同一个「真文件」端点 get_oss_file（pc_goods_no_url）：
-              //   - 预览：fetch → Blob → objectURL → 弹窗 iframe 内联渲染（浏览器内置 PDF 阅读器）
-              //   - 下载：<a href download> 直接落真实文件
-              //   注意 pc_yu_goods_no_url（down_oss_file）返回的是 71 字节明文直链，不能用于预览。
-              const url = docUrl(g);
-              const dlName = g.goods_no_desc || `${sanitizeName(no)}-${sanitizeName(plain(r.title || ''))}.pdf`;
-              return (
-                <span className="pc-goods-row" key={i}>
-                  <span className={`pc-goods-no${has ? ' pc-c-blue' : ' pc-c-red'}`}>{no}</span>
-                  {has && url ? (
-                    <>
-                      <button
-                        className="pc-xs-btn pc-xs-danger"
-                        title="在浏览器内预览"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPreviewDoc({ name: dlName, url });
-                        }}
-                      >
-                        预览
-                      </button>
-                      <a
-                        className="pc-xs-btn pc-xs-cyan"
-                        href={url}
-                        download={dlName}
-                        title={`下载 ${dlName}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        下载
-                      </a>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        className="pc-xs-btn pc-xs-danger"
-                        title="暂无说明书"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toast('暂无说明书');
-                        }}
-                      >
-                        预览
-                      </button>
-                      <button
-                        className="pc-xs-btn pc-xs-cyan"
-                        title="暂无说明书"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toast('暂无说明书');
-                        }}
-                      >
-                        下载
-                      </button>
-                    </>
-                  )}
-                </span>
-              );
-            })}
-          </span>
-        );
+        const entries = goodsEntriesOf(r as any);
+        const body =
+          entries.length === 0 ? (
+            <span className="pc-td-strong">{String(r.goods_no || '').split(';')[0] || ''}</span>
+          ) : (
+            <span className="pc-goods-body">
+              {entries.map((e, i) => {
+                const key = `${rid}::${e.no}`;
+                const on = checked.includes(key);
+                return (
+                  <span className={`pc-goods-row${on ? ' pc-goods-row-sel' : ''}`} key={i}>
+                    <input
+                      type="checkbox"
+                      className="pc-check"
+                      checked={on}
+                      title={on ? '取消勾选此货号' : '勾选此货号（加入收藏夹 / 报价）'}
+                      onClick={(ev) => ev.stopPropagation()}
+                      onChange={() => toggleKey(key)}
+                    />
+                    <span className={`pc-goods-no${e.has ? ' pc-c-blue' : ' pc-c-red'}`}>{e.no}</span>
+                    {e.has && e.url ? (
+                      <>
+                        <button
+                          className="pc-xs-btn pc-xs-danger"
+                          title="在浏览器内预览"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setPreviewDoc({ name: e.dlName!, url: e.url! });
+                          }}
+                        >
+                          预览
+                        </button>
+                        <a
+                          className="pc-xs-btn pc-xs-cyan"
+                          href={e.url}
+                          download={e.dlName}
+                          title={`下载 ${e.dlName}`}
+                          onClick={(ev) => ev.stopPropagation()}
+                        >
+                          下载
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="pc-xs-btn pc-xs-danger"
+                          title="暂无说明书"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            toast('暂无说明书');
+                          }}
+                        >
+                          预览
+                        </button>
+                        <button
+                          className="pc-xs-btn pc-xs-cyan"
+                          title="暂无说明书"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            toast('暂无说明书');
+                          }}
+                        >
+                          下载
+                        </button>
+                      </>
+                    )}
+                  </span>
+                );
+              })}
+            </span>
+          );
         return <span className="pc-goods-cell">{body}</span>;
       },
     },
@@ -767,19 +808,13 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
              ★ 源码里「请选择产品属性 / 请选择产品分类」两段 select 已被注释掉，故无属性筛选 */}
         <div style={{ padding: '14px 16px 4px' }}>
           <div className="pc-toolbar">
-            <select
-              className="pc-input"
-              style={{ width: 150 }}
+            <PickSelect
+              placeholder="产品分类"
               value={cateId}
-              onChange={(e) => setCateId(e.target.value)}
-            >
-              <option value="">产品分类</option>
-              {cateOpts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
+              groups={cateGroups}
+              onChange={setCateId}
+              width={220}
+            />
             <input
               className="pc-input"
               style={{ width: 150 }}
@@ -904,15 +939,20 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
               load(query, 1, activeFilter);
             }}
             rowSelect={{
-              isSel: (r) => checked.includes(String(r.id ?? '')),
-              onToggle: (r) =>
+              isSel: (r) => {
+                const id = String((r as any).id ?? '');
+                return goodsEntriesOf(r as any).some((e) => checked.includes(`${id}::${e.no}`));
+              },
+              onToggle: (r) => {
+                const id = String((r as any).id ?? '');
+                const keys = goodsEntriesOf(r as any).map((e) => `${id}::${e.no}`);
+                const allOn = keys.length > 0 && keys.every((k) => checked.includes(k));
                 setChecked((prev) =>
-                  prev.includes(String(r.id ?? ''))
-                    ? prev.filter((x) => x !== String(r.id ?? ''))
-                    : [...prev, String(r.id ?? '')],
-                ),
-              onAll: (on) => setChecked(on ? (displayRows as any[]).map((p) => String(p.id ?? '')) : []),
-              allOn: displayRows.length > 0 && checked.length === displayRows.length,
+                  allOn ? prev.filter((k) => !keys.includes(k)) : Array.from(new Set([...prev, ...keys])),
+                );
+              },
+              onAll: (on) => setChecked(on ? pageVariantKeys : []),
+              allOn: pageVariantKeys.length > 0 && pageVariantKeys.every((k) => checked.includes(k)),
               selCount: checked.length,
             }}
           />
@@ -1170,11 +1210,11 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
         />
       ) : null}
 
-      {/* 勾选后的批量操作浮条（仅批量选择模式下出现）：加入收藏夹 / 去报价 */}
+      {/* 勾选后的批量操作浮条（按货号维度）：加入收藏夹 / 去报价 */}
       {checked.length ? (
         <div className="pc-fav-bar">
           <span>
-            已选 <b>{checked.length}</b> 个产品
+            已选 <b>{checked.length}</b> 个货号
           </span>
           <select
             className="pc-input"
@@ -1198,10 +1238,10 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
           />
           <button
             className="pc-btn pc-btn-sm pc-btn-ghost"
-            title="选中本页全部产品"
-            onClick={() => setChecked((displayRows as any[]).map((p) => String(p.id ?? '')))}
+            title="选中本页所有货号"
+            onClick={() => setChecked(Array.from(new Set([...checked, ...pageVariantKeys])))}
           >
-            全选本页
+            全选本页货号
           </button>
           <button className="pc-btn pc-btn-sm pc-btn-cyan" onClick={() => addCheckedToFolder(false)}>
             加入收藏夹

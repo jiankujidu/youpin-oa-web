@@ -446,3 +446,132 @@ function pageList(cur: number, pages: number): (number | '…')[] {
   out.push(pages);
   return out;
 }
+
+/* ------------------------------------------------------------------ */
+/* 可搜索下拉（PickSelect）                                            */
+/* 原生 <select> 在选项多达几十上百时：弹层高度受系统限制、拉不动、      */
+/* 也无法搜索。产品分类有 89 个选项，故用此组件：输入即筛选 + 列表限高   */
+/* 滚动 + 分组吸顶 + 点击外部/Esc 关闭。                                */
+/* ------------------------------------------------------------------ */
+export interface PickOption {
+  id: string;
+  title: string;
+  /** 右侧角标（如该分类下产品数） */
+  note?: string;
+}
+export interface PickGroup {
+  label: string;
+  options: PickOption[];
+}
+
+export function PickSelect({
+  placeholder,
+  value,
+  groups,
+  onChange,
+  width = 220,
+}: {
+  placeholder: string;
+  value: string;
+  groups: PickGroup[];
+  onChange: (id: string) => void;
+  width?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [kw, setKw] = useState('');
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  /** 当前选中项（跨分组查找） */
+  const cur = useMemo(() => {
+    for (const g of groups) {
+      const hit = g.options.find((o) => o.id === value);
+      if (hit) return hit;
+    }
+    return null;
+  }, [groups, value]);
+
+  /** 关键词过滤（标题命中即可；空关键词 = 全量） */
+  const shown = useMemo(() => {
+    const k = kw.trim().toLowerCase();
+    if (!k) return groups;
+    return groups
+      .map((g) => ({ label: g.label, options: g.options.filter((o) => o.title.toLowerCase().includes(k)) }))
+      .filter((g) => g.options.length > 0);
+  }, [groups, kw]);
+
+  const total = useMemo(() => groups.reduce((s, g) => s + g.options.length, 0), [groups]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    const t = setTimeout(() => inputRef.current?.focus(), 30);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+      clearTimeout(t);
+    };
+  }, [open]);
+
+  return (
+    <span className="pc-pick" ref={boxRef}>
+      <button
+        type="button"
+        className={`pc-pick-btn${open ? ' on' : ''}`}
+        style={{ width }}
+        title={cur ? cur.title : placeholder}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <b>{cur ? cur.title : placeholder}</b>
+        <i>{open ? '▲' : '▼'}</i>
+      </button>
+      {open ? (
+        <>
+          {/* 点击外部关闭的透明捕获层 */}
+          <span style={{ position: 'fixed', inset: 0, zIndex: 55 }} onMouseDown={() => setOpen(false)} />
+          <span className="pc-pick-pop" style={{ width: Math.max(width, 340) }}>
+            <input
+              ref={inputRef}
+              className="pc-pick-search"
+              placeholder={`搜索分类（共 ${total} 个）…`}
+              value={kw}
+              onChange={(e) => setKw(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <span className="pc-pick-list">
+              {shown.length === 0 ? <span className="pc-pick-empty">没有匹配的分类</span> : null}
+              {shown.map((g) => (
+                <span key={g.label}>
+                  <span className="pc-pick-group">{g.label}</span>
+                  {g.options.map((o) => (
+                    <span
+                      key={o.id}
+                      className={`pc-pick-item${o.id === value ? ' on' : ''}`}
+                      title={o.title}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        onChange(o.id === value ? '' : o.id);
+                        setOpen(false);
+                        setKw('');
+                      }}
+                    >
+                      <b>{o.title}</b>
+                      {o.note ? <em>{o.note}</em> : null}
+                    </span>
+                  ))}
+                </span>
+              ))}
+            </span>
+          </span>
+        </>
+      ) : null}
+    </span>
+  );
+}

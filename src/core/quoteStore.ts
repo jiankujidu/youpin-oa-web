@@ -279,6 +279,46 @@ export function removeItems(folderId: string, itemIds: string[]): void {
   saveFolders(list);
 }
 
+/** 按「具体货号」批量加入收藏夹（同一产品的不同货号各为一条；同产品同货号去重不堆叠） */
+export function addVariants(
+  folderId: string,
+  entries: { product: Product; goodsNo: string }[],
+): { added: number; updated: number } {
+  const list = getFolders();
+  const f = list.find((x) => x.id === folderId);
+  if (!f) return { added: 0, updated: 0 };
+  let added = 0;
+  let updated = 0;
+  for (const { product, goodsNo } of entries) {
+    const pid = String((product as unknown as Record<string, unknown>).id ?? '');
+    const gno = goodsNo || ((product.goods_no || '').split(/[;；]/)[0] || '');
+    const exist = f.items.find((it) => it.productId === pid && it.goods_no === gno);
+    const base = toItem(product);
+    if (exist) {
+      Object.assign(exist, {
+        goods_no: gno,
+        title: base.title,
+        cate: base.cate,
+        species: base.species,
+        application: base.application,
+        method: base.method,
+        gene: base.gene,
+        mw: base.mw,
+        source: base.source,
+        prices: base.prices,
+        specIndex: Math.min(exist.specIndex, Math.max(0, base.prices.length - 1)),
+      });
+      updated++;
+    } else {
+      base.goods_no = gno;
+      f.items.push(base);
+      added++;
+    }
+  }
+  saveFolders(list);
+  return { added, updated };
+}
+
 /** 把条目移动到另一个收藏夹 */
 export function moveItems(fromId: string, itemIds: string[], toId: string): void {
   if (fromId === toId) return;

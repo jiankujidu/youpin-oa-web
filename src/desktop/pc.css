@@ -302,8 +302,9 @@
 .pc-table tbody td[style*="sticky"] { background: var(--c-surface); }
 .pc-table tbody tr:hover td[style*="sticky"] { background: #f8fafc; }
 
-/* ---------- 产品货号/说明书单元格：逐变体一行，货号 + 预览/下载（原站 templet） ---------- */
+/* ---------- 产品货号/说明书单元格：逐变体一行，复选框 + 货号 + 预览/下载（原站 templet） ---------- */
 .pc-goods-cell { display: block; line-height: 1.9; }
+.pc-goods-body { display: block; }
 .pc-goods-row { display: block; white-space: nowrap; }
 /* 原站：货号后 &nbsp; 再接按钮（layui-btn-xs 默认 22px 实心小按钮） */
 .pc-goods-row .pc-xs-btn { margin-left: 4px; vertical-align: middle; text-decoration: none; }
@@ -384,6 +385,81 @@
   transition: background 0.12s, color 0.12s;
 }
 .pc-ops-menu-item:hover { background: var(--c-primary-50); color: var(--c-primary); }
+
+/* ---------- 可搜索下拉（产品分类：89 个选项，原生 select 拉不动也看不全） ---------- */
+.pc-pick { position: relative; display: inline-block; }
+.pc-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 220px;
+  height: 32px;
+  padding: 0 10px;
+  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--c-text-2);
+  cursor: pointer;
+  text-align: left;
+}
+.pc-pick-btn:hover { border-color: var(--c-primary); }
+.pc-pick-btn > b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-pick-btn > i { font-style: normal; font-size: 10px; color: var(--c-text-4); flex: none; }
+.pc-pick-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  width: 340px;
+  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.18);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pc-pick-search {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  outline: none;
+}
+.pc-pick-search:focus { border-color: var(--c-primary); }
+.pc-pick-list { max-height: 320px; overflow-y: auto; overflow-x: hidden; }
+.pc-pick-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  color: var(--c-text-4);
+}
+.pc-pick-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--c-text-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pc-pick-item:hover { background: var(--c-primary-50); color: var(--c-primary); }
+.pc-pick-item.on { background: var(--c-primary); color: #fff; }
+.pc-pick-item > b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
+.pc-pick-item > em { font-style: normal; font-size: 11px; opacity: 0.6; flex: none; font-variant-numeric: tabular-nums; }
+.pc-pick-empty { padding: 18px 8px; text-align: center; font-size: 12px; color: var(--c-text-4); }
 /* 桌面端点击目标下限 24px（鼠标友好 + 可达性） */
 .pc-link {
   color: var(--c-primary);
@@ -566,12 +642,12 @@
 /* ---------- 勾选框 ---------- */
 .pc-check { width: 15px; height: 15px; accent-color: var(--c-primary); cursor: pointer; vertical-align: middle; }
 .pc-ops .pc-check { margin-right: 2px; }
-/* 货号列内：复选框 + 货号列表（点货号文字同样切换勾选） */
-.pc-goods-cell { display: flex; align-items: center; justify-content: center; gap: 6px; line-height: 1.9; }
-.pc-goods-cell .pc-check { flex: none; margin: 0; }
-.pc-goods-body { flex: 1; min-width: 0; }
-.pc-goods-no { cursor: pointer; }
-.pc-goods-no:hover { text-decoration: underline; }
+/* 货号列内：每个货号（来自不同公司的变体）各一个复选框，按货号维度勾选 */
+.pc-goods-row .pc-check { margin-right: 6px; }
+.pc-goods-no { cursor: default; }
+/* 选中的货号行淡蓝高亮：让用户一眼看清勾的是哪个公司的货号 */
+.pc-goods-row-sel { background: #eaf1ff; border-radius: 3px; }
+.pc-goods-row-sel .pc-goods-no { font-weight: 600; }
 /* 表头全选（复选框 + 标题同行） */
 .pc-th-pick { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 
