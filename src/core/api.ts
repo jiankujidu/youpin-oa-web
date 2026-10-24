@@ -9,7 +9,7 @@
  */
 import { CONFIG, IS_DEMO_DATA } from './config';
 import * as DEMO from './demoData';
-import { PRODUCT_CATES_LEAF, PRODUCT_CATES_PARENT } from './productCates';
+import { PRODUCT_CATE_TREE, mergeDiscoveredCates, type CateNode } from './productCates';
 import { getDisplayName } from './session';
 import { currentAccountSid } from './accounts';
 import { SUB_PAGES, mapRemoteRow } from './biz';
@@ -590,6 +590,7 @@ export function fetchProducts(keyword = ''): Promise<Product[]> {
 /** 产品筛选条件（服务端过滤，全量 12 万条实时生效） */
 export interface ProductFilter {
   species?: string;
+  /** 产品分类（原站 xmSelect 树形多选：逗号分隔多个 ID，服务端取并集，父 ID 自动展开子类） */
   cateId?: string;
   application?: string;
   /** 原站筛选（全部服务端参数，见 product.html #searchForm） */
@@ -626,33 +627,21 @@ export function fetchProductPage(keyword = '', page = 1, limit = 50, filter?: Pr
 }
 
 /**
- * 产品分类下拉选项（完整清单）。
+ * 产品分类完整树（原站 xmSelect 同款数据源）+ 运行时发现的分类合并。
  *
  * 历史：早期靠「拉前 2000 条产品去重」推导分类，既慢（两次 1000 条请求）又不全
  * （12 万+ 产品里排后面的分类永远不出现，用户反馈「这不齐全」）。
- * 现改为：src/core/productCates.ts 里的全量探测快照（一级 14 + 二级 75）
+ * 现改为：src/core/productCates.ts 里的完整树（93 节点，从原站产品页内嵌数据原样解析）
  * + 运行时从已加载产品行中新发现的分类合并（原站新增分类也能出现）。
  */
-export async function fetchProductCateOptions(): Promise<{ id: string; title: string; count?: number }[]> {
-  const base: { id: string; title: string; count?: number }[] = [
-    ...PRODUCT_CATES_PARENT.map((c) => ({ id: c.id, title: c.title, count: c.count })),
-    ...PRODUCT_CATES_LEAF.map((c) => ({ id: c.id, title: c.title, count: c.count })),
-  ];
+export async function fetchProductCateTree(): Promise<CateNode[]> {
+  let discovered: Array<{ cate_id?: unknown; cate_title?: unknown }> = [];
   try {
-    const extra = sessionStorage.getItem('youpin_prod_cates_extra');
-    if (extra) {
-      const seen = new Set(base.map((c) => c.id));
-      for (const c of JSON.parse(extra) as { id: string; title: string }[]) {
-        if (c.id && c.title && !seen.has(c.id)) {
-          seen.add(c.id);
-          base.push(c);
-        }
-      }
-    }
+    discovered = JSON.parse(sessionStorage.getItem('youpin_prod_cates_extra') || '[]');
   } catch {
     /* ignore */
   }
-  return base;
+  return mergeDiscoveredCates(PRODUCT_CATE_TREE, discovered);
 }
 
 /** 把产品行里新出现的分类记进 sessionStorage，供 fetchProductCateOptions 合并（原站新增分类自适应） */

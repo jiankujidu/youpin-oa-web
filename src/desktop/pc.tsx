@@ -575,3 +575,248 @@ export function PickSelect({
     </span>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* 树形多选下拉（TreeMultiSelect）—— 对齐原站产品分类的 xmSelect：        */
+/*   多选复选框 + 工具栏（全选/清空）+ 搜索 + 树形缩进 + 默认全展开。     */
+/* 原站配置（origin-snapshot/product.html）：                            */
+/*   xmSelect.render({ el:'#cateId', toolbar:{show:true,list:['ALL','CLEAR']}, */
+/*     tips:'产品分类', filterable:true, tree:{show:true,strict:false,      */
+/*     expandedKeys:false}, prop:{name:'title',value:'id',children:'children'} }) */
+/* 父子选中互不影响（strict:false），提交时把选中 ID 逗号拼接进隐藏域      */
+/* cate_id（服务端取并集）。                                              */
+/* ------------------------------------------------------------------ */
+export interface TreeNodeLike {
+  id: string;
+  title: string;
+  /** 右侧角标（如该分类下产品数） */
+  count?: number;
+  children?: TreeNodeLike[];
+}
+
+/** 摊平树：id -> 节点（保留 children 引用） */
+function flattenTree(nodes: TreeNodeLike[]): Map<string, TreeNodeLike> {
+  const m = new Map<string, TreeNodeLike>();
+  const walk = (ns: TreeNodeLike[]) => {
+    for (const n of ns) {
+      m.set(n.id, n);
+      if (n.children) walk(n.children);
+    }
+  };
+  walk(nodes);
+  return m;
+}
+
+export function TreeMultiSelect({
+  placeholder,
+  value,
+  tree,
+  onChange,
+  width = 220,
+}: {
+  placeholder: string;
+  /** 选中的分类 ID 数组（多选） */
+  value: string[];
+  tree: TreeNodeLike[];
+  onChange: (ids: string[]) => void;
+  width?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [kw, setKw] = useState('');
+  /** 收起态的节点 id 集合（默认全展开，与原站 expandedKeys:false 一致） */
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const flat = useMemo(() => flattenTree(tree), [tree]);
+  const allIds = useMemo(() => [...flat.keys()], [flat]);
+  const selSet = useMemo(() => new Set(value), [value]);
+
+  /** 搜索：命中节点 + 其全部祖先链（保证命中的叶子在树里可见） */
+  const shown = useMemo(() => {
+    const k = kw.trim().toLowerCase();
+    if (!k) return tree;
+    const keep = new Set<string>();
+    // 自底向上收集祖先：先建 parent 表
+    const parent = new Map<string, string>();
+    const walk = (ns: TreeNodeLike[], pid: string) => {
+      for (const n of ns) {
+        parent.set(n.id, pid);
+        if (n.children) walk(n.children, n.id);
+      }
+    };
+    walk(tree, '');
+    for (const n of flat.values()) {
+      if (n.title.toLowerCase().includes(k)) {
+        keep.add(n.id);
+        let p = parent.get(n.id) || '';
+        while (p && !keep.has(p)) {
+          keep.add(p);
+          p = parent.get(p) || '';
+        }
+      }
+    }
+    const prune = (ns: TreeNodeLike[]): TreeNodeLike[] =>
+      ns
+        .filter((n) => keep.has(n.id))
+        .map((n) => (n.children ? { ...n, children: prune(n.children) } : { ...n }));
+    return prune(tree);
+  }, [tree, flat, kw]);
+
+  /** 当前可见的节点 id（搜索时为命中项；工具栏「全选」作用于这些） */
+  const visibleIds = useMemo(() => [...flattenTree(shown).keys()], [shown]);
+  const visibleCount = visibleIds.length;
+
+  /** 触发器上的已选 chips（窄触发器只放 1 个 + 「+N」，避免溢出裁剪） */
+  const maxChips = width > 200 ? 2 : 1;
+  const chips = useMemo(() => {
+    const out: { id: string; title: string }[] = [];
+    for (const id of value) {
+      const n = flat.get(id);
+      if (n) out.push({ id, title: n.title });
+      if (out.length >= maxChips) break;
+    }
+    return out;
+  }, [value, flat, maxChips]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    const t = setTimeout(() => inputRef.current?.focus(), 30);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+      clearTimeout(t);
+    };
+  }, [open]);
+
+  const toggle = (id: string) => {
+    onChange(selSet.has(id) ? value.filter((x) => x !== id) : [...value, id]);
+  };
+
+  const renderNodes = (nodes: TreeNodeLike[], depth: number) =>
+    nodes.map((n) => {
+      const hasKids = !!n.children?.length;
+      const isCollapsed = !!collapsed[n.id];
+      return (
+        <span key={n.id}>
+          <span
+            className={`pc-tree-item${selSet.has(n.id) ? ' on' : ''}`}
+            style={{ paddingLeft: 8 + depth * 16 }}
+            title={n.title}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              toggle(n.id);
+            }}
+          >
+            {hasKids ? (
+              <i
+                className="pc-tree-arrow"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  setCollapsed((s) => ({ ...s, [n.id]: !isCollapsed }));
+                }}
+              >
+                {isCollapsed ? '▸' : '▾'}
+              </i>
+            ) : (
+              <i className="pc-tree-arrow pc-tree-arrow-leaf" />
+            )}
+            <input
+              type="checkbox"
+              className="pc-check"
+              checked={selSet.has(n.id)}
+              onChange={() => toggle(n.id)}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <b>{n.title}</b>
+            {n.count !== undefined ? <em>{n.count}</em> : null}
+          </span>
+          {hasKids && !isCollapsed ? renderNodes(n.children!, depth + 1) : null}
+        </span>
+      );
+    });
+
+  return (
+    <span className="pc-pick" ref={boxRef}>
+      <button
+        type="button"
+        className={`pc-pick-btn${open ? ' on' : ''}${value.length ? ' has-val' : ''}`}
+        style={{ width, justifyContent: 'flex-start' }}
+        title={value.length ? `已选 ${value.length} 个分类` : placeholder}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {value.length === 0 ? (
+          <b style={{ color: '#9aa4b5', fontWeight: 400 }}>{placeholder}</b>
+        ) : (
+          <span className="pc-tree-chips">
+            {chips.map((c) => (
+              <span
+                key={c.id}
+                className="pc-tree-chip"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  toggle(c.id);
+                }}
+              >
+                {c.title}
+                <i>×</i>
+              </span>
+            ))}
+            {value.length > chips.length ? <span className="pc-tree-more">+{value.length - chips.length}</span> : null}
+          </span>
+        )}
+        <i style={{ marginLeft: 'auto' }}>{open ? '▲' : '▼'}</i>
+      </button>
+      {open ? (
+        <>
+          <span style={{ position: 'fixed', inset: 0, zIndex: 55 }} onMouseDown={() => setOpen(false)} />
+          <span className="pc-pick-pop" style={{ width: Math.max(width, 360) }}>
+            <input
+              ref={inputRef}
+              className="pc-pick-search"
+              placeholder={`搜索分类（共 ${allIds.length} 个）…`}
+              value={kw}
+              onChange={(e) => setKw(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <span className="pc-tree-toolbar">
+              <button
+                type="button"
+                className="pc-tree-tool"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onChange(visibleIds);
+                }}
+              >
+                全选{kw.trim() ? '可见' : ''}（{visibleCount}）
+              </button>
+              <button
+                type="button"
+                className="pc-tree-tool"
+                disabled={!value.length}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onChange([]);
+                }}
+              >
+                清空（{value.length}）
+              </button>
+            </span>
+            <span className="pc-pick-list">
+              {shown.length === 0 ? <span className="pc-pick-empty">没有匹配的分类</span> : null}
+              {renderNodes(shown, 0)}
+            </span>
+          </span>
+        </>
+      ) : null}
+    </span>
+  );
+}

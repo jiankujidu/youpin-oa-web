@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  fetchProductCateOptions,
+  fetchProductCateTree,
   fetchProductPage,
   productAndUpInstructions,
   productDelete,
@@ -24,14 +24,14 @@ import { CONFIG } from '../core/config';
 import { absOaUrl, fixContentHtml, signedOssToProxy } from '../core/fileurl';
 import { editLocal, localAdded, mergeLocal } from '../core/localOps';
 import { type EditField } from '../core/opsFields';
-import { PRODUCT_CATES_PARENT } from '../core/productCates';
+import { type CateNode } from '../core/productCates';
 import { addDocToFolder, createFolder, getFolders } from '../core/session';
 import { addProducts, addVariants, createFolder as createQuoteFolder, getFolders as getQuoteFolders } from '../core/quoteStore';
 import { shareFile, shareFilesAsZip } from '../core/share';
 import type { FavFolder, Product } from '../core/types';
 import { fmtTime, plain, sanitizeName, toast } from '../core/util';
 import { ConfirmDialog, DocPreviewModal, DocPreviewPane, EditModal, Modal } from './ui';
-import { DataTable, PageHead, Panel, PickSelect, StatusTag, type Column } from './pc';
+import { DataTable, PageHead, Panel, StatusTag, TreeMultiSelect, type Column } from './pc';
 
 /** 产品编辑 / 复制 表单字段（对齐原站 /product/index/add 主要可填项） */
 const PRODUCT_FIELDS: EditField[] = [
@@ -265,8 +265,8 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
-  /** 分类筛选用 cate_id（服务端参数）；种属/应用直接传值 */
-  const [cateId, setCateId] = useState('');
+  /** 分类筛选用 cate_id（服务端参数，多选用逗号拼接）；种属/应用直接传值 */
+  const [cateIds, setCateIds] = useState<string[]>([]);
   const [speciesF, setSpeciesF] = useState('');
   const [appF, setAppF] = useState('');
   /** 原站 #searchForm 其余筛选项（全部服务端参数） */
@@ -283,7 +283,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   const [instrKind, setInstrKind] = useState<'up2' | 'productUp' | 'productTemp' | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadNote, setUploadNote] = useState('');
-  const [cateOpts, setCateOpts] = useState<{ id: string; title: string; count?: number }[]>([]);
+  const [cateTree, setCateTree] = useState<CateNode[]>([]);
   const [cur, setCur] = useState<Product | null>(null);
   const [folders, setFolders] = useState<FavFolder[]>([]);
   const [saving, setSaving] = useState<{ name: string; url: string; productId: string } | null>(null);
@@ -322,7 +322,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   /** 筛选条件 → 服务端参数（严格按原站 #searchForm 字段名） */
   const activeFilter = useMemo<ProductFilter | undefined>(() => {
     const f: ProductFilter = {
-      cateId: cateId || undefined,
+      cateId: cateIds.length ? cateIds.join(',') : undefined,
       species: speciesF || undefined,
       application: appF || undefined,
       type: attrF || undefined,
@@ -335,7 +335,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     };
     const has = Object.values(f).some((v) => !!v);
     return has ? f : undefined;
-  }, [cateId, speciesF, appF, attrF, statusF, diffTimeF, productNameF, geneNameF, otherNameF, keywordType]);
+  }, [cateIds, speciesF, appF, attrF, statusF, diffTimeF, productNameF, geneNameF, otherNameF, keywordType]);
 
   useEffect(() => {
     setPage(1);
@@ -345,10 +345,10 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   /** 切换产品时收起上一条的内联说明书预览 */
   useEffect(() => setInlineDoc(null), [cur]);
 
-  /** 分类下拉选项：完整快照（productCates.ts）+ 运行时新发现分类合并，不再扫前 2000 条 */
+  /** 分类下拉数据：完整树（productCates.ts，原站 xmSelect 同款 93 节点）+ 运行时新发现分类合并 */
   useEffect(() => {
-    fetchProductCateOptions().then((opts) => {
-      if (opts.length) setCateOpts(opts);
+    fetchProductCateTree().then((tree) => {
+      if (tree.length) setCateTree(tree);
     });
   }, []);
   /** 载入的产品行里若出现快照外的新分类，记录下来供下拉合并（原站新增分类自适应） */
@@ -356,24 +356,6 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
     if (list.length) rememberDiscoveredCates(list as any[]);
   }, [list]);
 
-  /**
-   * 分类下拉分组：一级（整组筛选，14 个）+ 二级（精确筛选，75 个 + 运行时新发现）。
-   * cate_id 参数对两者都生效——传一级 ID 返回该大类全部产品，传二级 ID 只返回该叶子。
-   */
-  const cateGroups = useMemo(() => {
-    const parentIds = new Set(PRODUCT_CATES_PARENT.map((c) => c.id));
-    const parents: { id: string; title: string; note?: string }[] = [];
-    const leaves: { id: string; title: string; note?: string }[] = [];
-    for (const c of cateOpts) {
-      const note = c.count ? String(c.count) : undefined;
-      (parentIds.has(c.id) ? parents : leaves).push({ id: c.id, title: c.title, note });
-    }
-    const byCount = (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title, 'zh');
-    return [
-      { label: '一级分类（选它 = 筛整个大类）', options: parents.sort(byCount) },
-      { label: '二级分类（选它 = 精确到子类）', options: leaves.sort(byCount) },
-    ];
-  }, [cateOpts]);
   /** 载入行即展示行（筛选已由服务端完成；本地复制的产品仍合并显示） */
   const rows = list;
 
@@ -808,12 +790,13 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
              ★ 源码里「请选择产品属性 / 请选择产品分类」两段 select 已被注释掉，故无属性筛选 */}
         <div style={{ padding: '14px 16px 4px' }}>
           <div className="pc-toolbar">
-            <PickSelect
+            {/* 原站 #cateId：xmSelect 树形多选（93 节点，父子独立选，逗号拼接提交） */}
+            <TreeMultiSelect
               placeholder="产品分类"
-              value={cateId}
-              groups={cateGroups}
-              onChange={setCateId}
-              width={220}
+              value={cateIds}
+              tree={cateTree}
+              onChange={setCateIds}
+              width={150}
             />
             <input
               className="pc-input"
@@ -904,7 +887,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
               onClick={() => {
                 setKeyword('');
                 setQuery('');
-                setCateId('');
+                setCateIds([]);
                 setAttrF('');
                 setSpeciesF('');
                 setAppF('');

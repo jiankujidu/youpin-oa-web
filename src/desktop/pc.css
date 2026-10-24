@@ -460,6 +460,90 @@
 .pc-pick-item > b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
 .pc-pick-item > em { font-style: normal; font-size: 11px; opacity: 0.6; flex: none; font-variant-numeric: tabular-nums; }
 .pc-pick-empty { padding: 18px 8px; text-align: center; font-size: 12px; color: var(--c-text-4); }
+
+/* 树形多选（TreeMultiSelect，对齐原站 xmSelect 产品分类） */
+.pc-tree-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px 2px;
+}
+.pc-tree-tool {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: #fff;
+  font-size: 12px;
+  color: var(--c-text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pc-tree-tool:hover:not(:disabled) { border-color: var(--c-primary); color: var(--c-primary); }
+.pc-tree-tool:disabled { opacity: 0.45; cursor: default; }
+.pc-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding-right: 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--c-text-2);
+  user-select: none;
+}
+.pc-tree-item:hover { background: var(--c-primary-50); }
+.pc-tree-item.on { background: #eaf1ff; color: var(--c-primary); font-weight: 500; }
+.pc-tree-item > b { font-weight: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.pc-tree-item > em { font-style: normal; font-size: 11px; color: var(--c-text-4); flex: none; font-variant-numeric: tabular-nums; }
+.pc-tree-item.on > em { color: var(--c-primary); }
+.pc-tree-arrow {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--c-text-4);
+  cursor: pointer;
+}
+.pc-tree-arrow:hover { color: var(--c-primary); }
+.pc-tree-arrow-leaf { cursor: default; }
+/* 触发器上的已选 chips */
+.pc-tree-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+.pc-tree-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 108px;
+  height: 20px;
+  padding: 0 4px 0 6px;
+  border-radius: 3px;
+  background: #eaf1ff;
+  color: var(--c-primary);
+  font-size: 11.5px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pc-tree-chip > i { font-style: normal; font-size: 12px; line-height: 1; opacity: 0.7; }
+.pc-tree-chip:hover { background: #dbe7ff; }
+.pc-tree-more {
+  flex: none;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #f0f3f8;
+  color: var(--c-text-3);
+  font-size: 11px;
+  line-height: 20px;
+}
 /* 桌面端点击目标下限 24px（鼠标友好 + 可达性） */
 .pc-link {
   color: var(--c-primary);
