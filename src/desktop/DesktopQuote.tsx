@@ -647,6 +647,40 @@ export default function DesktopQuote() {
     toast('已导出 CSV');
   }
 
+  /** 导出收藏夹全量数据（含价格快照/说明书快照/报价历史）为 JSON，
+   *  供「报价方案生成器」(scripts/quote-plan.mjs) 离线逐项核对，避免凭印象填数字 */
+  function exportData() {
+    const stamp = today();
+    const payload = {
+      _schema: 'youpin-quote-export/v1',
+      _exportedAt: new Date().toISOString(),
+      _source: 'youpin-oa-web · 报价页「导出数据(JSON)」',
+      settings: {
+        customer: setting.customer,
+        seller: setting.seller,
+        mode: setting.mode,
+        taxRate: setting.taxRate,
+        note: setting.note,
+      },
+      folders: getFolders(),
+      docs: getDocs(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `报价数据_${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 500);
+    const n = getFolders().reduce((s, f) => s + f.items.length, 0);
+    toast(`已导出 ${n} 个产品条目（含价格快照），可用它生成报价方案报告`);
+  }
+
   function printSheet() {
     if (!selRows.length) return toast('请先勾选要报价的产品');
     setTab('preview');
@@ -1232,6 +1266,9 @@ export default function DesktopQuote() {
               <div className="q-card-head">
                 <span>报价单预览</span>
                 <span style={{ display: 'flex', gap: 8 }}>
+                  <button className="pc-btn pc-btn-sm pc-btn-ghost" title="导出收藏夹全量数据（含价格快照）为 JSON，用于生成逐项核实的报价方案" onClick={exportData}>
+                    导出数据(JSON)
+                  </button>
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => window.print()}>
                     打印 / 存为 PDF
                   </button>
