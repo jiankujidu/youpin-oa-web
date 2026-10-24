@@ -15,7 +15,8 @@
     "verify:features": "node scripts/verify-features.mjs",
     "verify:proxy": "node scripts/verify-proxy.mjs",
     "deploy:worker": "node scripts/deploy-worker.mjs",
-    "mask:data": "node scripts/mask-realdata.mjs"
+    "mask:data": "node scripts/mask-realdata.mjs",
+    "quote:plan": "tsx scripts/quote-plan.mts"
   },
   "dependencies": {
     "echarts": "^5.5.1",

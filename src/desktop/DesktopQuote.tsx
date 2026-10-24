@@ -10,7 +10,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProductPage } from '../core/api';
 import { getDisplayName } from '../core/session';
-import { downloadManuals, folderManifest, packFolder } from '../core/folderPack';
+import { downloadManuals, folderManifest, packFolders } from '../core/folderPack';
 import {
   addProducts,
   createFolder,
@@ -246,6 +246,8 @@ export default function DesktopQuote() {
 
   const sum = useMemo(() => sumQuote(rows.map((r) => r.item), setting.taxRate), [rows, setting.taxRate]);
   const selRows = rows.filter((r) => r.item.sel);
+  /** 全部收藏夹的产品总数（「打包全部」入口用） */
+  const allCount = useMemo(() => folders.reduce((n, f) => n + f.items.length, 0), [folders]);
 
   /** 报价单输出选项（列集合 / 是否体现经销价 / 是否体现折扣） */
   const opts: QuoteOpts = useMemo(
@@ -347,7 +349,7 @@ export default function DesktopQuote() {
 
   /* ------------------------------ 批量下载 / 打包 ------------------------------ */
   /** 打包进度提示（浮条右侧） */
-  const [packing, setPacking] = useState<{ done: number; total: number } | null>(null);
+  const [packing, setPacking] = useState<{ done: number; total: number; stage?: string } | null>(null);
 
   /** 批量下载说明书：逐个文件落盘（不是 zip）。优先用勾选行，没勾就下当前夹全部 */
   async function downloadManualsNow() {
@@ -359,7 +361,7 @@ export default function DesktopQuote() {
       const r = await downloadManuals(
         target.map((x) => x.item),
         cur ? cur.name : '说明书',
-        (done, total) => setPacking({ done, total }),
+        (done, total, stage) => setPacking({ done, total, stage }),
         (itemId, docs) => persistDocs(target, itemId, docs),
       );
       if (!r.ok) {
@@ -390,23 +392,84 @@ export default function DesktopQuote() {
     updateItem(hit.folder.id, itemId, { docs });
   }
 
-  /** 打包整个收藏夹：说明书 PDF + 产品清单.csv */
+  /**
+   * 打包当前收藏夹（含其子夹）：说明书 PDF + 产品清单.csv。
+   * ★ 子夹里的产品也算本夹的 —— 跟「压缩一个文件夹」的直觉一致，不再只打直挂条目。
+   */
   async function packFolderOf(f: QuoteFolder) {
-    const items = f.items;
-    if (!items.length) return toast(`收藏夹「${f.name}」是空的`);
+    const groups = folders
+      .filter((g) => g.id === f.id || g.parentId === f.id)
+      .filter((g) => g.items.length)
+      .map((g) => ({ folder: g, name: g.name, items: g.items }));
+    const total = groups.reduce((n, g) => n + g.items.length, 0);
+    if (!total) return toast(`收藏夹「${f.name}」是空的`);
+    const scope = groups.flatMap((g) => g.items.map((item) => ({ folder: g.folder, item })));
     toast(`正在打包「${f.name}」…`);
-    setPacking({ done: 0, total: items.length });
+    setPacking({ done: 0, total });
     try {
-      const scope = items.map((item) => ({ folder: f, item }));
-      const r = await packFolder(
+      const r = await packFolders(
+        groups.map((g) => ({ name: g.name, items: g.items })),
         f.name,
-        items,
-        folderManifest(items, (it) => unitPrice(it)),
-        (done, total) => setPacking({ done, total }),
+        folderManifest(
+          scope.map((s) => ({ item: s.item, folder: s.folder.name })),
+          (it) => unitPrice(it),
+        ),
+        (done, total, stage) => setPacking({ done, total, stage }),
         (itemId, docs) => persistDocs(scope, itemId, docs),
       );
       if (!r.ok) toast(r.error || `「${f.name}」里没有可下载的说明书`);
-      else toast(`已打包「${f.name}」：${r.ok} 份说明书 + 产品清单${r.miss ? `，${r.miss} 份缺失` : ''}`);
+      else
+        toast(
+          `已打包「${f.name}」：${r.ok} 份说明书 + 产品清单${
+            r.miss ? `，${r.miss} 份缺失（见 zip 内「_缺失说明书清单.csv」）` : ''
+          }`,
+        );
+      refresh();
+    } catch (e) {
+      toast('打包失败：' + String(e).slice(0, 60));
+    } finally {
+      setPacking(null);
+    }
+  }
+
+  /**
+   * 打包**全部**收藏夹：所有夹的说明书（zip 内按收藏夹分目录）
+   * + 一份总「产品清单.csv」（带所属收藏夹列）+ 一份「_缺失说明书清单.csv」。
+   *
+   * ★ 用户反馈「没有全部打包」：之前「打包收藏夹」只打当前选中的那一个夹，
+   *   名字却叫「打包收藏夹」，点了不会覆盖其他夹 —— 这里把「全部」补上，两个入口分开，语义不再含糊。
+   */
+  async function packAllNow() {
+    const groups = folders
+      .filter((f) => f.items.length)
+      .map((f) => ({ folder: f, name: f.name, items: f.items }));
+    const total = groups.reduce((n, g) => n + g.items.length, 0);
+    if (!total) return toast('收藏夹里还没有产品');
+    const scope = groups.flatMap((g) => g.items.map((item) => ({ folder: g.folder, item })));
+    toast(`正在打包全部 ${groups.length} 个收藏夹 / ${total} 个产品…`);
+    setPacking({ done: 0, total });
+    try {
+      const r = await packFolders(
+        groups.map((g) => ({ name: g.name, items: g.items })),
+        '收藏夹全部',
+        folderManifest(
+          scope.map((s) => ({ item: s.item, folder: s.folder.name })),
+          (it) => unitPrice(it),
+        ),
+        (done, total, stage) => setPacking({ done, total, stage }),
+        (itemId, docs) => persistDocs(scope, itemId, docs),
+      );
+      if (!r.ok)
+        toast(
+          r.error ||
+            `全部 ${r.total} 个产品都没有取到说明书（详见 zip 内「_缺失说明书清单.csv」）`,
+        );
+      else
+        toast(
+          `已打包 ${r.folders} 个收藏夹：${r.ok} 份说明书 + 总清单${
+            r.miss ? `，${r.miss} 份缺失（见 zip 内「_缺失说明书清单.csv」）` : ''
+          }${r.error ? `｜${r.error}` : ''}`,
+        );
       refresh();
     } catch (e) {
       toast('打包失败：' + String(e).slice(0, 60));
@@ -1084,15 +1147,28 @@ export default function DesktopQuote() {
                   </button>
                   <button
                     className="pc-btn pc-btn-sm pc-btn-ghost"
-                    title="把整个收藏夹打包成 zip：说明书 PDF + 产品清单.csv"
+                    title="把当前这个收藏夹打包成 zip：说明书 PDF + 产品清单.csv（只打本夹，不打其他收藏夹）"
                     disabled={!!packing}
                     onClick={() => cur && void packFolderOf(cur)}
                   >
-                    📦 打包收藏夹
+                    📦 打包本夹
+                  </button>
+                  <button
+                    className="pc-btn pc-btn-sm pc-btn-ghost"
+                    title={
+                      allCount
+                        ? `把所有 ${folders.length} 个收藏夹一次打包成 zip：说明书按收藏夹分目录 + 总清单 + 缺失清单（共 ${allCount} 个产品）`
+                        : '把所有收藏夹一次打包成 zip（当前还没有产品）'
+                    }
+                    disabled={!!packing || !allCount}
+                    onClick={() => void packAllNow()}
+                  >
+                    📦 打包全部{allCount ? `(${allCount})` : ''}
                   </button>
                   {packing ? (
                     <span className="q-pack-progress">
-                      打包中 {packing.done}/{packing.total}
+                      打包中 {packing.stage ? `${packing.stage} ` : ''}
+                      {packing.done}/{packing.total}
                     </span>
                   ) : null}
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setPickOpen(true)}>

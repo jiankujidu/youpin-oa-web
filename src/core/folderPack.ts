@@ -121,6 +121,18 @@ async function docsOfItem(it: QuoteItem): Promise<DocSnap[]> {
   return docs.length ? docs : [];
 }
 
+/** 一条没打进包的说明书（让用户知道「为什么没全部打包」，而不是静默少文件） */
+export interface PackMissing {
+  /** 所属收藏夹 */
+  folder: string;
+  /** 货号 */
+  goods_no: string;
+  /** 产品名称 */
+  title: string;
+  /** 缺失原因：原站无此货号说明书 / 下载失败（含原站证书过期等） */
+  reason: string;
+}
+
 /** 打包结果 */
 export interface PackResult {
   /** 成功打进包的说明书数 */
@@ -133,7 +145,14 @@ export interface PackResult {
   filename: string;
   /** 最近一次抓取失败的原因（可读提示，如原站证书过期） */
   error?: string;
+  /** 本次覆盖的收藏夹数 */
+  folders?: number;
+  /** 没打进包的明细（zip 里会附一份 _缺失说明书清单.csv） */
+  missing?: PackMissing[];
 }
+
+/** 打包进度回调：stage 区分「解析地址」和「下载文件」两段，避免进度条停在 100% 干等 */
+export type PackProgress = (done: number, total: number, stage?: '解析' | '下载') => void;
 
 /**
  * 解析一批条目的说明书地址（不下载）。
@@ -141,7 +160,7 @@ export interface PackResult {
  */
 export async function resolveItemDocs(
   items: QuoteItem[],
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: PackProgress,
   onResolved?: (itemId: string, docs: DocSnap[]) => void,
 ): Promise<DocSnap[][]> {
   const total = items.length;
@@ -156,7 +175,7 @@ export async function resolveItemDocs(
       // 兜底查出来的说明书回写给调用方存进收藏夹条目（下次打包不用再查原站）
       if (docs.length && onResolved) onResolved(items[i].id, docs);
       done++;
-      onProgress?.(done, total);
+      onProgress?.(done, total, '解析');
     }
   };
   await Promise.all([resolveWorker(), resolveWorker(), resolveWorker(), resolveWorker()]);
@@ -212,52 +231,96 @@ export async function downloadDocFiles(
   return { ok, miss };
 }
 
+/** 一个要打包的收藏夹（名字用于 zip 内分目录 + 清单里的「所属收藏夹」列） */
+export interface PackGroup {
+  name: string;
+  items: QuoteItem[];
+}
+
 /**
  * 逐条抓说明书。
  * ★ 分两阶段，避免把原站打爆导致限流（4 并发下载时实测会丢文件）：
  *   阶段 1 解析（查原站列表接口拿说明书地址）——并发 4
- *   阶段 2 下载（取 PDF 字节）——并发 2
+ *   阶段 2 下载（取 PDF 字节）——并发 3
+ *
+ * ★ 任一产品拿不到说明书都要**记进 missing 并写明原因**，
+ *   这样 zip 里附的缺失清单能直接回答「为什么没全部打包」。
  */
 async function collectFiles(
-  items: QuoteItem[],
-  onProgress?: (done: number, total: number) => void,
+  groups: PackGroup[],
+  onProgress?: PackProgress,
   onResolved?: (itemId: string, docs: DocSnap[]) => void,
-): Promise<{ files: ZipFile[]; ok: number; miss: number }> {
+): Promise<{ files: ZipFile[]; ok: number; miss: number; missing: PackMissing[] }> {
   lastError = '';
-  const resolved = await resolveItemDocs(items, onProgress, onResolved);
-  const total = items.length;
+  // 展平成「条目 + 所属夹」，同一夹内同货号去重（跨夹保留，因为分目录存）
+  const rows: { folder: string; item: QuoteItem }[] = [];
+  const seen = new Set<string>();
+  for (const g of groups) {
+    for (const it of g.items) {
+      const k = g.name + '\u0000' + (it.goods_no || '');
+      if (seen.has(k)) continue;
+      seen.add(k);
+      rows.push({ folder: g.name, item: it });
+    }
+  }
+  const resolved = await resolveItemDocs(
+    rows.map((r) => r.item),
+    (d, t) => onProgress?.(d, t, '解析'),
+    onResolved,
+  );
 
-  /* ---- 阶段 2：下载 PDF（并发 2，慢一点更稳） ---- */
+  /* ---- 阶段 2：下载 PDF（并发 3） ---- */
   const files: ZipFile[] = [];
+  const missing: PackMissing[] = [];
   let ok = 0;
   let miss = 0;
+  let processed = 0;
   const used = new Set<string>();
-  const dlQueue = resolved.map((docs) => docs).filter((d) => d.length);
-  miss += resolved.filter((d) => !d.length).length;
+  const dlQueue = rows.map((r, i) => ({ ...r, docs: resolved[i] || [] }));
   const dlWorker = async () => {
     while (dlQueue.length) {
-      const docs = dlQueue.shift()!;
-      for (const d of docs) {
+      const row = dlQueue.shift()!;
+      processed++;
+      onProgress?.(processed, rows.length, '下载');
+      if (!row.docs.length) {
+        miss++;
+        missing.push({
+          folder: row.folder,
+          goods_no: row.item.goods_no,
+          title: row.item.title,
+          reason: '原站没有该货号的说明书文件',
+        });
+        continue;
+      }
+      for (const d of row.docs) {
         const got = await fetchDoc(d);
         if (!got) {
           miss++;
+          missing.push({
+            folder: row.folder,
+            goods_no: row.item.goods_no,
+            title: row.item.title,
+            reason: lastError ? `下载失败：${lastError}` : '下载失败：原站文件不可达',
+          });
           continue;
         }
         ok++;
-        // 同名文件加序号，避免 zip 内重名覆盖
-        let name = got.name;
+        // 按收藏夹分目录；同名文件加序号，避免 zip 内重名覆盖
+        const dir = safeName(row.folder);
+        let name = `${dir}/${got.name}`;
         let i = 1;
         while (used.has(name)) {
           const dot = name.lastIndexOf('.');
-          name = dot > 0 ? `${name.slice(0, dot)}(${++i})${name.slice(dot)}` : `${name}(${++i})`;
+          name =
+            dot > 0 ? `${name.slice(0, dot)}(${++i})${name.slice(dot)}` : `${name}(${++i})`;
         }
         used.add(name);
         files.push({ name, data: got.data });
       }
     }
   };
-  await Promise.all([dlWorker(), dlWorker()]);
-  return { files, ok, miss };
+  await Promise.all([dlWorker(), dlWorker(), dlWorker()]);
+  return { files, ok, miss, missing };
 }
 
 /**
@@ -267,13 +330,13 @@ async function collectFiles(
 export async function downloadManuals(
   items: QuoteItem[],
   name = '说明书',
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: PackProgress,
   onResolved?: (itemId: string, docs: DocSnap[]) => void,
 ): Promise<PackResult> {
   lastError = '';
-  const resolved = await resolveItemDocs(items, undefined, onResolved);
+  const resolved = await resolveItemDocs(items, (d, t) => onProgress?.(d, t, '解析'), onResolved);
   const docs = resolved.flat();
-  const r = await downloadDocFiles(docs, onProgress);
+  const r = await downloadDocFiles(docs, (d, t) => onProgress?.(d, t, '下载'));
   return {
     ok: r.ok,
     miss: r.miss + resolved.filter((d) => !d.length).length,
@@ -284,33 +347,68 @@ export async function downloadManuals(
 }
 
 /**
- * 打包收藏夹：说明书 PDF + 产品清单.csv。
+ * 打包收藏夹（可一次打多个夹）：说明书 PDF（按夹分目录）+ 产品清单.csv。
  * manifest 由调用方给出（报价单口径的 CSV 文本）。
+ *
+ * ★ 「打包全部」走的就是这里：groups 把所有收藏夹传进来，
+ *   zip 内按「收藏夹名/说明书.pdf」分目录，清单里带「所属收藏夹」列，
+ *   拿不到说明书的逐条记进「_缺失说明书清单.csv」——不再出现「点了却只打了一部分还不知道少了谁」。
  */
-export async function packFolder(
-  folderName: string,
-  items: QuoteItem[],
+export async function packFolders(
+  groups: PackGroup[],
+  zipName: string,
   manifest: string,
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: PackProgress,
   onResolved?: (itemId: string, docs: DocSnap[]) => void,
 ): Promise<PackResult> {
-  const { files, ok, miss } = await collectFiles(items, onProgress, onResolved);
-  const zipFiles: ZipFile[] = [{ name: '产品清单.csv', data: utf8(manifest) }, ...files];
-  const filename = `${safeName(folderName)}_${Date.now()}.zip`;
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  const { files, ok, miss, missing } = await collectFiles(groups, onProgress, onResolved);
+  const zipFiles: ZipFile[] = [{ name: '产品清单.csv', data: utf8(manifest) }];
+  if (missing.length) zipFiles.push({ name: '_缺失说明书清单.csv', data: utf8(missingCsv(missing)) });
+  zipFiles.push(...files);
+  const filename = `${safeName(zipName)}_${Date.now()}.zip`;
   downloadZip(zipFiles, filename);
-  return { ok, miss, total: items.length, filename, error: lastError || undefined };
+  return {
+    ok,
+    miss,
+    total,
+    filename,
+    error: lastError || undefined,
+    folders: groups.filter((g) => g.items.length).length,
+    missing,
+  };
 }
 
-/** 收藏夹产品清单 CSV（货号/名称/分类/种属/应用/规格/取价/报价/数量/小计/备注） */
-export function folderManifest(items: QuoteItem[], unitPrice: (it: QuoteItem) => number): string {
+/** 缺失说明书清单 CSV（货号/名称/所属收藏夹/原因） */
+export function missingCsv(missing: PackMissing[]): string {
+  const cell = (v: unknown) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [['序号', '所属收藏夹', '货号', '产品名称', '缺失原因'].join(',')];
+  missing.forEach((m, i) => {
+    lines.push([i + 1, m.folder, m.goods_no, m.title, m.reason].map(cell).join(','));
+  });
+  return '\ufeff' + lines.join('\r\n');
+}
+
+/** 收藏夹产品清单 CSV（所属收藏夹/货号/名称/分类/种属/应用/规格/取价/报价/数量/小计/备注） */
+export function folderManifest(
+  rows: { item: QuoteItem; folder?: string }[],
+  unitPrice: (it: QuoteItem) => number,
+): string {
+  // 有夹名才加「所属收藏夹」列（打包全部时必须有，单夹时也保留，方便核对）
+  const withFolder = rows.some((r) => String(r.folder || '').trim());
   const head = [
     '序号',
+    ...(withFolder ? ['所属收藏夹'] : []),
     '货号',
     '产品名称',
     '分类',
     '种属',
     '应用场景',
     '规格',
+    '取价口径',
     '报价',
     '数量',
     '小计',
@@ -321,18 +419,24 @@ export function folderManifest(items: QuoteItem[], unitPrice: (it: QuoteItem) =>
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [head.join(',')];
-  items.forEach((it, i) => {
+  rows.forEach((r, i) => {
+    const it = r.item;
     const spec = it.prices[it.specIndex] || it.prices[0];
     const price = unitPrice(it);
+    const basis = { dir: '目录价', dist: '经销价', terminal: '终端价', other: '需商务确认' }[
+      spec?.basis || 'other'
+    ];
     lines.push(
       [
         i + 1,
+        ...(withFolder ? [r.folder || ''] : []),
         it.goods_no,
         it.title,
         it.cate || '',
         it.species || '',
         it.application || '',
-        spec?.spec || '',
+        (spec?.brand ? `${spec.brand}/` : '') + (spec?.spec || ''),
+        basis,
         price,
         it.qty,
         (price * (it.qty || 0) * ((it.discount || 100) / 100)).toFixed(2),
@@ -343,5 +447,5 @@ export function folderManifest(items: QuoteItem[], unitPrice: (it: QuoteItem) =>
     );
   });
   // BOM：Excel 直接双击打开不乱码
-  return '﻿' + lines.join('\r\n');
+  return '\ufeff' + lines.join('\r\n');
 }
