@@ -40,6 +40,22 @@ try {
     VIS,
   );
 
+  /* 批量选择模式：默认（关闭）货号列无复选框、干净；点「批量选择」后才出现整列复选框 + 表头全选 + 底部条 */
+  out.defaultPickCount = await page.evaluate(
+    (v) => eval(v).querySelectorAll('tbody tr .pc-goods-cell input[type="checkbox"]').length,
+    VIS,
+  );
+  await page.evaluate(() => {
+    const b = Array.from(document.querySelectorAll('.pc-btn')).find((x) => (x.textContent || '').includes('批量选择'));
+    if (b) b.click();
+  });
+  await sleep(500);
+  out.afterOpenMode = await page.evaluate((v) => ({
+    btn: (Array.from(document.querySelectorAll('.pc-btn')).find((x) => (x.textContent || '').includes('退出选择'))?.textContent || '').trim(),
+    pickVisible: eval(v).querySelectorAll('tbody tr .pc-goods-cell input[type="checkbox"]').length,
+    headPick: !!eval(v).querySelector('thead .pc-th-pick input[type="checkbox"]'),
+  }), VIS);
+
   out.geometry = await page.evaluate((v) => {
     const wrap = eval(v);
     const ths = Array.from(wrap.querySelectorAll('thead th'));

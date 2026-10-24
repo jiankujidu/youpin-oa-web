@@ -292,6 +292,15 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
   const [newName, setNewName] = useState('');
   /** 勾选的产品（对齐原站批量说明书 / getCheckData） */
   const [checked, setChecked] = useState<string[]>([]);
+  /** 批量选择模式：默认关闭时列表干净（无复选框），点「批量选择」才整列出现复选框 + 表头全选 + 底部操作条 */
+  const [selectMode, setSelectMode] = useState(false);
+  function toggleSelectMode() {
+    setSelectMode((v) => {
+      const nv = !v;
+      if (!nv) setChecked([]); // 退出选择模式即清空已选，避免遗留
+      return nv;
+    });
+  }
   /** 新增 / 编辑产品弹窗（真实提交 POST /product/index/add） */
   const [editing, setEditing] = useState<Product | null>(null);
   /** 编辑弹窗形态：edit=编辑既有 / copy=复制为新品 / new=添加产品 */
@@ -433,8 +442,8 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
       width: 240,
       align: 'center',
       freeze: 'left',
-      /** 表头全选（半选态 indeterminate 直接写 DOM 属性） */
-      head: (
+      /** 表头全选（仅批量选择模式下出现；半选态 indeterminate 直接写 DOM 属性） */
+      head: selectMode ? (
         <label className="pc-th-pick" title={pageAllOn ? '取消全选本页' : '全选本页产品'}>
           <input
             type="checkbox"
@@ -451,7 +460,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
           />
           <span>产品货号/说明书</span>
         </label>
-      ),
+      ) : undefined,
       render: (r) => {
         const rid = String(r.id ?? '');
         const on = checked.includes(rid);
@@ -470,7 +479,11 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
           goods_no_desc?: string;
         }[];
         const body = !list.length ? (
-          <span className="pc-td-strong pc-goods-no" title={on ? '点击取消勾选' : '点击勾选此产品'} onClick={toggle}>
+          <span
+            className="pc-td-strong pc-goods-no"
+            title={selectMode ? (on ? '点击取消勾选' : '点击勾选此产品') : undefined}
+            onClick={selectMode ? toggle : undefined}
+          >
             {String(r.goods_no || '').split(';')[0] || ''}
           </span>
         ) : (
@@ -488,8 +501,8 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
                 <span className="pc-goods-row" key={i}>
                   <span
                     className={`pc-goods-no${has ? ' pc-c-blue' : ' pc-c-red'}`}
-                    title={`${no}${on ? '（已勾选，点击取消）' : '（点击勾选此产品）'}`}
-                    onClick={toggle}
+                    title={selectMode ? `${no}${on ? '（已勾选，点击取消）' : '（点击勾选此产品）'}` : no}
+                    onClick={selectMode ? toggle : undefined}
                   >
                     {no}
                   </span>
@@ -546,14 +559,16 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
         );
         return (
           <span className="pc-goods-cell">
-            <input
-              type="checkbox"
-              className="pc-check"
-              checked={on}
-              title={on ? '取消勾选此产品' : '勾选此产品（加入收藏夹 / 报价）'}
-              onClick={(e) => e.stopPropagation()}
-              onChange={toggle}
-            />
+            {selectMode && (
+              <input
+                type="checkbox"
+                className="pc-check"
+                checked={on}
+                title={on ? '取消勾选此产品' : '勾选此产品（加入收藏夹 / 报价）'}
+                onClick={(e) => e.stopPropagation()}
+                onChange={toggle}
+              />
+            )}
             {body}
           </span>
         );
@@ -698,6 +713,15 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
         crumb={['产品中心', '产品列表']}
         actions={
           <>
+            {/* 新增：批量选择开关（非原站功能，刻意放最前，不混进原站 12 按钮工具栏以保持 1:1）
+                点开 → 货号列出现复选框 + 表头全选 + 底部操作条；退出 → 隐藏、清空已选 */}
+            <button
+              className={`pc-btn pc-btn-sm${selectMode ? ' pc-btn-blue' : ' pc-btn-ghost'}`}
+              onClick={toggleSelectMode}
+              title="勾选产品加入收藏夹 / 报价"
+            >
+              {selectMode ? '退出选择' : '批量选择'}
+            </button>
             {/* 原站 #toolbarDemo 12 按钮：顺序/标签/配色严格按渲染快照的 layui-btn 计算样式
                 （实测：添加=normal#1e9fff、导入同步/异步/下架/上架=cyan#16baaa、批量更新=normal、
                  导出csv/排行榜=warm#ffb800、导出选中行/清空选中=danger#ff5722、
@@ -892,7 +916,7 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
             columns={cols}
             rows={displayRows}
             rowKey={(r) => String(r.id)}
-            onRowClick={setCur}
+            onRowClick={selectMode ? (r) => toggleChecked(String(r.id ?? '')) : setCur}
             loading={loading}
             pageSize={pageSize}
             page={page}
@@ -1173,8 +1197,8 @@ export default function DesktopProduct({ onNavigate }: { onNavigate?: (key: stri
         />
       ) : null}
 
-      {/* 勾选后的批量操作浮条（新增功能，不占用原站工具栏结构）：加入收藏夹 / 去报价 */}
-      {checked.length ? (
+      {/* 勾选后的批量操作浮条（仅批量选择模式下出现）：加入收藏夹 / 去报价 */}
+      {selectMode && checked.length ? (
         <div className="pc-fav-bar">
           <span>
             已选 <b>{checked.length}</b> 个产品
