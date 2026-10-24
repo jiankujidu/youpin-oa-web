@@ -202,14 +202,8 @@ interface Tab {
 
 export default function DesktopApp({
   breakpoint,
-  onSwitchView,
-  onResetView,
-  isForced,
 }: {
   breakpoint: number;
-  onSwitchView: () => void;
-  onResetView: () => void;
-  isForced: boolean;
 }) {
   const [session] = useState(() => getSession() || AUTO_SESSION);
   /** 多页签（原站 layui tab：每开一页一个页签，可关闭，保活） */
@@ -508,17 +502,14 @@ export default function DesktopApp({
 
       {/* ===== 主区 ===== */}
       <div className="d-main">
-        {/* 顶栏（原站 layui-header 50px：左 伸缩/清缓存/前台首页，右 刷新/全屏/主题/锁屏/消息/头像） */}
         <header className="d-topbar">
           <div className="d-topbar-left">
+            {/* 顶栏（原站 layui-header 50px：左 伸缩/清缓存，右 刷新/全屏/主题/锁屏/消息/头像） */}
             <span className="d-icon-btn" title="侧边伸缩" onClick={() => setMini((v) => !v)}>
               <Icon name="grid" size={18} />
             </span>
             <span className="d-icon-btn" title="清空缓存" onClick={handleCache}>
               <Icon name="refresh" size={18} />
-            </span>
-            <span className="d-icon-btn" title="前台首页" onClick={onSwitchView}>
-              <Icon name="monitor" size={18} />
             </span>
           </div>
           <div className="d-topbar-right">
@@ -586,14 +577,6 @@ export default function DesktopApp({
               <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); openTab('password'); }}>
                 修改密码
               </div>
-              <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); onSwitchView(); }}>
-                手机版
-              </div>
-              {isForced ? (
-                <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); onResetView(); }}>
-                  恢复自动判定
-                </div>
-              ) : null}
               <div className="d-user-menu-item" onClick={() => { setMenuOpen(false); handleLogout(); }}>
                 退出
               </div>

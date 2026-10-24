@@ -15,7 +15,7 @@ import DesktopApp from './desktop/DesktopApp';
 
 export default function App() {
   const natural = useDevice();
-  /** 手动切换（手机端顶栏「桌面版」/ 桌面端「手机版」按钮） */
+  /** 手动切换：手机端顶栏的「桌面版」图标可强制切到桌面视图（桌面端不再提供切回手机的入口） */
   const [forced, setForced] = useState<Device | null>(null);
 
   // 后台预载真实数据快照（public/data/realdata.json），不阻塞渲染
@@ -30,12 +30,5 @@ export default function App() {
     return <MobileApp onSwitchView={() => setForced('desktop')} />;
   }
   // 桌面端：>768px，独立设计（左侧边栏 + 顶栏 + 多栏内容区，无底部 Tab）
-  return (
-    <DesktopApp
-      breakpoint={BREAKPOINT.MOBILE_MAX}
-      onSwitchView={() => setForced('mobile')}
-      onResetView={() => setForced(null)}
-      isForced={forced === 'desktop'}
-    />
-  );
+  return <DesktopApp breakpoint={BREAKPOINT.MOBILE_MAX} />;
 }
