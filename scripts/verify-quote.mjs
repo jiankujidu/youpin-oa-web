@@ -103,25 +103,31 @@ try {
   await clickText(page, '.q-modal-foot button', '加入收藏夹');
   await sleep(1500);
 
-  // 4) 明细行 / 金额校验
-  out.rowCount = await page.evaluate(() => document.querySelectorAll('.q-table tbody tr').length);
+  // 4) 明细行 / 金额校验（新版式：主行 9 列 = 勾选/货号/产品名称/规格/取价/报价/数量/小计/操作）
+  out.rowCount = await page.evaluate(() => document.querySelectorAll('.q-table tbody tr.q-row').length);
   out.firstRow = await page.evaluate(() => {
-    const tr = document.querySelector('.q-table tbody tr');
+    const tr = document.querySelector('.q-table tbody tr.q-row');
     if (!tr) return null;
     const td = Array.from(tr.querySelectorAll('td')).map((t) => (t.textContent || '').trim());
-    return { goods_no: td[2], title: td[3], spec: td[4], price: td[6], qty: td[7], discount: td[9], amount: td[10] };
-  });
-  // 取输入框值
-  out.firstInputs = await page.evaluate(() => {
-    const tr = document.querySelector('.q-table tbody tr');
-    if (!tr) return null;
     const ins = Array.from(tr.querySelectorAll('input')).map((i) => i.value);
-    return ins;
+    return { goods_no: td[1], title: td[2], spec: td[3], price: ins[1], qty: ins[2], amount: td[7] };
   });
 
-  // 改数量 = 3、折扣 = 80，校验金额 = 单价*3*0.8
+  // 开启「报价单显示折扣列」→ 展开第 1 行详情 → 改数量 = 3、折扣 = 80，校验金额 = 单价*3*0.8
+  await page.evaluate(() => {
+    const cb = Array.from(document.querySelectorAll('.q-form input[type=checkbox]')).find((c) =>
+      (c.closest('label')?.textContent || '').includes('报价单显示折扣列'),
+    );
+    if (cb && !cb.checked) cb.click();
+  });
+  await sleep(400);
+  await page.evaluate(() => {
+    const tr = document.querySelector('.q-table tbody tr.q-row');
+    tr.querySelectorAll('td')[2].click(); // 点产品名称列展开详情行
+  });
+  await sleep(400);
   const calc = await page.evaluate(() => {
-    const tr = document.querySelector('.q-table tbody tr');
+    const tr = document.querySelector('.q-table tbody tr.q-row');
     const inputs = Array.from(tr.querySelectorAll('input'));
     // React 受控 input：必须用原生 value setter 再派发 input 事件
     const d = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
@@ -129,19 +135,20 @@ try {
       d.set.call(el, String(v));
       el.dispatchEvent(new Event('input', { bubbles: true }));
     };
-    const priceInput = inputs[1]; // 单价
+    const priceInput = inputs[1]; // 报价
     const qtyInput = inputs[2]; // 数量
-    const discInput = inputs[4]; // 折扣
     setVal(qtyInput, 3);
-    setVal(discInput, 80);
+    // 折扣输入框在展开的详情行里
+    const disc = document.querySelector('.q-detail .q-detail-inp.r');
+    if (disc) setVal(disc, 80);
     return { price: Number(priceInput.value) };
   });
   await sleep(700);
   out.calc = calc;
   out.amountAfter = await page.evaluate(() => {
-    const tr = document.querySelector('.q-table tbody tr');
+    const tr = document.querySelector('.q-table tbody tr.q-row');
     const td = Array.from(tr.querySelectorAll('td')).map((t) => (t.textContent || '').trim());
-    return td[10];
+    return td[7];
   });
   out.expectAmount = (calc.price * 3 * 0.8).toFixed(2);
 
@@ -155,12 +162,12 @@ try {
     }));
   });
   out.priceRows = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('.q-table tbody tr'))
+    Array.from(document.querySelectorAll('.q-table tbody tr.q-row'))
       .slice(0, 6)
       .map((tr) => {
         const td = Array.from(tr.querySelectorAll('td')).map((t) => (t.textContent || '').trim());
         const ins = Array.from(tr.querySelectorAll('input')).map((i) => i.value);
-        return { no: td[2], spec: td[4].slice(0, 30), price: ins[1], amt: td[10] };
+        return { no: td[1], spec: td[3].slice(0, 30), price: ins[1], amt: td[7] };
       }),
   );
 

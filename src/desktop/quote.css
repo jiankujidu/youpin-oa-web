@@ -11,35 +11,41 @@
 
 /* ---------------------- 左侧：收藏夹树 ---------------------- */
 .q-tree {
-  width: 268px;
-  flex: 0 0 268px;
+  width: 264px;
+  flex: 0 0 264px;
   background: #fff;
   border: 1px solid #eceff5;
   border-radius: 10px;
   box-shadow: 0 1px 2px rgba(31, 45, 61, 0.04);
   overflow: hidden;
+  position: sticky;
+  top: 14px;
 }
 .q-tree-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 13px 14px;
   border-bottom: 1px solid #f0f2f6;
   font-size: 13.5px;
   font-weight: 600;
   color: #1f2d3d;
 }
+.q-tree-title { display: inline-flex; align-items: center; gap: 7px; }
+.q-tree-title svg { color: #1e6fff; }
+.q-tree-meta { font-size: 11.5px; font-weight: 500; color: #98a2b3; }
 .q-tree-body {
-  padding: 6px 8px 10px;
-  max-height: calc(100vh - 260px);
+  padding: 8px 8px 10px;
+  max-height: calc(100vh - 300px);
   overflow: auto;
 }
 .q-node {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 8px;
-  border-radius: 6px;
+  gap: 7px;
+  padding: 8px 8px 8px 10px;
+  border-radius: 7px;
   cursor: pointer;
   font-size: 13px;
   color: #3c4858;
@@ -47,13 +53,27 @@
 }
 .q-node:hover { background: #f4f7fd; }
 .q-node.on { background: #eaf1ff; color: #1e6fff; font-weight: 600; }
+.q-node.on::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 2px;
+  background: #1e6fff;
+}
 .q-node-arrow {
   width: 14px;
   text-align: center;
   color: #9aa4b5;
   font-size: 10px;
   flex: 0 0 14px;
+  cursor: pointer;
 }
+.q-node-arrow:hover { color: #1e6fff; }
+.q-node-icon { flex: 0 0 15px; display: inline-flex; color: #aab6c8; }
+.q-node.on .q-node-icon { color: #1e6fff; }
 .q-node-name {
   flex: 1;
   overflow: hidden;
@@ -61,42 +81,58 @@
   white-space: nowrap;
 }
 .q-node-count {
-  font-size: 11.5px;
-  color: #98a2b3;
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: #6b7684;
+  background: #eef2f8;
+  border-radius: 9px;
+  padding: 1px 8px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.q-node.on .q-node-count { color: #1e6fff; }
+.q-node.on .q-node-count { background: #1e6fff; color: #fff; }
 .q-node-ops {
   display: flex;
   gap: 2px;
   opacity: 0;
+  flex: 0 0 auto;
 }
-.q-node:hover .q-node-ops { opacity: 1; }
+.q-node:hover .q-node-ops,
+.q-node.on .q-node-ops { opacity: 1; }
 .q-node-op {
-  width: 20px;
-  height: 20px;
-  line-height: 20px;
+  width: 22px;
+  height: 22px;
+  line-height: 22px;
   text-align: center;
-  border-radius: 4px;
+  border-radius: 5px;
   color: #8a95a6;
   font-size: 12px;
+  cursor: pointer;
 }
 .q-node-op:hover { background: #e6ecf7; color: #1e6fff; }
-.q-node-child { padding-left: 22px; }
+/* 子夹：缩进 + 虚线引导线 */
+.q-node-child {
+  margin-left: 16px;
+  padding-left: 12px;
+  border-left: 1px dashed #dde4ee;
+  border-radius: 0 7px 7px 0;
+}
 .q-tree-foot {
   border-top: 1px solid #f0f2f6;
-  padding: 8px;
+  padding: 10px;
   display: flex;
   gap: 8px;
 }
+.q-tree-foot .pc-input { height: 32px; font-size: 12.5px; }
 .q-name-input {
   flex: 1;
-  height: 26px;
+  height: 28px;
   border: 1px solid #1e6fff;
-  border-radius: 4px;
-  padding: 0 6px;
+  border-radius: 5px;
+  padding: 0 8px;
   font-size: 12.5px;
   outline: none;
+  min-width: 0;
 }
 
 /* ---------------------- 右侧：主区 ---------------------- */
@@ -143,37 +179,40 @@
 }
 .q-tab2.on { color: #1e6fff; font-weight: 600; border-bottom-color: #1e6fff; }
 
-/* 明细表 */
-.q-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+/* 明细表：主行 9 列（固定布局，列宽不被 auto 压缩） */
+.q-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
 .q-table th {
   background: #f7f9fc;
   color: #5c6b7f;
   font-weight: 600;
   font-size: 12.5px;
-  padding: 9px 10px;
+  padding: 10px 12px;
   text-align: left;
   border-bottom: 1px solid #eceff5;
   white-space: nowrap;
+  overflow: hidden;
 }
 .q-table td {
-  padding: 7px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid #f2f4f8;
   color: #3c4858;
   vertical-align: middle;
 }
-.q-table tbody tr:hover { background: #fafcff; }
-.q-table tbody tr.off { opacity: 0.45; }
+.q-table tbody tr.q-row:hover > td { background: #fafcff; }
+/* 勾选行：整行淡蓝高亮（不再用 opacity 洗白未勾选行） */
+.q-table tbody tr.q-row.on > td { background: #f0f6ff; }
+.q-table tbody tr.q-row.on:hover > td { background: #e8f1ff; }
 .q-num {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .q-inp {
   width: 100%;
-  height: 28px;
+  height: 30px;
   border: 1px solid #dfe4ec;
-  border-radius: 4px;
-  padding: 0 6px;
-  font-size: 12.5px;
+  border-radius: 5px;
+  padding: 0 8px;
+  font-size: 13px;
   color: #3c4858;
   outline: none;
   background: #fff;
@@ -181,22 +220,82 @@
 .q-inp:focus { border-color: #1e6fff; box-shadow: 0 0 0 2px rgba(30, 111, 255, 0.09); }
 .q-inp.r { text-align: right; font-variant-numeric: tabular-nums; }
 .q-sel {
-  height: 28px;
+  height: 30px;
   border: 1px solid #dfe4ec;
-  border-radius: 4px;
+  border-radius: 5px;
   font-size: 12.5px;
   color: #3c4858;
   background: #fff;
   max-width: 100%;
 }
-.q-title-cell { max-width: 260px; }
-.q-title-cell .t {
-  display: block;
+.q-sel:focus { border-color: #1e6fff; outline: none; }
+
+/* 货号单元格：展开箭头 + 等宽货号 */
+.q-goods-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.q-exp {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 4px;
+  color: #9aa4b5;
+  font-size: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.q-exp:hover { background: #e6ecf7; color: #1e6fff; }
+.q-exp.open { transform: rotate(90deg); color: #1e6fff; }
+.q-goods-no {
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 12.5px;
+  color: #1f2d3d;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.q-title-cell .s { display: block; font-size: 11.5px; color: #98a2b3; }
+.q-row.on .q-goods-no { color: #1e6fff; font-weight: 600; }
+
+/* 产品名称：最多 2 行 + 分类副行 */
+.q-title-cell { min-width: 0; }
+.q-title-cell .t {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  line-height: 1.35;
+  font-size: 13px;
+  color: #1f2d3d;
+}
+.q-title-cell .s { display: block; font-size: 11.5px; color: #98a2b3; margin-top: 2px; }
+
+/* 展开详情行：次要属性以「标签-值」平铺，不再抢主列宽度 */
+.q-detail > td { background: #f8fafd; padding: 10px 14px 12px; }
+.q-detail-grid { display: flex; flex-wrap: wrap; gap: 7px 28px; }
+.q-detail-kv { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; min-width: 0; }
+.q-detail-kv .k { color: #8a919f; flex: 0 0 auto; }
+.q-detail-kv .v {
+  color: #1f2d3d;
+  font-weight: 500;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.q-detail-kv .v.na { color: #c3cad5; font-weight: 400; }
+.q-detail-inp {
+  height: 26px;
+  border: 1px solid #dfe4ec;
+  border-radius: 5px;
+  padding: 0 7px;
+  font-size: 12.5px;
+  color: #3c4858;
+  background: #fff;
+  outline: none;
+}
+.q-detail-inp:focus { border-color: #1e6fff; box-shadow: 0 0 0 2px rgba(30, 111, 255, 0.09); }
+.q-detail-inp.r { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* 统计条 */
 .q-sum {

@@ -7,7 +7,7 @@
  *          可存档、导出 CSV、打印正式报价单（A4）
  *  · 数据：localStorage（本模块为系统新增能力，OA 原站无对应接口）
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProductPage } from '../core/api';
 import { getDisplayName } from '../core/session';
 import {
@@ -35,7 +35,6 @@ import {
   uid,
   unitPrice,
   updateItem,
-  type QuoteCol,
   type QuoteDoc,
   type QuoteFolder,
   type QuoteItem,
@@ -142,29 +141,43 @@ function addDays(days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** 明细表各列像素宽度（Excel 列宽另在 quoteColumns 里以字符数定义） */
-const COL_PX: Record<string, number> = {
-  idx: 46,
-  goods_no: 132,
-  title: 250,
-  species: 88,
-  application: 132,
-  cate: 110,
-  method: 100,
-  gene: 100,
-  mw: 90,
-  source: 90,
-  basis: 96,
-  spec: 132,
-  unit: 78,
-  dir: 104,
-  dist: 116,
-  discount: 78,
-  quote: 106,
-  qty: 66,
-  amount: 116,
-  note: 140,
-};
+/** 线性文件夹图标（收藏夹树 / 侧栏头部共用） */
+function FolderIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+/** 明细表主行列（首屏只放这些，列宽 px；产品名称列吃剩余宽度）
+ *  次要属性（序号/种属/应用场景/计价方式/目录价/所属夹/备注/附加列）进可展开详情行 */
+interface MainCol {
+  key: string;
+  title: string;
+  /** 固定像素宽；不写则由 table-layout:fixed 分剩余宽度 */
+  px?: number;
+  align?: 'r';
+}
+const MAIN_COLS: MainCol[] = [
+  { key: 'goods_no', title: '货号', px: 126 },
+  { key: 'title', title: '产品名称' },
+  { key: 'spec', title: '规格', px: 120 },
+  { key: 'basis', title: '取价', px: 96 },
+  { key: 'quote', title: '报价', px: 98 },
+  { key: 'qty', title: '数量', px: 68 },
+  { key: 'amount', title: '小计', px: 114, align: 'r' },
+];
 
 /** 行 = 收藏条目 + 所属夹（右侧表格按夹聚合展示） */
 interface Row {
@@ -241,19 +254,11 @@ export default function DesktopQuote() {
     }),
     [setting.mode, setting.showDiscount, setting.extra, setting.showNote],
   );
-  /** 明细表 / 预览 / Excel 共用的列 */
+  /** 明细表 / 预览 / Excel 共用的列（预览与导出不变；明细表主行改用 MAIN_COLS） */
   const cols = useMemo(() => quoteColumns(opts), [opts]);
-
-  /** 明细表列 = 报价单列 + 「取价」列（目录价/经销价/自定义，仅编辑用，不进报价单） */
-  const editCols = useMemo(() => {
-    const basis: QuoteCol = { key: 'basis', title: '取价', width: 100, kind: 'textC', get: () => '' };
-    const out: QuoteCol[] = [];
-    for (const c of cols) {
-      if (c.key === 'dir') out.push(basis);
-      out.push(c);
-    }
-    return out;
-  }, [cols]);
+  /** 行展开状态（展开显示次要属性详情） */
+  const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
+  const toggleRow = (id: string) => setOpenRows((s) => ({ ...s, [id]: !s[id] }));
 
   /** 属性缺失（旧条目没有种属/应用场景）的条数 */
   const missingAttrs = rows.filter((r) => !r.item.species && !r.item.application).length;
@@ -310,7 +315,11 @@ export default function DesktopQuote() {
     if (!window.confirm(`删除收藏夹「${f.name}」？其下产品一并移除。`)) return;
     removeFolder(id);
     refresh();
-    if (curId === id) setCurId('');
+    // 删的正是当前夹：自动回退到剩下的第一个夹，避免主区空跑
+    if (curId === id) {
+      const rest = getFolders();
+      setCurId(rest.length ? rest[0].id : '');
+    }
     toast('已删除');
   }
 
@@ -350,16 +359,51 @@ export default function DesktopQuote() {
     refresh();
   }
 
-  /** 明细表单元格：属性列只读展示，价格/数量/单位等可就地编辑 */
-  function renderCell(c: QuoteCol, r: Row, i: number) {
+  /** 详情行「标签-值」：主行放不下的次要属性都在这里平铺 */
+  function detailKvs(r: Row, i: number): { k: string; v: string; edit?: 'unit' | 'discount' | 'note' }[] {
     const it = r.item;
     const spec = it.prices[it.specIndex] || it.prices[0];
+    const kvs: { k: string; v: string; edit?: 'unit' | 'discount' | 'note' }[] = [{ k: '序号', v: String(i + 1) }];
+    kvs.push({ k: '种属', v: it.species || '' });
+    kvs.push({ k: '应用场景', v: it.application || '' });
+    kvs.push({ k: '计价方式', v: it.unit || '', edit: 'unit' });
+    kvs.push({ k: '目录价', v: spec?.dir ? `¥${money(spec.dir)}` : '' });
+    if (setting.mode === 'dealer') {
+      kvs.push({ k: '经销价(底价)', v: spec?.dist ? `¥${money(spec.dist)}` : '' });
+    }
+    if (setting.showDiscount) {
+      kvs.push({ k: '折扣(%)', v: `${Number(it.discount) || 0}`, edit: 'discount' });
+    }
+    for (const c of EXTRA_COLS) {
+      if (setting.extra.includes(c.key)) kvs.push({ k: c.title, v: c.get(it) });
+    }
+    if (setting.showNote) kvs.push({ k: '备注', v: it.note || '', edit: 'note' });
+    kvs.push({ k: '所属收藏夹', v: r.folder.name });
+    return kvs;
+  }
+
+  /** 明细表主行单元格：属性列只读展示，价格/数量可就地编辑 */
+  function renderCell(c: MainCol, r: Row, i: number) {
+    const it = r.item;
+    const open = !!openRows[it.id];
     switch (c.key) {
-      case 'idx':
-        return i + 1;
       case 'goods_no':
         return (
-          <span style={{ fontFamily: 'Consolas, Menlo, monospace', fontSize: 12.5 }}>{it.goods_no || '—'}</span>
+          <div className="q-goods-cell">
+            <span
+              className={`q-exp${open ? ' open' : ''}`}
+              title={open ? '收起产品属性' : '展开产品属性（种属/应用场景/目录价等）'}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleRow(it.id);
+              }}
+            >
+              ▸
+            </span>
+            <span className="q-goods-no" title={it.goods_no || ''}>
+              {it.goods_no || '—'}
+            </span>
+          </div>
         );
       case 'title':
         return (
@@ -370,20 +414,23 @@ export default function DesktopQuote() {
             {it.cate ? <span className="s">{it.cate}</span> : null}
           </div>
         );
-      case 'species':
-      case 'application':
-      case 'cate':
-      case 'method':
-      case 'gene':
-      case 'mw':
-      case 'source': {
-        const v = String(c.get(it) || '');
-        return (
-          <span className="pc-cell-1" title={v}>
-            {v || '—'}
-          </span>
+      case 'spec':
+        return it.prices.length > 1 ? (
+          <select
+            className="q-sel"
+            style={{ width: '100%' }}
+            value={it.specIndex}
+            onChange={(e) => patch(r, { specIndex: Number(e.target.value) })}
+          >
+            {it.prices.map((p, k) => (
+              <option key={k} value={k} title={p.dir ? `${p.spec}（目录价 ¥${money(p.dir)}）` : p.spec}>
+                {p.spec}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span title={it.prices[it.specIndex]?.spec || ''}>{it.prices[it.specIndex]?.spec || '—'}</span>
         );
-      }
       case 'basis':
         return (
           <select
@@ -396,39 +443,6 @@ export default function DesktopQuote() {
             <option value="dist">经销价</option>
             <option value="custom">自定义</option>
           </select>
-        );
-      case 'spec':
-        return it.prices.length > 1 ? (
-          <select
-            className="q-sel"
-            style={{ width: '100%' }}
-            value={it.specIndex}
-            onChange={(e) => patch(r, { specIndex: Number(e.target.value) })}
-          >
-            {it.prices.map((p, k) => (
-              <option key={k} value={k}>
-                {p.spec}
-                {p.dir ? `（¥${money(p.dir)}）` : ''}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span>{spec?.spec || '—'}</span>
-        );
-      case 'unit':
-        return <input className="q-inp" value={it.unit} onChange={(e) => patch(r, { unit: e.target.value })} />;
-      case 'dir':
-        return spec?.dir ? money(spec.dir) : '—';
-      case 'dist':
-        return spec?.dist ? money(spec.dist) : '—';
-      case 'discount':
-        return (
-          <input
-            className="q-inp r"
-            type="number"
-            value={it.discount}
-            onChange={(e) => patch(r, { discount: Number(e.target.value) || 0 })}
-          />
         );
       case 'quote':
         return (
@@ -451,17 +465,8 @@ export default function DesktopQuote() {
         );
       case 'amount':
         return <b>¥{money(lineAmount(it))}</b>;
-      case 'note':
-        return (
-          <input
-            className="q-inp"
-            value={it.note}
-            placeholder="选填"
-            onChange={(e) => patch(r, { note: e.target.value })}
-          />
-        );
       default:
-        return String(c.get(it) ?? '');
+        return null;
     }
   }
 
@@ -574,6 +579,9 @@ export default function DesktopQuote() {
           >
             {kids.length ? (open ? '▾' : '▸') : ''}
           </span>
+          <span className="q-node-icon">
+            <FolderIcon size={14} />
+          </span>
           {renaming && renaming.id === f.id ? (
             <input
               className="q-name-input"
@@ -633,7 +641,10 @@ export default function DesktopQuote() {
           : null}
         {newSubOf === f.id ? (
           <div className="q-node q-node-child" style={{ cursor: 'default' }}>
-            <span className="q-node-arrow">└</span>
+            <span className="q-node-arrow" />
+            <span className="q-node-icon">
+              <FolderIcon size={14} />
+            </span>
             <input
               className="q-name-input"
               autoFocus
@@ -691,8 +702,13 @@ export default function DesktopQuote() {
         {/* ---------------- 左：收藏夹树 ---------------- */}
         <aside className="q-tree">
           <div className="q-tree-head">
-            <span>我的收藏夹</span>
-            <span style={{ fontSize: 12, color: '#98a2b3' }}>双击可改名</span>
+            <span className="q-tree-title">
+              <FolderIcon />
+              我的收藏夹
+            </span>
+            <span className="q-tree-meta" title={`共 ${folders.length} 个收藏夹`}>
+              {folders.length} 个夹
+            </span>
           </div>
           <div className="q-tree-body">
             {folders
@@ -718,7 +734,7 @@ export default function DesktopQuote() {
               }}
             />
             <button
-              className="pc-btn pc-btn-sm"
+              className="pc-btn pc-btn-sm pc-btn-blue"
               onClick={() => {
                 if (!newName.trim()) return toast('请输入收藏夹名称');
                 doCreateFolder(newName, null);
@@ -906,6 +922,9 @@ export default function DesktopQuote() {
                   <span style={{ fontWeight: 400, color: '#98a2b3', marginLeft: 8 }}>
                     共 {rows.length} 个产品{setting.includeSub ? '（含子夹）' : ''}
                   </span>
+                  <span style={{ fontWeight: 400, color: '#b6c0cf', marginLeft: 10, fontSize: 12 }} title="点击表格行可展开产品属性">
+                    点击行展开属性 ▾
+                  </span>
                 </span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setPickOpen(true)}>
@@ -936,7 +955,7 @@ export default function DesktopQuote() {
                   <table className="q-table">
                     <thead>
                       <tr>
-                        <th style={{ width: 40 }}>
+                        <th style={{ width: 38 }} title="勾选后计入报价单 / 导出">
                           <input
                             type="checkbox"
                             className="pc-check"
@@ -945,48 +964,98 @@ export default function DesktopQuote() {
                             onChange={(e) => setAllSel(e.target.checked)}
                           />
                         </th>
-                        {editCols.map((c) => (
-                          <th key={c.key} style={{ width: COL_PX[c.key] }}>
+                        {MAIN_COLS.map((c) => (
+                          <th
+                            key={c.key}
+                            style={c.px ? { width: c.px } : undefined}
+                            className={c.align === 'r' ? 'q-num' : undefined}
+                          >
                             {c.title}
                           </th>
                         ))}
-                        <th style={{ width: 90 }}>所属夹</th>
-                        <th style={{ width: 70 }}>操作</th>
+                        <th style={{ width: 96 }}>操作</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((r, i) => {
                         const it = r.item;
+                        const open = !!openRows[it.id];
                         return (
-                          <tr key={it.id} className={it.sel ? '' : 'off'}>
-                            <td>
-                              <input
-                                type="checkbox"
-                                className="pc-check"
-                                checked={it.sel}
-                                onChange={(e) => patch(r, { sel: e.target.checked })}
-                              />
-                            </td>
-                            {editCols.map((c) => (
-                              <td
-                                key={c.key}
-                                className={c.kind === 'num' || c.kind === 'quote' || c.kind === 'int' ? 'q-num' : undefined}
-                              >
-                                {renderCell(c, r, i)}
+                          <Fragment key={it.id}>
+                            <tr
+                              className={`q-row${it.sel ? ' on' : ''}`}
+                              onClick={(e) => {
+                                const t = e.target as HTMLElement;
+                                if (t.closest('input,select,button,label,a')) return;
+                                toggleRow(it.id);
+                              }}
+                            >
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  className="pc-check"
+                                  checked={it.sel}
+                                  onChange={(e) => patch(r, { sel: e.target.checked })}
+                                />
                               </td>
-                            ))}
-                            <td style={{ fontSize: 12, color: '#8a919f' }}>{r.folder.name}</td>
-                            <td>
-                              <span style={{ display: 'flex', gap: 4 }}>
-                                <button className="pc-xs-btn pc-xs-blue" title="移到其他收藏夹" onClick={() => moveRow(r)}>
-                                  移动
-                                </button>
-                                <button className="pc-xs-btn pc-xs-danger" onClick={() => removeRow(r)}>
-                                  移除
-                                </button>
-                              </span>
-                            </td>
-                          </tr>
+                              {MAIN_COLS.map((c) => (
+                                <td key={c.key} className={c.align === 'r' ? 'q-num' : undefined}>
+                                  {renderCell(c, r, i)}
+                                </td>
+                              ))}
+                              <td>
+                                <span style={{ display: 'flex', gap: 4 }}>
+                                  <button className="pc-xs-btn pc-xs-blue" title="移到其他收藏夹" onClick={() => moveRow(r)}>
+                                    移动
+                                  </button>
+                                  <button className="pc-xs-btn pc-xs-danger" onClick={() => removeRow(r)}>
+                                    移除
+                                  </button>
+                                </span>
+                              </td>
+                            </tr>
+                            {open ? (
+                              <tr className="q-detail">
+                                <td colSpan={MAIN_COLS.length + 2}>
+                                  <div className="q-detail-grid">
+                                    {detailKvs(r, i).map((kv) => (
+                                      <span className="q-detail-kv" key={kv.k}>
+                                        <span className="k">{kv.k}</span>
+                                        {kv.edit === 'unit' ? (
+                                          <input
+                                            className="q-detail-inp"
+                                            style={{ width: 76 }}
+                                            value={it.unit}
+                                            onChange={(e) => patch(r, { unit: e.target.value })}
+                                          />
+                                        ) : kv.edit === 'discount' ? (
+                                          <input
+                                            className="q-detail-inp r"
+                                            style={{ width: 64 }}
+                                            type="number"
+                                            value={it.discount}
+                                            onChange={(e) => patch(r, { discount: Number(e.target.value) || 0 })}
+                                          />
+                                        ) : kv.edit === 'note' ? (
+                                          <input
+                                            className="q-detail-inp"
+                                            style={{ width: 220 }}
+                                            value={it.note}
+                                            placeholder="选填"
+                                            onChange={(e) => patch(r, { note: e.target.value })}
+                                          />
+                                        ) : (
+                                          <span className={`v${kv.v ? '' : ' na'}`} title={kv.v || '—'}>
+                                            {kv.v || '—'}
+                                          </span>
+                                        )}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
                         );
                       })}
                     </tbody>
