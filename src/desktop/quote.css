@@ -110,6 +110,14 @@
   cursor: pointer;
 }
 .q-node-op:hover { background: #e6ecf7; color: #1e6fff; }
+/* 打包进度提示 */
+.q-pack-progress {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: #1e6fff;
+  font-variant-numeric: tabular-nums;
+}
 /* 子夹：缩进 + 虚线引导线 */
 .q-node-child {
   margin-left: 16px;

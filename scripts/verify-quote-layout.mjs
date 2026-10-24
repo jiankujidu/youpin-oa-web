@@ -113,7 +113,7 @@ try {
   // ---- 5) 侧栏：新建子夹（点根夹 ＋） ----
   await page.evaluate(() => {
     const row = Array.from(document.querySelectorAll('.q-node')).find((n) => (n.textContent || '').includes('默认收藏夹'));
-    row.querySelectorAll('.q-node-op')[0].click(); // ＋
+    Array.from(row.querySelectorAll('.q-node-op')).find((o) => (o.getAttribute('title') || '').includes('新建子收藏夹'))?.click();
   });
   await sleep(300);
   await page.keyboard.type('季度促销');
@@ -131,7 +131,7 @@ try {
   // ---- 6) 重命名（✎ → 输入新名 → Enter） ----
   await page.evaluate(() => {
     const row = Array.from(document.querySelectorAll('.q-node')).find((n) => (n.textContent || '').includes('季度促销'));
-    row.querySelectorAll('.q-node-op')[1].click(); // ✎
+    Array.from(row.querySelectorAll('.q-node-op')).find((o) => (o.getAttribute('title') || '').includes('重命名'))?.click();
   });
   await sleep(300);
   await page.evaluate(() => {
@@ -149,7 +149,7 @@ try {
   // ---- 7) 删除子夹（✕ → confirm，已由 dialog 监听自动接受） ----
   await page.evaluate(() => {
     const row = Array.from(document.querySelectorAll('.q-node')).find((n) => (n.textContent || '').includes('季度促销清单'));
-    row.querySelectorAll('.q-node-op')[2].click(); // ✕
+    Array.from(row.querySelectorAll('.q-node-op')).find((o) => (o.getAttribute('title') || '').includes('删除收藏夹'))?.click();
   });
   await sleep(800);
   out.afterDelete = await page.evaluate(() =>

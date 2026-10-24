@@ -10,6 +10,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchProductPage } from '../core/api';
 import { getDisplayName } from '../core/session';
+import { downloadManuals, folderManifest, packFolder } from '../core/folderPack';
 import {
   addProducts,
   createFolder,
@@ -39,6 +40,7 @@ import {
   type QuoteDoc,
   type QuoteFolder,
   type QuoteItem,
+  type DocSnap,
   type QuoteOpts,
   type QuoteSheetInfo,
 } from '../core/quoteStore';
@@ -343,6 +345,76 @@ export default function DesktopQuote() {
     toast('已删除');
   }
 
+  /* ------------------------------ 批量下载 / 打包 ------------------------------ */
+  /** 打包进度提示（浮条右侧） */
+  const [packing, setPacking] = useState<{ done: number; total: number } | null>(null);
+
+  /** 批量下载说明书：优先用勾选行，没勾就下载当前夹全部 */
+  async function downloadManualsNow() {
+    const target = selRows.length ? selRows : rows;
+    if (!target.length) return toast('当前没有可下载的产品');
+    toast(`正在下载 ${target.length} 个产品的说明书…`);
+    setPacking({ done: 0, total: target.length });
+    try {
+      const r = await downloadManuals(
+        target.map((x) => x.item),
+        cur ? cur.name : '说明书',
+        (done, total) => setPacking({ done, total }),
+        (itemId, docs) => persistDocs(target, itemId, docs),
+      );
+      if (!r.ok) {
+        toast(
+          r.miss
+            ? `没有可下载的说明书（${r.total} 个产品都没有说明书文件）`
+            : '没有可下载的说明书',
+        );
+      } else {
+        toast(`已打包 ${r.ok} 份说明书${r.miss ? `，${r.miss} 份缺失` : ''}`);
+      }
+    } catch (e) {
+      toast('打包失败：' + String(e).slice(0, 60));
+    } finally {
+      setPacking(null);
+      refresh();
+    }
+  }
+
+  /** 把兜底查到的说明书快照回写进收藏夹条目（下次打包不用再查原站） */
+  function persistDocs(
+    scope: { folder: QuoteFolder; item: QuoteItem }[],
+    itemId: string,
+    docs: DocSnap[],
+  ) {
+    const hit = scope.find((x) => x.item.id === itemId);
+    if (!hit) return;
+    updateItem(hit.folder.id, itemId, { docs });
+  }
+
+  /** 打包整个收藏夹：说明书 PDF + 产品清单.csv */
+  async function packFolderOf(f: QuoteFolder) {
+    const items = f.items;
+    if (!items.length) return toast(`收藏夹「${f.name}」是空的`);
+    toast(`正在打包「${f.name}」…`);
+    setPacking({ done: 0, total: items.length });
+    try {
+      const scope = items.map((item) => ({ folder: f, item }));
+      const r = await packFolder(
+        f.name,
+        items,
+        folderManifest(items, (it) => unitPrice(it)),
+        (done, total) => setPacking({ done, total }),
+        (itemId, docs) => persistDocs(scope, itemId, docs),
+      );
+      if (!r.ok) toast(`「${f.name}」里没有可下载的说明书`);
+      else toast(`已打包「${f.name}」：${r.ok} 份说明书 + 产品清单${r.miss ? `，${r.miss} 份缺失` : ''}`);
+      refresh();
+    } catch (e) {
+      toast('打包失败：' + String(e).slice(0, 60));
+    } finally {
+      setPacking(null);
+    }
+  }
+
   /* ------------------------------ 条目操作 ------------------------------ */
   const patch = (row: Row, p: Partial<QuoteItem>) => {
     updateItem(row.folder.id, row.item.id, p);
@@ -623,6 +695,16 @@ export default function DesktopQuote() {
           )}
           <span className="q-node-count">{f.items.length}</span>
           <span className="q-node-ops">
+            <span
+              className="q-node-op"
+              title="打包下载该收藏夹（说明书 PDF + 产品清单.csv）"
+              onClick={(e) => {
+                e.stopPropagation();
+                void packFolderOf(f);
+              }}
+            >
+              ⤓
+            </span>
             <span
               className="q-node-op"
               title="新建子收藏夹"
@@ -948,6 +1030,31 @@ export default function DesktopQuote() {
                   </span>
                 </span>
                 <span style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="pc-btn pc-btn-sm pc-btn-ghost"
+                    title={
+                      selRows.length
+                        ? `下载勾选的 ${selRows.length} 个产品的说明书（打成一个 zip）`
+                        : '下载当前收藏夹全部产品的说明书（打成一个 zip）'
+                    }
+                    disabled={!!packing}
+                    onClick={() => void downloadManualsNow()}
+                  >
+                    ⤓ 批量下载说明书
+                  </button>
+                  <button
+                    className="pc-btn pc-btn-sm pc-btn-ghost"
+                    title="把整个收藏夹打包成 zip：说明书 PDF + 产品清单.csv"
+                    disabled={!!packing}
+                    onClick={() => cur && void packFolderOf(cur)}
+                  >
+                    📦 打包收藏夹
+                  </button>
+                  {packing ? (
+                    <span className="q-pack-progress">
+                      打包中 {packing.done}/{packing.total}
+                    </span>
+                  ) : null}
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setPickOpen(true)}>
                     ＋ 添加产品
                   </button>

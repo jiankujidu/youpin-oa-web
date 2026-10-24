@@ -17,6 +17,22 @@ export interface QuoteSpec {
   dist: number;
 }
 
+/**
+ * 说明书快照（收藏夹条目自带，用于「批量下载说明书 / 打包收藏夹」）。
+ * 只存 OA 文件 id 与文件名，**不存完整地址**——下载地址在下载时按当前代理前缀重建，
+ * 这样换部署（pages.dev / 本机 / GitHub Pages）也不会因为快照里写死了旧域名而失效。
+ */
+export interface DocSnap {
+  /** 货号 */
+  no: string;
+  /** OA 文件 id（get_oss_file?id=N） */
+  id?: string;
+  /** OSS 静态路径兜底（/oss/<年月>/<md5>.pdf） */
+  ossPath?: string;
+  /** 说明书文件名（含 .pdf） */
+  fileName?: string;
+}
+
 /** 收藏夹里的一个产品条目（含报价参数） */
 export interface QuoteItem {
   id: string;
@@ -51,6 +67,8 @@ export interface QuoteItem {
   note: string;
   /** 是否纳入本次报价（可单独勾选） */
   sel: boolean;
+  /** 说明书快照（批量下载 / 打包用） */
+  docs?: DocSnap[];
   add_time: number;
 }
 
@@ -195,10 +213,38 @@ export function childFolders(parentId: string | null): QuoteFolder[] {
 
 /* ------------------------------ 条目操作 ------------------------------ */
 
+/**
+ * 产品行 → 说明书快照列表。
+ * 数据源：原站列表接口返回的 `goods_no_list`（每个货号变体一条，含 pc_goods_no_url）。
+ * 只取 OA 文件 id（get_oss_file?id=N）与文件名，不存完整地址。
+ */
+export function docsOf(p: Product): DocSnap[] {
+  const list = ((p as unknown as Record<string, unknown>).goods_no_list || []) as Record<
+    string,
+    unknown
+  >[];
+  const out: DocSnap[] = [];
+  for (const g of list) {
+    const no = String(g.goods_no || '').trim();
+    if (!no) continue;
+    const raw = String(g.pc_goods_no_url || g.goods_no_url || '');
+    const id = raw.match(/[?&]id=(\d+)/)?.[1] || '';
+    // OSS 签名直链的静态路径（下载时走 /oss/ 兜底，签名本身永远 403）
+    const ossPath = String(g.goods_no_url || '').match(
+      /^(?:https?:)?\/\/static\.upingbio\.cn\/oa\/([^?#]+)/i,
+    )?.[1];
+    const desc = String(g.goods_no_desc || '').trim();
+    out.push({ no, id: id || undefined, ossPath, fileName: desc || undefined });
+  }
+  return out;
+}
+
 /** 产品 → 收藏条目（快照，后续原站价格变动不影响已收藏条目） */
 export function toItem(p: Product): QuoteItem {
   const first = (p.goods_no || '').split(/[;；]/)[0] || '';
   const anyP = p as unknown as Record<string, unknown>;
+  const docs = docsOf(p);
+  const own = docs.filter((d) => d.no === first);
   return {
     id: uid(),
     productId: String(p.id ?? ''),
@@ -220,6 +266,7 @@ export function toItem(p: Product): QuoteItem {
     discount: 100,
     note: '',
     sel: true,
+    docs: own.length ? own : docs.length === 1 ? docs : [],
     add_time: Date.now(),
   };
 }
@@ -294,6 +341,9 @@ export function addVariants(
     const gno = goodsNo || ((product.goods_no || '').split(/[;；]/)[0] || '');
     const exist = f.items.find((it) => it.productId === pid && it.goods_no === gno);
     const base = toItem(product);
+    // 说明书快照只留该货号对应的那条（一个产品挂多个公司货号时各挂各的说明书；
+    //  该货号本来就没有说明书 → 空数组，属实，不借用别的货号的说明书）
+    const doc = docsOf(product).find((d) => d.no === gno);
     if (exist) {
       Object.assign(exist, {
         goods_no: gno,
@@ -307,10 +357,12 @@ export function addVariants(
         source: base.source,
         prices: base.prices,
         specIndex: Math.min(exist.specIndex, Math.max(0, base.prices.length - 1)),
+        docs: doc ? [doc] : [],
       });
       updated++;
     } else {
       base.goods_no = gno;
+      base.docs = doc ? [doc] : [];
       f.items.push(base);
       added++;
     }
