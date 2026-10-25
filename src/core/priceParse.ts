@@ -50,6 +50,26 @@ const SPEC_RE = () => new RegExp(String.raw`([\d.]+)\s*(${UNIT_SRC})`, 'gi');
 const BASIS_RE = () => new RegExp(`(${BASIS_SRC})`, 'g');
 /** 品牌：段首连续中文，后接口径词或「规格」二字 */
 const BRAND_RE = () => new RegExp(String.raw`^([\u4e00-\u9fa5]{2,10}?)(?=(?:${BASIS_SRC})|规格)`);
+/** 整段是否就是一个口径词（用于把「终端价格 / 统一经销商价」这类排除在品牌外） */
+const FULL_BASIS_RE = () => new RegExp(`^(?:${BASIS_SRC})$`);
+
+/**
+ * 取段首品牌名。
+ *
+ * ★ 口径词本身不是品牌：'终端价格18元/样' 里 BRAND_RE 会把「终端」当品牌
+ *   （因为后面紧跟 BASIS 里的「价格」），结果是「终端 / 20样」这种假品牌。
+ *   所以抓到候选后要回头验证：品牌 + 紧随其后的口径词 若**整体**仍是一个
+ *   口径词（终端价格 / 统一经销商价 / 优品单样代测价 …），就判为不是品牌。
+ */
+function brandOf(seg: string): string {
+  const m = seg.match(BRAND_RE());
+  const b = m?.[1]?.trim();
+  if (!b || b === '规格') return '';
+  const rest = seg.slice(b.length);
+  const wm = rest.match(BASIS_RE());
+  if (wm?.length && FULL_BASIS_RE().test(b + wm[0])) return '';
+  return b;
+}
 /** 折扣说明：'7折' / '经销商6折' —— 不是价格，需剔除 */
 const DISCOUNT_RE = /(?:(?:统一)?(?:经销商价|经销商|经销价|经销|代理|渠道|批发|终端)?)?\s*[\d.]+\s*折(?!扣)/g;
 /** 按单位计价：'30/张' '100元/样' '单价 235/样' '30元/样/指标' */
@@ -158,6 +178,12 @@ function specsOf(text: string): string[] {
  */
 function matchPerUnit(text: string): { unit: string; price: number }[] {
   if (!new RegExp(`(${BASIS_SRC})`, 'i').test(text)) return [];
+  /**
+   * ★ 块里有 ≥2 个数字 = 「规格:价格」布局（如 '统一经销商价:96T:1000元'），
+   *   不是「单价 N/单位」。不加这道闸，正则会把 96T 里的 96 当成单价、
+   *   T 当成单位，产出「规格 T / 经销价 96」这种一眼假的脏数据。
+   */
+  if (matchPrices(text).length > 1) return [];
   const out: { unit: string; price: number }[] = [];
   const re = new RegExp(
     `(${BASIS_SRC})\\s*[（(]?\\s*元?\\s*[)）]?\\s*[:：]?\\s*([\\d.]+)\\s*(${UNIT_SRC})?`,
@@ -232,8 +258,8 @@ export function parsePrices(desc?: string): QuoteSpec[] {
   let ctx: string[] = [];
 
   for (const seg of segs) {
-    const bm = seg.match(BRAND_RE());
-    if (bm && bm[1] !== '规格') brand = bm[1];
+    const nb = brandOf(seg);
+    if (nb) brand = nb;
 
     for (const blk of splitByBasis(seg)) {
       const specs = specsOf(blk.text);

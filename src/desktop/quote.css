@@ -357,12 +357,17 @@
   border-bottom: 2px solid #1f2d3d;
 }
 .q-sheet-meta div span { color: #8a919f; margin-right: 4px; }
-.q-sheet table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+/* ★ 预览表必须 table-layout: fixed —— 否则列一多，auto 布局会把固定宽列按
+     比例压扁，中文被挤成竖排（2026-10-21 的坑）。宽度不够就横向滚动。 */
+.q-sheet-scroll { overflow-x: auto; margin-top: 14px; }
+.q-sheet table { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
 .q-sheet th, .q-sheet td {
   border: 1px solid #cfd6e0;
   padding: 7px 8px;
   text-align: left;
+  overflow-wrap: anywhere;
 }
+.q-sheet th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-sheet th { background: #f4f7fb; }
 .q-sheet td.r, .q-sheet th.r { text-align: right; font-variant-numeric: tabular-nums; }
 .q-sheet-total {
@@ -450,6 +455,9 @@
     width: 100%;
     padding: 0;
   }
+  /* 打印走纸宽：撤掉最小宽度，让表格按 A4 自适应，不要被截断 */
+  .q-sheet-scroll { overflow: visible; margin-top: 14px; }
+  .q-sheet table { min-width: 0 !important; }
   @page { size: A4; margin: 14mm; }
 }
 

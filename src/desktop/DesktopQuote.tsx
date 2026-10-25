@@ -30,6 +30,8 @@ import {
   removeFolder,
   removeItems,
   renameFolder,
+  refreshItemAttrs,
+  missingAttrKeys,
   rmbUpper,
   round2,
   saveDoc,
@@ -275,14 +277,10 @@ export default function DesktopQuote() {
   const toggleRow = (id: string) => setOpenRows((s) => ({ ...s, [id]: !s[id] }));
 
   /**
-   * 属性缺失条数：种属/应用场景/方法学/基因名称/分子量/来源 任一为空都算缺
+   * 属性缺失条数：种属/应用场景/方法学/基因名称/分子量/来源 任一为空**且没回原站确认过**才算缺
    * （旧存档只快照了部分字段；原站有的字段一定要体现，缺的按货号回原站补）
    */
-  const missingAttrs = rows.filter((r) =>
-    (['species', 'application', 'method', 'gene', 'mw', 'source'] as const).some(
-      (k) => !String(r.item[k] || '').trim(),
-    ),
-  ).length;
+  const missingAttrs = rows.filter((r) => missingAttrKeys(r.item).length).length;
 
   /**
    * 无价格条目数：规格/价格都解析不出来（旧快照是旧解析器产物，或原站本就没标价）。
@@ -306,7 +304,7 @@ export default function DesktopQuote() {
     void (async () => {
       const r = await refreshItemPrices(
         miss.slice(0, 60).map((x) => ({ folderId: x.folder.id, item: x.item })),
-        (done, total) => setPacking({ done, total, stage: '刷新价格' }),
+        (done, total) => setBg({ done, total, stage: '刷新价格' }),
       );
       if (alive) {
         refresh();
@@ -315,7 +313,7 @@ export default function DesktopQuote() {
     })();
     return () => {
       alive = false;
-      setPacking(null);
+      setBg(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
@@ -344,40 +342,65 @@ export default function DesktopQuote() {
     }
   }
 
-  /** 从原站产品库按货号回填种属/应用场景/方法学等属性（原站有的必须体现） */
-  async function fillAttrs() {
-    const targets = rows.filter((r) =>
-      (['species', 'application', 'method', 'gene', 'mw', 'source'] as const).some(
-        (k) => !String(r.item[k] || '').trim(),
-      ),
-    );
-    if (!targets.length) return toast('产品属性已齐全');
-    toast(`正在补全 ${targets.length} 个产品的属性…`);
-    let n = 0;
-    for (const r of targets.slice(0, 60)) {
-      try {
-        const { rows: list } = await fetchProductPage(r.item.goods_no, 1, 5);
-        const m =
-          list.find((p) => (p.goods_no || '').split(/[;；]/)[0] === r.item.goods_no) || list[0];
-        if (m) {
-          const anyP = m as unknown as Record<string, unknown>;
-          updateItem(r.folder.id, r.item.id, {
-            species: m.species || r.item.species || '',
-            application: m.application || r.item.application || '',
-            method: m.methodology || r.item.method || '',
-            gene: String(anyP.gene_name ?? r.item.gene ?? ''),
-            mw: String(anyP.da ?? r.item.mw ?? ''),
-            source: m.source || r.item.source || '',
-          });
-          n++;
-        }
-      } catch {
-        /* 单条失败不影响整体 */
-      }
+  /**
+   * 从原站产品库按货号回填种属/应用场景/方法学等属性（原站有的必须体现）。
+   * ★ 并发取、串行写、只填空值——和价格自愈同一套模型，60 条一批避免打爆原站。
+   * ★ force=true（手动点按钮）时忽略「原站确实没值」的标记，强制重查一遍。
+   */
+  async function fillAttrs(silent = false, force = false, bg = false) {
+    const setProg = bg ? setBg : setPacking;
+    const targets = rows.filter((r) => missingAttrKeys(r.item, force).length);
+    if (!targets.length) {
+      if (!silent) toast('产品属性已齐全（原站没有的字段不会凭空补出来）');
+      return;
     }
-    refresh();
-    toast(`已补全 ${n} 个产品的种属/应用场景等属性`);
+    if (!silent) {
+      toast(`正在补全 ${targets.length} 个产品的属性…`);
+      setProg({ done: 0, total: targets.length, stage: '补全属性' });
+    }
+    try {
+      const r = await refreshItemAttrs(
+        targets.slice(0, 60).map((x) => ({ folderId: x.folder.id, item: x.item })),
+        silent ? undefined : (done, total, stage) => setProg({ done, total, stage }),
+        force,
+      );
+      refresh();
+      if (!silent) {
+        toast(
+          r.fixed
+            ? `已补全 ${r.fixed} 个产品的种属/应用场景等属性`
+            : '原站这几个产品也没填这些字段',
+        );
+      }
+    } catch (e) {
+      if (!silent) toast('补全失败：' + String(e).slice(0, 60));
+    } finally {
+      if (!silent) setProg(null);
+    }
   }
+
+  /**
+   * 进入报价页时**自动静默补齐**缺属性的条目（每个条目只尝试一次，避免死循环）。
+   * ★ 旧存档条目收藏时没快照属性，页面上就一直显示「—」，看着像没做。
+   */
+  const attrTriedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const miss = rows.filter(
+      (r) => missingAttrKeys(r.item).length && !attrTriedRef.current.has(r.item.id),
+    );
+    if (!miss.length) return;
+    miss.forEach((r) => attrTriedRef.current.add(r.item.id));
+    let alive = true;
+    void (async () => {
+      await fillAttrs(true, false, true);
+      if (alive) refresh();
+    })();
+    return () => {
+      alive = false;
+      setBg(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   /* ------------------------------ 收藏夹操作 ------------------------------ */
   function doCreateFolder(name: string, parentId: string | null) {
@@ -411,6 +434,12 @@ export default function DesktopQuote() {
   /* ------------------------------ 批量下载 / 打包 ------------------------------ */
   /** 打包进度提示（浮条右侧） */
   const [packing, setPacking] = useState<{ done: number; total: number; stage?: string } | null>(null);
+  /**
+   * 后台自动补齐（价格/属性）的进度。
+   * ★ 与 packing 分开：后台补齐不该把「打包/下载」按钮置灰——
+   *   否则刚进页面还在自动补价时，点「打包全部」点了没反应。
+   */
+  const [bg, setBg] = useState<{ done: number; total: number; stage?: string } | null>(null);
 
   /** 批量下载说明书：逐个文件落盘（不是 zip）。优先用勾选行，没勾就下当前夹全部 */
   async function downloadManualsNow() {
@@ -501,6 +530,8 @@ export default function DesktopQuote() {
    *   名字却叫「打包收藏夹」，点了不会覆盖其他夹 —— 这里把「全部」补上，两个入口分开，语义不再含糊。
    */
   async function packAllNow() {
+    // ★ 防重复点击：已经在打包就直接忽略（避免连点起两个任务把原站打爆）
+    if (packing) return toast('正在打包中，请稍候');
     const groups = folders
       .filter((f) => f.items.length)
       .map((f) => ({ folder: f, name: f.name, items: f.items }));
@@ -577,15 +608,33 @@ export default function DesktopQuote() {
 
   /** 规格下拉显示文本：有品牌时带品牌前缀（多品牌报价必须能区分） */
   const specLabel = (p?: { spec?: string; brand?: string }) =>
-    !p ? '—' : p.brand ? `${p.brand} / ${p.spec || ''}` : (p.spec || '—');
+    !p ? '—' : p.brand ? `${p.brand} / ${p.spec || ''}` : (p.spec || '标准');
+
+  /** 规格列悬停提示：显示原站原始价格串 + 当前口径，便于逐条核对（不编造价格） */
+  const rawTip = (it: QuoteItem) => {
+    const p = it.prices[it.specIndex] || it.prices[0];
+    const line = [specLabel(p)];
+    if (p?.dir) line.push(`目录价 ¥${money(p.dir)}`);
+    if (p?.dist) line.push(`经销价 ¥${money(p.dist)}`);
+    if (p?.terminal) line.push(`终端价 ¥${money(p.terminal)}`);
+    return it.priceRaw
+      ? `${line.join('｜')}\n原站原文：${it.priceRaw}`
+      : `${line.join('｜')}\n（本机存档无原站原文，可点「↻ 刷新价格」回原站重取）`;
+  };
 
   /** 详情行「标签-值」：主行放不下的次要属性都在这里平铺 */
   function detailKvs(r: Row, i: number): { k: string; v: string; edit?: 'unit' | 'discount' | 'note' }[] {
     const it = r.item;
     const spec = it.prices[it.specIndex] || it.prices[0];
     const kvs: { k: string; v: string; edit?: 'unit' | 'discount' | 'note' }[] = [{ k: '序号', v: String(i + 1) }];
-    kvs.push({ k: '种属', v: it.species || '' });
-    kvs.push({ k: '应用场景', v: it.application || '' });
+    // ★ 原站没有的属性不占位（用户定稿：「没有不体现，有的一定要体现」）
+    if (it.species) kvs.push({ k: '种属', v: it.species });
+    if (it.application) kvs.push({ k: '应用场景', v: it.application });
+    // ★ 价格来源可追溯：原站原始价格串原文照抄，任何数字都能回原站对得上
+    kvs.push({
+      k: '原站原始价格串',
+      v: it.priceRaw || '（无，点「↻ 刷新价格」回原站重取）',
+    });
     kvs.push({ k: '计价方式', v: it.unit || '', edit: 'unit' });
     kvs.push({ k: '目录价', v: spec?.dir ? `¥${money(spec.dir)}` : '' });
     if (setting.mode === 'dealer') {
@@ -594,9 +643,10 @@ export default function DesktopQuote() {
     if (setting.showDiscount) {
       kvs.push({ k: '折扣(%)', v: `${Number(it.discount) || 0}`, edit: 'discount' });
     }
-    // 附加属性列：只体现「本单里至少一行有值」的列（没有的不体现，有的一定要体现）
+    // ★ 原站有的属性一律铺出来（用户定稿：「有的一定要体现」）；没有的不占位
     for (const c of EXTRA_COLS) {
-      if (effOpts.extra.includes(c.key)) kvs.push({ k: c.title, v: c.get(it) });
+      const v = String(c.get(it) ?? '').trim();
+      if (v) kvs.push({ k: c.title, v });
     }
     if (effOpts.showNote) kvs.push({ k: '备注', v: it.note || '', edit: 'note' });
     kvs.push({ k: '所属收藏夹', v: r.folder.name });
@@ -650,21 +700,31 @@ export default function DesktopQuote() {
               需询价
             </span>
           );
+        // ★ title 里带上原站原文与两种口径，鼠标悬停即可核对，不用再去原站翻
         return it.prices.length > 1 ? (
           <select
             className="q-sel"
             style={{ width: '100%' }}
             value={it.specIndex}
             onChange={(e) => patch(r, { specIndex: Number(e.target.value) })}
+            title={rawTip(it)}
           >
             {it.prices.map((p, k) => (
-              <option key={k} value={k} title={p.dir ? `${specLabel(p)}（目录价 ¥${money(p.dir)}）` : specLabel(p)}>
+              <option
+                key={k}
+                value={k}
+                title={
+                  p.dir || p.dist
+                    ? `${specLabel(p)}｜目录价 ¥${money(p.dir)}／经销价 ¥${money(p.dist)}`
+                    : specLabel(p)
+                }
+              >
                 {specLabel(p)}
               </option>
             ))}
           </select>
         ) : (
-          <span title={specLabel(it.prices[it.specIndex] || it.prices[0])}>
+          <span title={rawTip(it)}>
             {specLabel(it.prices[it.specIndex] || it.prices[0])}
           </span>
         );
@@ -1251,6 +1311,11 @@ export default function DesktopQuote() {
                       打包中 {packing.stage ? `${packing.stage} ` : ''}
                       {packing.done}/{packing.total}
                     </span>
+                  ) : bg ? (
+                    /* ★ 后台补齐的进度条：只提示，不禁用打包/下载按钮 */
+                    <span className="q-pack-progress" title="后台正在回原站补齐，不影响打包下载">
+                      {bg.stage || '处理中'} {bg.done}/{bg.total}
+                    </span>
                   ) : null}
                   <button className="pc-btn pc-btn-sm pc-btn-ghost" onClick={() => setPickOpen(true)}>
                     ＋ 添加产品
@@ -1268,8 +1333,8 @@ export default function DesktopQuote() {
                   {missingAttrs ? (
                     <button
                       className="pc-btn pc-btn-sm pc-btn-ghost"
-                      title="按货号回原站产品库补回种属 / 应用场景 / 方法学等属性"
-                      onClick={() => void fillAttrs()}
+                      title="按货号回原站产品库补回种属 / 应用场景 / 方法学等属性（强制重查一遍）"
+                      onClick={() => void fillAttrs(false, true)}
                     >
                       ↻ 补全属性({missingAttrs})
                     </button>
@@ -1285,9 +1350,10 @@ export default function DesktopQuote() {
                   </button>
                 </span>
               </div>
+              {/* ★ 主表：固定布局 + 最小宽度，窄屏横向滚动，不让产品名称列被压没 */}
               {rows.length ? (
                 <div style={{ overflowX: 'auto' }}>
-                  <table className="q-table">
+                  <table className="q-table" style={{ minWidth: 900 }}>
                     <thead>
                       <tr>
                         <th style={{ width: 38 }} title="勾选后计入报价单 / 导出">
@@ -1489,11 +1555,18 @@ export default function DesktopQuote() {
                     {setting.seller || '—'}
                   </div>
                 </div>
-                <table>
+                {/* ★ 预览表列多：固定布局 + 显式列宽 + 最小宽度，放不下就横向滚动，
+                       绝不让某个列被 auto 布局压成竖排 */}
+                <div className="q-sheet-scroll">
+                <table style={{ minWidth: Math.round(cols.reduce((n, c) => n + Math.max(c.width, 6) * 6.5, 0)) }}>
                   <thead>
                     <tr>
                       {cols.map((c) => (
-                        <th key={c.key} className={c.kind === 'num' || c.kind === 'quote' || c.kind === 'int' ? 'r' : undefined}>
+                        <th
+                          key={c.key}
+                          style={{ width: Math.max(c.width, 6) * 6.5 }}
+                          className={c.kind === 'num' || c.kind === 'quote' || c.kind === 'int' ? 'r' : undefined}
+                        >
                           {c.title}
                         </th>
                       ))}
@@ -1530,6 +1603,7 @@ export default function DesktopQuote() {
                     ) : null}
                   </tbody>
                 </table>
+                </div>
                 <div className="q-sheet-total">
                   <div className="cap">
                     合计金额（小写）：<b>¥{money(setting.taxRate ? sum.gross : sum.total)}</b>

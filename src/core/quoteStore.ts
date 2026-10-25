@@ -70,6 +70,12 @@ export interface QuoteItem {
   sel: boolean;
   /** 说明书快照（批量下载 / 打包用） */
   docs?: DocSnap[];
+  /**
+   * 已经回原站查过、且原站**确实没有值**的属性字段。
+   * ★ 原站 application 等字段常年为空，没有这个标记就会每次都以为"还缺"、
+   *   「补全属性(N)」的计数永远降不下来、页面一直显示「—」。
+   */
+  attrsFetched?: string[];
   add_time: number;
 }
 
@@ -214,8 +220,8 @@ export async function refreshItemPrices(
         let docs: DocSnap[] | undefined;
         try {
           const { rows: list } = await fetchProductPage(t.item.goods_no, 1, 10);
-          const m =
-            list.find((p) => (p.goods_no || '').split(/[;；]/)[0] === t.item.goods_no) || list[0];
+          // ★ 按货号变体匹配，避免多货号产品取错行（规格/属性对不上）
+          const m = matchProduct(list, t.item.goods_no);
           if (m) {
             desc = String(m.price_desc ?? '');
             unit = m.unit || undefined;
@@ -249,6 +255,136 @@ export async function refreshItemPrices(
     if (g.docs && g.docs.length) patch.docs = g.docs;
     updateItem(t.folderId, t.item.id, patch);
     if (g.prices.length) fixed++;
+  });
+  return { fixed, still: targets.length - fixed };
+}
+
+/* ------------------------------ 属性自愈 ------------------------------ */
+
+/**
+ * 报价单里要体现的产品属性（用户定稿：「没有不体现，有的一定要体现」）。
+ * 顺序即展示顺序，改名/加列改这里即可。
+ */
+export const QUOTE_ATTR_KEYS = [
+  'species',
+  'application',
+  'method',
+  'gene',
+  'mw',
+  'source',
+] as const;
+
+/** 条目还缺哪些属性（全齐返回空数组）
+ *  ★ 已回原站确认过「原站就是没有」的字段不再算缺（force=true 时忽略该标记，强制重查） */
+export function missingAttrKeys(it: QuoteItem, force = false): string[] {
+  const fetched = new Set(force ? [] : it.attrsFetched || []);
+  return QUOTE_ATTR_KEYS.filter((k) => !String(it[k] || '').trim() && !fetched.has(k));
+}
+
+/**
+ * 在原站返回的产品列表里定位条目对应的产品。
+ *
+ * ★ 必须按「货号变体」匹配，不能只看 split(';')[0]：
+ *   原站一个产品的 goods_no 常写成 'A;B;C'，而收藏条目存的是其中某一个变体货号。
+ *   只看第一段会让 B/C 匹配不上，回落 list[0] 就可能取错产品（规格/属性对不上）。
+ */
+function matchProduct(list: Product[], goodsNo: string): Product | undefined {
+  if (!list.length) return undefined;
+  const no = String(goodsNo || '').trim();
+  if (!no) return list[0];
+  const exact = list.find((p) =>
+    String(p.goods_no || '')
+      .split(/[;；]/)
+      .some((x) => x.trim() === no),
+  );
+  if (exact) return exact;
+  const head = list.find((p) => String(p.goods_no || '').split(/[;；]/)[0].trim() === no);
+  return head || list[0];
+}
+
+/** 产品行 → 只带「条目目前缺、且原站确实有值」的补丁 */
+function attrPatchOf(p: Product, it: QuoteItem, force = false): Partial<QuoteItem> {
+  const anyP = p as unknown as Record<string, unknown>;
+  const miss = new Set(missingAttrKeys(it, force));
+  const patch: Record<string, unknown> = {};
+  const put = (k: (typeof QUOTE_ATTR_KEYS)[number], v: unknown) => {
+    if (!miss.has(k)) return;
+    const s = String(v ?? '').trim();
+    if (s) patch[k] = s;
+  };
+  put('species', p.species);
+  put('application', p.application);
+  put('method', p.methodology);
+  put('gene', anyP.gene_name);
+  put('mw', anyP.da);
+  put('source', p.source);
+
+  // ★ 记下「已回原站查过」的字段：原站就是空的那些以后不再反复去查
+  if (miss.size) {
+    const done = new Set([...(it.attrsFetched || []), ...miss]);
+    patch.attrsFetched = [...done];
+  }
+
+  // 顺带补齐价格原文 / 说明书快照（缺哪个补哪个，已有的一律不覆盖）
+  if (!String(it.priceRaw || '').trim()) {
+    const desc = String(anyP.price_desc ?? '');
+    if (desc.trim()) {
+      patch.priceRaw = desc;
+      if (!(it.prices && it.prices.length)) patch.prices = parsePrices(desc);
+    }
+  }
+  if (!(it.docs && it.docs.length)) {
+    const all = docsOf(p);
+    const hit = all.filter((d) => d.no === it.goods_no);
+    const docs = hit.length ? hit : all.length === 1 ? all : [];
+    if (docs.length) patch.docs = docs;
+  }
+  return patch as Partial<QuoteItem>;
+}
+
+/**
+ * 回原站按货号补齐**产品属性**（种属/应用场景/方法学/基因名称/分子量/来源）。
+ *
+ * ★ 与 refreshItemPrices 同一套并发模型：先并发只读回原站取，再串行写库。
+ *   只填「原本为空」的字段，不覆盖用户或原站已有的值。
+ */
+export async function refreshItemAttrs(
+  rows: { folderId: string; item: QuoteItem }[],
+  onProgress?: (done: number, total: number, stage?: '补全属性') => void,
+  force = false,
+): Promise<{ fixed: number; still: number }> {
+  const targets = rows.filter(
+    (r) => String(r.item.goods_no || '').trim() && missingAttrKeys(r.item, force).length,
+  );
+  if (!targets.length) return { fixed: 0, still: 0 };
+
+  const got = new Array<Partial<QuoteItem> | null>(targets.length).fill(null);
+  let done = 0;
+  let cursor = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= targets.length) return;
+      const t = targets[i];
+      try {
+        const { rows: list } = await fetchProductPage(t.item.goods_no, 1, 10);
+        const m = matchProduct(list, t.item.goods_no);
+        if (m) got[i] = attrPatchOf(m, t.item, force);
+      } catch {
+        /* 单条失败不影响整体 */
+      }
+      done++;
+      onProgress?.(done, targets.length, '补全属性');
+    }
+  };
+  await Promise.all([worker(), worker()]);
+
+  let fixed = 0;
+  targets.forEach((t, i) => {
+    const patch = got[i];
+    if (!patch || !Object.keys(patch).length) return;
+    updateItem(t.folderId, t.item.id, patch);
+    fixed++;
   });
   return { fixed, still: targets.length - fixed };
 }
@@ -598,6 +734,11 @@ export interface QuoteOpts {
   extra: string[];
   /** 是否输出备注列 */
   showNote: boolean;
+  /**
+   * 本单**所有行都没有值**的属性列直接不出现（用户定稿：「没有不体现，有的一定要体现」）。
+   * 由 effQuoteOpts 根据实际数据算出来，不手工指定。
+   */
+  skip?: string[];
 }
 
 export const DEF_QUOTE_OPTS: QuoteOpts = {
@@ -627,22 +768,43 @@ export interface QuoteCol {
   get: (it: QuoteItem) => string | number;
 }
 
-/** 按选项生成列（种属、应用场景恒显示；经销价列随 mode 出现；折扣列随开关出现） */
+/** 恒显示的属性列（种属 / 应用场景）—— 但整单全空时同样不出现 */
+const ALWAYS_COLS: { key: string; title: string; width: number; kind: QuoteCol['kind']; get: (it: QuoteItem) => string }[] = [
+  { key: 'species', title: '种属', width: 10, kind: 'textC', get: (it) => it.species || '' },
+  { key: 'application', title: '应用场景', width: 16, kind: 'text', get: (it) => it.application || '' },
+];
+
+/** 按选项生成列（种属、应用场景随数据有无出现；经销价列随 mode 出现；折扣列随开关出现） */
 export function quoteColumns(opts: QuoteOpts): QuoteCol[] {
   const o = { ...DEF_QUOTE_OPTS, ...(opts || {}) };
+  const skip = new Set(o.skip || []);
   const cols: QuoteCol[] = [
     { key: 'idx', title: '序号', width: 5, kind: 'int', get: () => '' },
     { key: 'goods_no', title: '货号', width: 22, kind: 'text', get: (it) => it.goods_no || '' },
     { key: 'title', title: '产品名称', width: 34, kind: 'text', get: (it) => it.title || '' },
-    { key: 'species', title: '种属', width: 10, kind: 'textC', get: (it) => it.species || '' },
-    { key: 'application', title: '应用场景', width: 16, kind: 'text', get: (it) => it.application || '' },
   ];
+  for (const c of ALWAYS_COLS) {
+    if (skip.has(c.key)) continue;
+    cols.push({ key: c.key, title: c.title, width: c.width, kind: c.kind, get: c.get });
+  }
   for (const k of o.extra || []) {
     const d = EXTRA_COLS.find((x) => x.key === k);
     if (d) cols.push({ key: d.key, title: d.title, width: d.width, kind: 'text', get: d.get });
   }
   cols.push(
-    { key: 'spec', title: '规格', width: 12, kind: 'textC', get: (it) => it.prices[it.specIndex]?.spec || '' },
+    {
+      key: 'spec',
+      title: '规格',
+      width: 12,
+      kind: 'textC',
+      // ★ 多品牌产品：规格前带品牌，否则同一个规格出现多行分不清是哪个品牌
+      get: (it) => {
+        const p = it.prices[it.specIndex] || it.prices[0];
+        if (!p) return '';
+        const sp = p.spec || '标准';
+        return p.brand ? `${p.brand} / ${sp}` : sp;
+      },
+    },
     { key: 'unit', title: '计价方式', width: 9, kind: 'textC', get: (it) => it.unit || '' },
     { key: 'dir', title: '目录价', width: 12, kind: 'num', get: (it) => it.prices[it.specIndex]?.dir || 0 },
   );
@@ -676,8 +838,13 @@ export function effQuoteOpts(opts: QuoteOpts, items: QuoteItem[]): QuoteOpts {
     return d ? items.some((it) => String(d.get(it) ?? '').trim() !== '') : false;
   });
   const showNote = !!opts.showNote && items.some((it) => String(it.note || '').trim() !== '');
-  if (extra.length === picked.length && showNote === !!opts.showNote) return opts;
-  return { ...opts, extra, showNote };
+  // ★ 种属 / 应用场景：原站这一单里全都没有值 → 整列不出现（不留一列「—」）
+  const skip = ALWAYS_COLS.filter(
+    (c) => !items.some((it) => String(c.get(it) ?? '').trim() !== ''),
+  ).map((c) => c.key);
+  const sameSkip = JSON.stringify(skip) === JSON.stringify(opts.skip || []);
+  if (extra.length === picked.length && showNote === !!opts.showNote && sameSkip) return opts;
+  return { ...opts, extra, showNote, skip };
 }
 
 /** 报价单抬头 + 汇总（Excel / CSV 共用） */
